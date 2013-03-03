@@ -10,8 +10,9 @@ If you just want to use the pre-trained the models, follow these steps (should w
 2. Make sure you have python 2.7 with NLTK and numpy installed (you can check it by typing `import nltk` and `import numpy` in the interpreter). If you lack either of these, get them at http://nltk.org/ and http://www.numpy.org/.
 3. Make sure you have the Punkt sentence tokenizer from NLTK (used to split the text into sentences). Here's how to do it in the interpreter:
 
->>> from nltk import download
->>> download()
+
+        >>> from nltk import download  
+        >>> download()
 
 And then choose the Punkt Tokenizer Models under the Models tab.
 
