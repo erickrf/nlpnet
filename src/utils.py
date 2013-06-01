@@ -141,6 +141,24 @@ def clean_text(text, correct=True):
     return text
 
 
+
+contractible_base = ur'''(?iux)
+    (
+    [ao]s?|                # definite articles
+    um(as?)?|uns|          # indefinite articles
+    is[st]o|aquilo|        # demonstratives
+    es[st][ea]s?|
+    aquel[ea]s?|
+    el[ea]s?|              # personal pronouns
+    outr[oa]s?
+    %s    
+    )
+    $
+    '''
+contractible_de = re.compile(contractible_base % u'|aqui|aí|ali|entre')
+contractible_em = re.compile(contractible_base % '')
+contractible_art = re.compile('[oa]s?')
+
 def contract(w1, w2):
     """
     Makes a contraction of two words.
@@ -150,18 +168,18 @@ def contract(w1, w2):
     w2 = w2.lower()
     contraction = None
     
-    if w1 == 'de':
+    if w1 == 'de' and contractible_de.match(w2):
         contraction = 'd' + w2
-    elif w1 == 'em':
+    elif w1 == 'em' and contractible_em.match(w2):
         contraction = 'n' + w2
-    elif w1 == 'por':
+    elif w1 == 'por' and contractible_art.match(w2):
         contraction = 'pel' + w2
     elif w1 == 'a':
         if w2 in ['o', 'os']:
             contraction = 'a' + w2
         elif w2.startswith('a'):
             contraction = u'à' + w2[1:]
-    elif w1 == 'para':
+    elif w1 == 'para' and contractible_art.match(w2):
         contraction = 'pr' + w2
     elif w1 == 'com':
         if w2 == 'mim':
@@ -174,7 +192,7 @@ def contract(w1, w2):
             contraction = 'conosco'
         elif w2 == u'vós':
             contraction = 'convosco'
-    elif w1 == 'lhe':
+    elif w1 == 'lhe' and contractible_art.match(w2):
         contraction = 'lh' + w2
     elif w1 == "d'":
         contraction = w1 + w2
@@ -271,7 +289,7 @@ def set_features(args, md, text_reader):
             suffix_table = load_features_from_file(config.FILES[md.suffix_features])
         else:
             logger.info("Generating suffix features...")
-            suffix_table = generate_feature_vectors(len(attributes.Suffix.codes) + 1, 
+            suffix_table = generate_feature_vectors(attributes.Suffix.num_suffixes,
                                                     args.suffix)
         feature_tables.append(suffix_table)
     

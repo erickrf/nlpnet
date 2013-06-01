@@ -18,6 +18,13 @@ FILES = {
      'type_features': os.path.join(DIRS['data'], 'types-features.npy'),
      'termvectors': os.path.join(DIRS['data'], 'termvectors.txt'),
      
+     # Language Model
+     'network_lm': os.path.join(DIRS['data'], 'lm-network.npz'),
+     'metadata_lm': os.path.join(DIRS['data'], 'metadata-lm.pickle'),
+     'type_features_lm': os.path.join(DIRS['data'], 'types-features-lm.npy'),
+     'caps_features_lm': os.path.join(DIRS['data'], 'caps-features-lm.npy'),
+     'suffix_features_lm': os.path.join(DIRS['data'], 'suffix-features-lm.npy'),
+     
      # Annotated corpora
      'conll': os.path.join(DIRS['corpora'], 'PBrConst.conll'),
      'conll_test': os.path.join(DIRS['corpora'], 'PBrConst_test.conll'),

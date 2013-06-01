@@ -27,11 +27,14 @@ class MacMorphoReader(TaggerReader):
         if sentences is not None:
             self.sentences = sentences
         else:
-            if filename is None:
-                filename = config.FILES['macmorpho_train']
-
-            with open(filename, 'rb') as f:
-                self.sentences = cPickle.load(f)
+            self.sentences = []
+            
+            if filename is not None:
+                with open(filename, 'rb') as f:
+                    for line in f:
+                        items = unicode(line, 'utf-8').split()
+                        self.sentences.append([item.split('_') for item in items])
+                        
             
             """
             To read sentences from scratch, use the following: 

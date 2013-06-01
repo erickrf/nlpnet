@@ -10,7 +10,7 @@ import numpy as np
 from itertools import izip
 
 import config
-import read_conll
+import read_data
 import attributes
 from reader import TaggerReader
 from utils import clean_text
@@ -23,6 +23,8 @@ class SRLReader(TaggerReader):
         If no sentences argument is given, the reader will read the PropBank
         CoNLL file. If it is given, no reading is necessary (which saves a lot
         of time).
+        @param sentence: a list of tuples in the format (tokens, list of tags, 
+        predicate indices).
         """
         if only_boundaries:
             self.task = 'srl_boundary'
@@ -35,23 +37,33 @@ class SRLReader(TaggerReader):
         self.rare_tag = 'O'
         
         if sentences is None:
-            data_file = config.FILES['conll'] if filename is None else filename
             
-            with open(data_file) as f:
-                sent_data = read_conll.read_sentences(f)
-            sents = [x[0] for x in sent_data]
-            tags = [x[1] for x in sent_data]
-            self.sentences = zip(sents, tags)
+            if filename is not None:
             
-            preds = [x[2] for x in sent_data]
-            self.predicates = [np.array(x) for x in preds]
-            self._clean_text()
-            self._make_contractions()
+                with open(filename) as f:
+                    sent_data = read_data.read_conll(f)
+                sents = [x[0] for x in sent_data]
+                tags = [x[1] for x in sent_data]
+                self.sentences = zip(sents, tags)
+                
+                preds = [x[2] for x in sent_data]
+                self.predicates = [np.array(x) for x in preds]
+                self._clean_text()
+                self._make_contractions()
             
         else:
             self.sentences, self.predicates = sentences
             
         self.codified = False
+    
+    def extend(self, data):
+        """
+        Adds more data to the reader.
+        @param data: a list of tuples in the format (tokens, tags, predicates), 
+        one for each sentence.
+        """
+        self.sentences.extend([(sent, tags) for sent, tags, _ in data])
+        self.predicates.extend([np.array(preds) for _, _, preds in data])
     
     def _clean_text(self):
         """
@@ -212,7 +224,7 @@ class SRLReader(TaggerReader):
     
     def _codify_sentences(self):
         """
-        Internal function.
+        Internal helper function.
         """
         new_sentences = []
         self.tags = []

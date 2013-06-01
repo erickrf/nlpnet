@@ -7,20 +7,15 @@ It employs feature tables to store feature vectors for each token.
 
 import numpy as np
 cimport numpy as np
-cimport cython
 
 cdef class ConvolutionalNetwork(Network):
     
     # transition and distance feature tables
-    cdef public np.ndarray transitions
     cdef readonly np.ndarray target_dist_table, pred_dist_table
     cdef readonly np.ndarray target_dist_weights, pred_dist_weights
     cdef readonly int target_dist_offset, pred_dist_offset
     cdef readonly np.ndarray target_dist_lookup, pred_dist_lookup
     cdef readonly np.ndarray target_dist_deltas, pred_dist_deltas
-    
-    # learning rate for transition table
-    cdef public float learning_rate_trans
     
     # the second hidden layer
     cdef readonly int hidden2_size
@@ -29,14 +24,10 @@ cdef class ConvolutionalNetwork(Network):
     
     # in training, we need to store all the values calculated by each layer during 
     # the classification of a sentence. 
-    cdef readonly np.ndarray input_sent_values, hidden_sent_values, 
     cdef readonly np.ndarray hidden2_sent_values
     
     # maximum convolution indices
     cdef readonly np.ndarray max_indices
-    
-    # the score for a given path
-    cdef readonly float answer_score
     
     # number of targets (all tokens in a sentence or the provided arguments)
     # and variables for argument classifying
@@ -47,7 +38,6 @@ cdef class ConvolutionalNetwork(Network):
     cdef int half_window, features_per_token
     
     # the convolution gradients 
-    cdef readonly np.ndarray net_gradients, trans_gradients
     cdef np.ndarray hidden_gradients, hidden2_gradients
     cdef np.ndarray input_deltas
     
@@ -95,7 +85,31 @@ cdef class ConvolutionalNetwork(Network):
         net.pred_dist_table = pred_dist_table
         
         return net
-            
+    
+    def description(self):
+        """
+        Returns a description of the network.
+        """
+        hidden2_size = 0 if self.hidden2_weights is None else self.hidden2_size
+        table_dims = [str(t.shape[1]) for t in self.feature_tables]
+        table_dims =  ', '.join(table_dims)
+        
+        dist_table_dims = '%d, %d' % (self.target_dist_table.shape[1], self.pred_dist_table.shape[1])
+        
+        desc = """
+Word window size: %d
+Feature table sizes: %s
+Distance table sizes (target and predicate): %s
+Input layer size: %d
+Convolution layer size: %d 
+Second hidden layer size: %d
+Output size: %d
+""" % (self.word_window_size, table_dims, dist_table_dims, self.input_size, self.hidden_size,
+       hidden2_size, self.output_size)
+        
+        return desc
+    
+    
     def __init__(self, word_window, input_size, hidden1_size, hidden2_size,
                  output_size, hidden1_weights, hidden1_bias, target_dist_weights, 
                  pred_dist_weights, hidden2_weights, hidden2_bias, 
@@ -196,18 +210,28 @@ cdef class ConvolutionalNetwork(Network):
         self.only_classify = arguments is not None
         
         print "Training for up to %d epochs" % epochs
+        last_accuracy = 0
+        last_error = np.Infinity 
         
         for i in range(epochs):
             self._train_epoch(sentences, predicates, tags, arguments)
             self.accuracy = float(self.train_hits) / self.total_items
             
             if (epochs_between_reports > 0 and i % epochs_between_reports == 0) \
-                or self.accuracy >= desired_accuracy > 0:
+                or self.accuracy >= desired_accuracy > 0 \
+                or (self.accuracy < last_accuracy and self.error > last_error):
                 
                 self._print_epoch_report(i + 1)
 
                 if self.accuracy >= desired_accuracy > 0:
                     break
+                
+                if self.accuracy < last_accuracy and self.error > last_error:
+                    # accuracy is falling, the network is probably diverging
+                    break
+            
+            last_accuracy = self.accuracy
+            last_error = self.error
         
         self.error = 0
         self.train_hits = 0
@@ -386,16 +410,16 @@ cdef class ConvolutionalNetwork(Network):
             
             if train:
                 self._evaluate(pred_answer, pred_tags)
-                self._calculate_gradients(pred_tags, scores)
-                self._backpropagate(sentence)
-                self._calculate_input_deltas(sentence, predicate, pred_arguments)
-                self._adjust_weights(predicate, pred_arguments)
-                self._adjust_features(sentence, predicate)
-                if not self.only_classify: self._adjust_transitions()
+                if self._calculate_gradients(pred_tags, scores):
+                    self._backpropagate(sentence)
+                    self._calculate_input_deltas(sentence, predicate, pred_arguments)
+                    self._adjust_weights(predicate, pred_arguments)
+                    self._adjust_features(sentence, predicate)
+                    if not self.only_classify: self._adjust_transitions()
                 
             if logprob:
                 if self.only_classify:
-                    raise NotImplementedError('Functionality not implemented for only classifying')
+                    raise NotImplementedError('Confidence measure not implemented for argument classifying')
                 
                 all_scores = self._calculate_all_scores(scores)
                 last_token = len(sentence) - 1
@@ -407,23 +431,14 @@ cdef class ConvolutionalNetwork(Network):
             
         return answer
     
-    def _evaluate(self, answer, tags):
-        """
-        Evaluates the network performance, updating its hits count.
-        """
-        for net_tag, gold_tag in zip(answer, tags):
-            if net_tag == gold_tag:
-                self.train_hits += 1
-        self.total_items += len(tags)
-    
     def _calculate_gradients(self, tags, scores):
         """
         Delegates the call to the appropriate function.
         """
         if self.only_classify:
-            self._calculate_gradients_classify(tags, scores)
+            return self._calculate_gradients_classify(tags, scores)
         else:
-            self._calculate_gradients_all_tokens(tags, scores)
+            return self._calculate_gradients_all_tokens(tags, scores)
     
     def _calculate_gradients_classify(self, tags, scores):
         """
@@ -431,8 +446,10 @@ cdef class ConvolutionalNetwork(Network):
         classifies predelimited arguments.
         The aim is to minimize the cost, for each argument:
         logadd(score for all possible tags) - score(correct tag)
+        Returns whether a correction is necessary or not.
         """
         self.net_gradients = np.zeros_like(scores, np.float)
+        correction = False
         
         for i, tag_scores in enumerate(scores):
             tag = tags[i]
@@ -452,80 +469,12 @@ cdef class ConvolutionalNetwork(Network):
                 self.skips += 1
                 continue
             
+            correction = True
             self.net_gradients[i] = - exponentials / exp_sum
             self.net_gradients[i, tag] += 1
     
-    def _calculate_gradients_all_tokens(self, tags, scores):
-        """
-        Calculates the output and transition deltas for each target.
-        The aim is to minimize the cost:
-        logadd(score for all possible paths) - score(correct path)
-        """
-        cdef np.ndarray[FLOAT_t, ndim=2] all_scores 
-        
-        correct_path_score = 0
-        last_tag = self.output_size
-        for tag, net_scores in izip(tags, scores):
-            correct_path_score += self.transitions[last_tag, tag] + net_scores[tag]
-            last_tag = tag 
-        
-        all_scores = self._calculate_all_scores(scores)
-        self.error += np.log(np.sum(np.exp(all_scores[-1]))) - correct_path_score
-        
-        # initialize gradients
-        self.net_gradients = np.zeros_like(scores, np.float)
-        self.trans_gradients = np.zeros_like(self.transitions, np.float)
-        
-        # things get nasty from here
-        # refer to the papers to understand what exactly is going on
-        
-        # compute the gradients for the last token
-        exponentials = np.exp(all_scores[-1])
-        exp_sum = np.sum(exponentials)
-        self.net_gradients[-1] = -exponentials / exp_sum
-        
-        transitions_t = self.transitions[:-1].T
-        
-        # now compute the gradients for the other tokens, from last to first
-        for token in range(len(scores) - 2, -1, -1):
-            
-            # matrix with the exponentials which will be used to find the gradients
-            # sum the scores for all paths ending with each tag in token "token"
-            # with the transitions from this tag to the next
-            exp_matrix = np.exp(all_scores[token] + transitions_t).T
-            
-            # the sums of exps, used to calculate the softmax
-            # sum the exponentials by column
-            denominators = exp_matrix.sum(0)
-            
-            # softmax is the division of an exponential by the sum of all exponentials
-            # (yields a probability)
-            softmax = exp_matrix / denominators
-            
-            # multiply each value in the softmax by the gradient at the next tag
-            grad_times_softmax = self.net_gradients[token + 1] * softmax
-            self.trans_gradients[:-1, :]  += grad_times_softmax
-            
-            # sum all transition gradients by line to find the network gradients
-            self.net_gradients[token] = np.sum(grad_times_softmax, 1)
-        
-        # find the gradients for the starting transition
-        # there is only one possibility to come from, which is the sentence start
-        self.trans_gradients[-1] = self.net_gradients[0]
-        
-        # now, add +1 to the correct path
-        last_tag = self.output_size
-        for token, tag in enumerate(tags):
-            self.net_gradients[token][tag] += 1
-            self.trans_gradients[last_tag][tag] += 1
-            last_tag = tag
-        
-    def _adjust_transitions(self):
-        """
-        Adjusts the transition scores table with the calculated gradients.
-        """
-        self.transitions += self.trans_gradients * self.learning_rate_trans
-    
+        return correction
+
     def _backpropagate(self, sentence):
         """
         Backpropagates the error gradient.
@@ -536,7 +485,11 @@ cdef class ConvolutionalNetwork(Network):
             
             # the derivative of tanh(x) is 1 - tanh^2(x)
             derivatives = 1 - (self.hidden2_sent_values ** 2)
-            self.hidden2_gradients *= derivatives
+            try:
+                self.hidden2_gradients *= derivatives
+            except:
+                print sentence
+                raise
             
             self.hidden_gradients = self.hidden2_gradients.dot(self.hidden2_weights)
         else:
@@ -693,7 +646,7 @@ cdef class ConvolutionalNetwork(Network):
         for i in range(self.word_window_size):
             
             for j, table in enumerate(self.feature_tables):
-                # this is the column for the i-th token in the window
+                # this is the column for the i-th position in the window
                 # regarding features from the j-th table
                 table_deltas = self.input_deltas[:, start_from:start_from + table.shape[1]]
                 start_from += table.shape[1]
@@ -723,25 +676,6 @@ cdef class ConvolutionalNetwork(Network):
         
         self._create_target_lookup()
         self._create_pred_lookup()
-    
-    def _calculate_all_scores(self, scores):
-        """
-        Calculates a matrix with the scores for all possible paths at all given
-        points (tokens).
-        In the returning matrix, all_scores[i][j] means the sum of all scores 
-        ending in token i with tag j
-        """
-        # logadd for first token. the transition score of the starting tag must be used.
-        # it turns out that logadd = log(exp(score)) = score
-        scores[0] += self.transitions[-1]
-        
-        # logadd for the following tokens
-        transitions = self.transitions[:-1].T
-        for token, _ in enumerate(scores[1:], 1):
-            logadd = np.log(np.sum(np.exp(scores[token - 1] + transitions), 1))
-            scores[token] += logadd
-            
-        return scores
     
     @cython.boundscheck(False)
     def _viterbi(self, np.ndarray[FLOAT_t, ndim=2] scores, bool allow_repeats=True):

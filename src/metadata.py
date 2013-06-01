@@ -70,7 +70,18 @@ class Metadata(object):
             self.pos_features = 'pos_features_%s' % task
             self.chunk_features = 'chunk_features_%s' % task
             self.suffix_features = 'suffix_features_%s' % task
-            
+    
+    def __str__(self):
+        """
+        Shows the task at hand and which attributes are used.
+        """
+        lines = []
+        lines.append("Metadata for task %s" % self.task)
+        for k in self.__dict__:
+            if isinstance(k, str) and k.startswith('use_'):
+                lines.append('%s: %s' % (k, self.__dict__[k]))
+        
+        return '\n'.join(lines)
     
     def save_to_file(self): 
         """

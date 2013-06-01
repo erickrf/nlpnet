@@ -4,12 +4,10 @@
 Script for argument parsing and a few verifications.
 """
 
-import logging
 import argparse
-import sys
 
 # Tasks performed: part-of-speech tagging and semantic role labeling
-TASKS = set(['pos', 'srl'])
+TASKS = set(['pos', 'srl', 'lm'])
 
 class ArgumentError(Exception):
     """
@@ -79,7 +77,10 @@ def get_args():
     parser.add_argument('--pred_features', type=int, default=5,
                         help='Number of features for distance to predicate (SRL only)')
     parser.add_argument('--task', help='Task for which the network should be used.',
-                        type=str, choices=TASKS)
+                        type=str, choices=TASKS, required=True)
+    parser.add_argument('--semi', help='Perform semi-supervised training. Supply the name of the file with automatically tagged data.',
+                        type=str, default='')
+    parser.add_argument('--data', help='File with annotated data for training.', type=str, default=None)
     
     args = parser.parse_args()
     
@@ -98,6 +99,10 @@ def check_arguments(args):
             args.task = 'srl_boundary'
         elif args.predicates:
             args.task = 'srl_predicates'
+    
+#    if args.semi and args.task != 'srl_boundary':
+#        print args.task
+#        raise ArgumentError('Semi supervised training only implemented for SRL boundary detection.') 
     
     return args
 

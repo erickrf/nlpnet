@@ -12,10 +12,11 @@ from itertools import izip
 import utils
 import config
 import attributes
+import read_data
 from metadata import Metadata
 from pos.macmorphoreader import MacMorphoReader
 from srl.srl_reader import SRLReader
-from nlpnet import Network, ConvolutionalNetwork
+from nlpnet import Network, ConvolutionalNetwork, LanguageModel
 
 def interactive_running(network_caller):
     """
@@ -63,14 +64,25 @@ def tag_text(text, tagger):
 def print_tags(data):
     """
     Prints text with its corresponding tags, as returned by the networks.
+    @param data: a list of (sentence, tags) tuples. A sentence is a list of tokens,
+    and the tags depend on the task. In POS, they are a simple list, and in SRL, 
+    they are a tuple (predicates, tags), where there is one tag list for each 
+    predicate. 
     """
     # each item in the data corresponds to a sentence
     for sent in data:
         actual_sent, tags = sent
+        # get the length of the longer token to have a nice formatting
+        max_len_token = max(len(token) for token in actual_sent)
+        format_str = u'{:<%d}' % (max_len_token + 1)
+        actual_sent = [format_str.format(token) for token in actual_sent]
         
         # in srl, the first element of the tags contains the verbs
         if isinstance(tags, tuple):
             verbs, srl_tags = tags
+            max_len_verb = max(len(token) for token in verbs)
+            format_str = u'{:<%d}' % (max_len_verb + 1)
+            verbs = [format_str.format(verb) for verb in verbs]
             
             # the asterisk tells izip to treat the elements in the list as separate arguments
             the_iter = izip(actual_sent, verbs, *srl_tags)
@@ -78,14 +90,7 @@ def print_tags(data):
             the_iter = izip(actual_sent, tags)
         
         for token_and_tags in the_iter:
-            
-            # have additional space for the token, ir order to keep things aligned
-            token = token_and_tags[0]
-            token = '{:<20}'.format(token.encode('utf-8'))
-            
-            tags = '\t'.join(token_and_tags[1:]).encode('utf-8')
-            
-            print '%s\t%s' % (token, tags)
+            print '\t'.join(token_and_tags).encode('utf-8')
             
         # linebreak after each sentence
         print
@@ -98,7 +103,7 @@ def load_network(md):
     is_srl = md.task.startswith('srl') and md.task != 'srl_predicates'
     
     logger.info('Loading network')
-    net_class = ConvolutionalNetwork if is_srl else Network
+    net_class = ConvolutionalNetwork if is_srl else LanguageModel if md.task == 'lm' else Network
     nn = net_class.load_from_file(config.FILES[md.network])
     
     logger.info('Loading features')
@@ -124,32 +129,7 @@ def load_network(md):
     return nn
 
 
-def create_reader_pos(gold=False):
-    """
-    Creates a TextReader object ready for POS.
-    """
-    if gold:
-        pos_reader = MacMorphoReader(filename=config.FILES['macmorpho_test'])
-    else:
-        pos_reader = MacMorphoReader([])
-    return pos_reader
-
-def create_reader_srl(gold=False, only_boundaries=False, only_classify=False,
-                      only_predicates=False):
-    """
-    Creates a simple TextReader object ready for SRL.
-    """
-    if gold:
-        reader = SRLReader(filename=config.FILES['conll_test'], only_boundaries=only_boundaries,
-                           only_classify=only_classify, only_predicates=only_predicates)
-    else:
-        reader = SRLReader([[], []], only_boundaries=only_boundaries, only_classify=only_classify,
-                           only_predicates=only_predicates)
-        
-    return reader
-    
-
-def create_reader(md, gold):
+def create_reader(md, gold_file=None):
     """
     Creates a TextReader object for the given task and loads its dictionary.
     """
@@ -157,12 +137,15 @@ def create_reader(md, gold):
     logger.info('Loading text reader...')
     
     if md.task == 'pos':
-        tr = create_reader_pos(gold)
+        tr = MacMorphoReader(filename=gold_file)
         tr.load_tag_dict()
+        
     elif md.task.startswith('srl'):
-        tr = create_reader_srl(gold, md.task == 'srl_boundary', md.task == 'srl_classify',
-                               md.task == 'srl_predicates')
+        tr = SRLReader(filename=gold_file, only_boundaries= (md.task == 'srl_boundary'),
+                       only_classify= (md.task == 'srl_classify'), 
+                       only_predicates= (md.task == 'srl_predicates'))
         tr.load_tag_dict()
+            
     else:
         raise ValueError("Unknown task: %s" % md.task)
     
@@ -235,7 +218,7 @@ def get_predicate_finder():
     # load the predicate finder network and reader
     md = Metadata.load_from_file('srl_predicates')
     nn = load_network(md)
-    reader = create_reader(md, gold=False)
+    reader = create_reader(md, gold_file=None)
     
     def predicate_finder(sentence):
         sent_codified = np.array([reader.converter.convert(token) for token in sentence])
@@ -253,13 +236,13 @@ def tag_srl(no_repeats=False):
     # load boundary identification network and reader 
     md_boundary = Metadata.load_from_file('srl_boundary')
     nn_boundary = load_network(md_boundary)
-    reader_boundary = create_reader(md_boundary, False)
+    reader_boundary = create_reader(md_boundary)
     itd_boundary = reader_boundary.get_inverse_tag_dictionary()
     
     # same for arg classification
     md_classify = Metadata.load_from_file('srl_classify')
     nn_classify = load_network(md_classify)
-    reader_classify = create_reader(md_classify, False)
+    reader_classify = create_reader(md_classify)
     itd_classify = reader_classify.get_inverse_tag_dictionary()
     
     pred_finder = get_predicate_finder()
@@ -287,7 +270,7 @@ def tag_pos(heuristics=False, interactive=True):
     # load the POS network and reader
     md = Metadata.load_from_file('pos')
     nn = load_network(md)
-    reader = create_reader(md, gold=False)
+    reader = create_reader(md)
     
     itd = reader.get_inverse_tag_dictionary()
     
@@ -307,7 +290,7 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
     parser.add_argument('--task', help='Task for which the network should be used.', 
-                        type=str, default='pos', choices=['srl', 'pos'])
+                        type=str, required=True, choices=['srl', 'pos'])
     parser.add_argument('-v', help='Verbose mode', action='store_true', dest='verbose')
     parser.add_argument('--no-repeat', dest='no_repeat', action='store_true',
                         help='Forces the classification step to avoid repeated argument labels (SRL only).')

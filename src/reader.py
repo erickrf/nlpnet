@@ -11,21 +11,30 @@ import numpy as np
 from collections import Counter
 
 import config
-import utils
 from word_dictionary import WordDictionary
 import attributes
-from attributes import get_capitalization, get_suffix
+from attributes import get_capitalization
 
 class TextReader(object):
     
-    def __init__(self, text=None):
+    def __init__(self, sentences=None, filename=None):
         """
-        @param text: a text from where data is to be extracted. It must be a sequence 
-        of sequences of tokens.
+        @param sentences: A list of lists of tokens.
+        @param filename: Alternatively, the name of the file from where sentences 
+        can be read. The file should have one sentence per line, with tokens
+        separated by white spaces.
         """
-        self.sentences = text
+        if sentences is not None:
+            self.sentences = sentences
+        else:
+            self.sentences = []
+            with open(filename, 'rb') as f:
+                for line in f:
+                    sentence = unicode(line, 'utf-8').split()
+                    self.sentences.append(sentence)
+                    
         self.converter = None
-        self.task = ''
+        self.task = 'lm'
     
     def add_text(self, text):
         """
@@ -36,7 +45,7 @@ class TextReader(object):
     
     def load_dictionary(self, filename=config.FILES['word_dict_dat']):
         """
-        Reads a dictionary from a cPickled file.
+        Reads a dictionary from a pickled file.
         """
         logger = logging.getLogger("Logger")
         logger.info("Loading provided dictionary...")
@@ -66,8 +75,8 @@ class TextReader(object):
         """
         logger = logging.getLogger("Logger")
         
-        with open(config.FILES['word_dict_dat'], 'w') as f:
-            cPickle.dump(self.word_dict, f)
+        with open(config.FILES['word_dict_dat'], 'wb') as f:
+            cPickle.dump(self.word_dict, f, 2)
             
         logger.info("Dictionary saved in %s" % config.FILES['word_dict_dat'])
     
@@ -93,7 +102,8 @@ class TextReader(object):
         if metadata.use_caps:
             self.converter.add_extractor(get_capitalization)
         if metadata.use_suffix:
-            self.converter.add_extractor(get_suffix)
+            attributes.Suffix.load_suffixes()
+            self.converter.add_extractor(attributes.Suffix.get_suffix)
     
 
 class TaggerReader(TextReader):

@@ -8,11 +8,10 @@ from collections import Counter, defaultdict
 
 import config
 import utils
-from nlpnet import Network, ConvolutionalNetwork
 from run import load_network, create_reader, run_2_steps, get_predicate_finder
 from metadata import Metadata
 
-def evaluate_pos(heuristics=False, wordlist=None):
+def evaluate_pos(heuristics=False, wordlist=None, gold_file=None, oov=None):
     """
     Tests the network for tagging a given sequence.
     @param heuristics: whether to use hand-crafted heuristics or not.
@@ -20,22 +19,38 @@ def evaluate_pos(heuristics=False, wordlist=None):
     """
     md = Metadata.load_from_file('pos')
     nn = load_network(md)
-    pos_reader = create_reader(md, gold=True)
+    pos_reader = create_reader(md, gold_file=gold_file)
+    itd = pos_reader.get_inverse_tag_dictionary()
     
     logger = logging.getLogger("Logger")
     logger.info('Starting test...')
     hits = 0
     total = 0
-    pos_reader.codify_sentences()
+    #pos_reader.codify_sentences()
     
-    for sent, tags in izip(pos_reader.sentences, pos_reader.tags):
-        answer = nn.tag_sentence(sent)
+    for sent in pos_reader.sentences:
         
-        for net_tag, gold_tag in zip(answer, tags):    
-            if net_tag == gold_tag:
+        tokens, tags = zip(*sent)
+        sent_codified = np.array([pos_reader.converter.convert(t) for t in tokens])
+        answer = nn.tag_sentence(sent_codified)
+        if oov is not None:
+            iter_sent = iter(tokens)
+        
+        for net_tag, gold_tag in zip(answer, tags):
+            
+            if oov is not None:
+                # only check oov words
+                word = iter_sent.next()
+                if word.lower() not in oov:
+                    continue
+                
+            
+            if itd[net_tag] == gold_tag:
                 hits += 1
-            total += 1
-         
+            
+            total += 1                
+        
+    print '%d hits out of %d' % (hits, total)
     accuracy = float(hits) / total
     logger.info('Done.')
     return accuracy
@@ -163,14 +178,14 @@ def sentence_recall(network_tags, gold_tags, gold_tag_dict, network_tag_dict):
     
     return (correct_args, existing_args)
 
-def evaluate_srl_classify(no_repeat=False):
+def evaluate_srl_classify(no_repeat=False, gold_file=None):
     """
     Evaluates the performance of the network on the SRL classifying task.
     """
     # load data
     md = Metadata.load_from_file('srl_classify')
     nn = load_network(md)
-    r = create_reader(md, True)
+    r = create_reader(md, gold_file)
     r.create_converter(md)
     
     r.codify_sentences()
@@ -239,20 +254,20 @@ def prop_conll(verbs, props, sent_length):
     result = '%s\n' % '\n'.join(lines) 
     return result.encode('utf-8')
         
-def evaluate_srl_2_steps(no_repeat=False, find_preds_automatically=False):
+def evaluate_srl_2_steps(no_repeat=False, find_preds_automatically=False, gold_file=None):
     """
     Prints the output of a 2-step SRL system in CoNLL style for evaluating.
     """
     # load boundary identification network and reader 
     md_boundary = Metadata.load_from_file('srl_boundary')
     nn_boundary = load_network(md_boundary)
-    reader_boundary = create_reader(md_boundary, True)
+    reader_boundary = create_reader(md_boundary, gold_file)
     itd_boundary = reader_boundary.get_inverse_tag_dictionary()
     
     # same for arg classification
     md_classify = Metadata.load_from_file('srl_classify')
     nn_classify = load_network(md_classify)
-    reader_classify = create_reader(md_classify, True)
+    reader_classify = create_reader(md_classify, gold_file)
     itd_classify = reader_classify.get_inverse_tag_dictionary()
     
     if find_preds_automatically:
@@ -275,14 +290,14 @@ def evaluate_srl_2_steps(no_repeat=False, find_preds_automatically=False):
         
         print prop_conll(verbs, tags, len(sent))
 
-def evaluate_srl_1step(find_preds_automatically=False):
+def evaluate_srl_1step(find_preds_automatically=False, gold_file=None):
     """
     Evaluates the network on the SRL task performed with one step for
     id + class.
     """
     md = Metadata.load_from_file('srl')
     nn = load_network(md)
-    r = create_reader(md, gold=True)
+    r = create_reader(md, gold_file=gold_file)
     
     itd = r.get_inverse_tag_dictionary()
     
@@ -310,14 +325,14 @@ def evaluate_srl_1step(find_preds_automatically=False):
             
         print prop_conll(verbs, tags, len(actual_sent))
         
-def evaluate_srl_predicates():
+def evaluate_srl_predicates(gold_file):
     """
     Evaluates the performance of the network on the SRL task for the
     predicate detection subtask.
     """
     md = Metadata.load_from_file('srl_predicates')
     nn = load_network(md)
-    reader = create_reader(md, gold=True)
+    reader = create_reader(md, gold_file=gold_file)
     reader.codify_sentences()
     
     total_tokens = 0
@@ -349,14 +364,14 @@ true negatives: %d, false negatives: %d' % (tp, fp, tn, fn)
     print 'F-1: %f' % (2 * precision * recall / (precision + recall))
     
     
-def evaluate_srl_identify():
+def evaluate_srl_identify(gold_file):
     """
     Evaluates the performance of the network on the SRL task for the 
     argument boundaries identification subtask
     """
     md = Metadata.load_from_file('srl_boundary')
     nn = load_network(md)
-    srl_reader = create_reader(md, gold=True)
+    srl_reader = create_reader(md, gold_file=gold_file)
     
     net_itd = srl_reader.get_inverse_tag_dictionary()
     srl_reader.load_tag_dict(config.FILES['srl_iob_tag_dict'])
@@ -408,12 +423,21 @@ def evaluate_srl_identify():
         # - if the network never tagged a given argument, its precision is 100% (it never made a mistake)
                 
         print '%s\t\t%f' % (arg, rec)
+
+def read_oov_words():
+    words = set()
+    with open('oov.txt', 'rb') as f:
+        for line in f:
+            uline = unicode(line, 'utf-8').strip()
+            words.add(uline)
     
+    return words
+
 if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
     parser.add_argument('--task', help='Task for which the network should be used.', 
-                        type=str, default='pos', choices=['srl', 'pos'])
+                        type=str, required=True, choices=['srl', 'pos'])
     parser.add_argument('-v', help='Verbose mode', action='store_true', dest='verbose')
     parser.add_argument('--id', help='Evaluate only argument identification (SRL only)',
                         action='store_true', dest='identify')
@@ -426,6 +450,8 @@ if __name__ == '__main__':
                         help='Forces the classification step to avoid repeated argument labels (2 step SRL only).')
     parser.add_argument('--auto-pred', dest='auto_pred', action='store_true',
                         help='Determines SRL predicates automatically using a POS tagger.')
+    parser.add_argument('--data', help='File with gold standard data', type=str, required=True)
+    parser.add_argument('--oov', help='Analyze performance on OOV data', action='store_true')
     args = parser.parse_args()
     
     if args.identify:
@@ -440,19 +466,28 @@ if __name__ == '__main__':
     logger = logging.getLogger("Logger")
     
     if args.task == 'pos':
-        accuracy = evaluate_pos(False)
+        
+        if args.oov:
+            oov = read_oov_words()
+        else:
+            oov = None
+                    
+        accuracy = evaluate_pos(False, gold_file=args.data, oov=oov)
         print "Accuracy: %f" % accuracy
     
     elif args.task.startswith('srl'):
         
+        if args.oov:
+            logger.error('OOV not implemented for SRL.')
+        
         if args.two_steps:
-            evaluate_srl_2_steps(args.no_repeat, args.auto_pred)
+            evaluate_srl_2_steps(args.no_repeat, args.auto_pred, args.data)
         elif args.classify:
-            evaluate_srl_classify(args.no_repeat)
+            evaluate_srl_classify(args.no_repeat, args.data)
         elif args.identify:
-            evaluate_srl_identify()
+            evaluate_srl_identify(args.data)
         elif args.predicates:
-            evaluate_srl_predicates()
+            evaluate_srl_predicates(args.data)
         else:
-            evaluate_srl_1step(args.auto_pred)
+            evaluate_srl_1step(args.auto_pred, args.data)
         

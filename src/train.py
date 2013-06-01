@@ -10,11 +10,14 @@ import logging
 import numpy as np
 
 import config
-from nlpnet import Network, ConvolutionalNetwork
+import read_data
 import utils
+import run
 import metadata
 import srl.train_srl
-import pos.train_pos
+import pos
+from reader import TextReader
+from nlpnet import Network, ConvolutionalNetwork, LanguageModel
 from arguments import get_args, check_arguments
 
 
@@ -28,21 +31,35 @@ def create_reader(args):
     """
     logger.info("Reading text...")
     if args.task == 'pos':
-        text_reader = pos.train_pos.create_reader_pos()
+        text_reader = pos.macmorphoreader.MacMorphoReader(filename=args.data)
+        text_reader.load_tag_dict()
+    
+    elif args.task == 'lm':
+        text_reader = TextReader(filename=args.data)
 
     elif args.task.startswith('srl'):
         text_reader = srl.train_srl.create_reader_srl(args)
+        text_reader = srl.srl_reader.SRLReader(filename=args.data, only_boundaries=args.identify, 
+                                               only_classify=args.classify,
+                                               only_predicates=args.predicates)
     
         if args.identify:
             text_reader.convert_tags('iobes', only_boundaries=True)
+            
+        if args.semi:
+            # load data for semi supervised learning
+            data = read_data.read_plain_srl(args.semi)
+            text_reader.extend(data)
+            
         elif not args.classify:
             # this is SRL as one step, we use IOB
             text_reader.convert_tags('iob')
+        
+        text_reader.load_tag_dict()
     
     else:
         raise ValueError("Unknown task: %s" % args.task)
-
-    text_reader.load_tag_dict()
+    
     text_reader.load_dictionary()
     return text_reader
     
@@ -51,9 +68,10 @@ def create_network(args, text_reader, feature_tables, md=None):
     """
     Creates and returns the neural network according to the task at hand.
     """
-    num_tags = len(text_reader.tag_dict)
+    logger = logging.getLogger("Logger")
     
     if args.task.startswith('srl') and args.task != 'srl_predicates':
+        num_tags = len(text_reader.tag_dict)
         distance_tables = utils.set_distance_features(md, args.max_dist, args.target_features,
                                                       args.pred_features)
         nn = ConvolutionalNetwork.create_new(feature_tables, distance_tables[0], 
@@ -72,8 +90,20 @@ def create_network(args, text_reader, feature_tables, md=None):
             transitions = srl.train_srl.init_transitions(text_reader.tag_dict, 'iob')
             nn.transitions = transitions
             nn.learning_rate_trans = args.learning_rate_transitions
+    
+    elif args.task == 'lm':
+        nn = LanguageModel.create_new(feature_tables, args.window, args.hidden)
+        padding_left = text_reader.converter.get_padding_left(tokens_as_string=True)
+        padding_right = text_reader.converter.get_padding_right(tokens_as_string=True)
+        
     else:
+        num_tags = len(text_reader.tag_dict)
         nn = Network.create_new(feature_tables, args.window, args.hidden, num_tags)
+        if args.learning_rate_transitions > 0:
+            transitions = np.zeros((num_tags + 1, num_tags), np.float)
+            nn.transitions = transitions
+            nn.learning_rate_trans = args.learning_rate_transitions
+
         padding_left = text_reader.converter.get_padding_left(args.task == 'pos')
         padding_right = text_reader.converter.get_padding_right(args.task == 'pos')
     
@@ -82,7 +112,9 @@ def create_network(args, text_reader, feature_tables, md=None):
     nn.learning_rate = args.learning_rate
     nn.learning_rate_features = args.learning_rate_features
     
-    if args.convolution > 0 and args.hidden > 0:
+    if args.task == 'lm':
+        layer_sizes = (nn.input_size, nn.hidden_size, 1)
+    elif args.convolution > 0 and args.hidden > 0:
         layer_sizes = (nn.input_size, nn.hidden_size, nn.hidden2_size, nn.output_size)
     else:
         layer_sizes = (nn.input_size, nn.hidden_size, nn.output_size)
@@ -108,22 +140,40 @@ def save_features(nn, md):
     if md.use_pos: utils.save_features_to_file(iter_tables.next(), config.FILES[md.pos_features])
     if md.use_chunk: utils.save_features_to_file(iter_tables.next(), config.FILES[md.chunk_features])
     
-def load_network(args, text_reader, tables, md):
+def load_network_train(args, md):
     """
     Loads and returns a neural network with all the necessary data.
     """
-    is_srl = md.task.startswith('srl') and md.task != 'srl_predicates'
-    net_class = ConvolutionalNetwork if is_srl else Network
-    nn = net_class.load_from_file(config.FILES[md.network])
+    nn = run.load_network(md)
     
-    if is_srl:
-        nn.learning_rate_trans = args.learning_rate_transitions
+    logger.info("Loaded network with following parameters:")
+    logger.info(nn.description())
     
-    nn.feature_tables = tables
     nn.learning_rate = args.learning_rate
     nn.learning_rate_features = args.learning_rate_features
+    if md.task != 'lm':
+        nn.learning_rate_trans = args.learning_rate_transitions
     
     return nn
+
+def train(reader, args):
+    """
+    Trains a neural network for the selected task.
+    """
+    intervals = max(args.iterations / 200, 1)
+    np.seterr(over='raise')
+    
+    if args.task.startswith('srl') and args.task != 'srl_predicates':
+        arg_limits = None if args.task != 'srl_classify' else text_reader.arg_limits
+        
+        nn.train(text_reader.sentences, text_reader.predicates, text_reader.tags, 
+                 args.iterations, intervals, args.accuracy, arg_limits)
+    elif args.task == 'lm':
+        nn.train(text_reader.sentences, args.iterations, intervals)
+    else:
+        nn.train(text_reader.sentences, text_reader.tags, 
+                 args.iterations, intervals, args.accuracy)
+
 
 
 if __name__ == '__main__':
@@ -154,24 +204,16 @@ if __name__ == '__main__':
     
     feature_tables = utils.set_features(args, md, text_reader)
     
-    if args.load_network:
+    if args.load_network or args.semi:
         logger.info("Loading provided network...")
-        nn = load_network(args, text_reader, feature_tables, md)
-        logger.info("Done")
+        nn = load_network_train(args, md)
     else:
+        logger.info('Creating new network...')
         nn = create_network(args, text_reader, feature_tables, md)
     
-    intervals = max(args.iterations / 50, 1)
+    logger.info("Starting training with %d sentences" % len(text_reader.sentences))
     
-    logger.info("Starting training...")
-    if args.task.startswith('srl') and args.task != 'srl_predicates':
-        arg_limits = None if args.task != 'srl_classify' else text_reader.arg_limits
-        
-        nn.train(text_reader.sentences, text_reader.predicates, text_reader.tags, 
-                 args.iterations, intervals, args.accuracy, arg_limits)
-    else:
-        nn.train(text_reader.sentences, text_reader.tags, 
-                 args.iterations, intervals, args.accuracy)
+    train(text_reader, args)
     
     logger.info("Saving trained models...")
     save_features(nn, md)
@@ -180,3 +222,6 @@ if __name__ == '__main__':
     nn.save(nn_file)
     logger.info("Saved network to %s" % nn_file)
     
+
+
+

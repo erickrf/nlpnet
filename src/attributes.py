@@ -2,6 +2,7 @@
 
 import logging
 import numpy as np
+import re
 from collections import Counter
 
 import config
@@ -40,20 +41,62 @@ class Suffix(object):
     Dummy class for manipulating suffixes and their related codes.
     """
     codes = {}
+    # words smaller than the suffix size
+    small_word = 0
+    other = 1
+    num_suffixes = 2
+    
     @classmethod
-    def init(cls):
-        # loads the listed suffixes
-        code = 1
+    def load_suffixes(cls):
+        """
+        loads the listed suffixes from the suffix file.
+        """
+        Suffix.codes = {}
+        code = Suffix.other + 1
         logger = logging.getLogger("Logger")
         try:
-            with open(config.FILES['suffixes']) as f:
+            with open(config.FILES['suffixes'], 'rb') as f:
                 for line in f:
                     suffix = unicode(line.strip(), 'utf-8')
                     Suffix.codes[suffix] = code
                     code += 1
+            Suffix.suffix_size = len(suffix)
+            Suffix.num_suffixes = code 
         except IOError:
             logger.warning('Suffix list doesn\'t exist.')
+            raise
+    
+    @classmethod
+    def create_suffix_list(cls, wordlist, num, size, min_occurrences):
+        """
+        Creates a file containing the list of the most common suffixes found in 
+        wordlist.
+        @param wordlist: a list of word types (there shouldn't be repetitions)
+        @param num: maximum number of suffixes
+        @param size: desired size of suffixes
+        @param min_occurrences: minimum number of occurrences of each suffix
+        in wordlist
+        """
+        all_endings = [x[-size:] for x in wordlist 
+                       if len(x) > size
+                       and not re.search('_|\d', x[-size:])]
+        c = Counter(all_endings)
+        common_endings = c.most_common(num)
+        suffix_list = [e for e, n in common_endings if n >= min_occurrences]
+        
+        with open(config.FILES['suffixes'], 'wb') as f:
+            for suffix in suffix_list:
+                f.write('%s\n' % suffix.encode('utf-8'))
 
+    @classmethod
+    def get_suffix(cls, word):
+        """
+        Returns the suffix code for the given word.
+        """
+        if len(word) < Suffix.suffix_size: return Suffix.small_word
+        
+        suffix = word[-Suffix.suffix_size:]
+        return Suffix.codes.get(suffix.lower(), Suffix.other)
 
 class TokenConverter(object):
     
@@ -121,17 +164,6 @@ def get_capitalization(word):
     
     return Caps.other
 
-
-def get_suffix(word):
-    """
-    Returns a number corresponding to the last few letters of a word.
-    """
-    if len(word) > 3:
-        ending = word[-3:]
-        return Suffix.codes.get(ending, 0)
-    return 0
-    
-
 def capitalize(word, capitalization):
     """
     Capitalizes the word in the desired format. If the capitalization is 
@@ -148,32 +180,8 @@ def capitalize(word, capitalization):
     else:
         raise ValueError("Unknown capitalization type.")
 
-def build_suffix_list(wordlist, num=40, max_size=3):
-    suffix_list = common_suffixes(wordlist, max_size, num)
-    with open(config.FILES['suffixes'], 'wb') as f:
-        for suffix in suffix_list:
-            f.write('%s\n' % suffix.encode('utf-8'))
 
-def common_suffixes(wordlist, size, num):
-    """
-    Returns the most common suffixes with a given size
-    in the wordlist.
-    """
-    logger = logging.getLogger('Logger')
-    endings = [x[-size:] for x in wordlist 
-               if len(x) > size
-               and '_' not in x[-size:]]
-    c = Counter(endings)
-    top = c.most_common(num)
-    suffixes = [x[0] for x in top]
-    occurrences = [x[1] for x in top]
-
-    logger.info('%d occurrences for the most common suffix. %d for the least common' % (occurrences[0], occurrences[-1]))
-    logger.info('%d occurences per suffix in average' % float(sum(occurrences)/len(occurrences)))
+if __name__ == '__main__':
+    pass
     
-    return suffixes
-
-# initializes suffix data
-#Suffix.init()
-
 
