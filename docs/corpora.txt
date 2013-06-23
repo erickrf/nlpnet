@@ -1,0 +1,21 @@
+In the directory data/corpora/, there is a zipped file containing the PropBank-Br and Mac-Morpho corpora, both divided in training and testing. The former was used to train the SRL annotator, and the latter, the POS tagger. 
+
+PropBank-Br
+===========
+
+This version of PropBank-Br was converted from XML to CoNLL format, and a few errors typographical were corrected. The file has one token per line, with sentences separated by an empty line. It is organized in columns which have the following meaning:
+1) Token number in the sentence
+2) Token itself
+3) Lemma
+4) Part-of-speech
+5) Morphological information (gender, number, tense, etc.)
+6) Sentence boundary (not actually annotated)
+7) Clause boundary (not actually annotated)
+8) Syntactic tree
+9) The token is repeated if it is a predicate, "-" otherwise
+10+) The SRL tag for each predicate
+
+Mac-Morpho
+==========
+
+This version of Mac-Morpho is contained in a single file for training and another for testing, unlike the original distribution. Many errors were corrected and many sentences were discarded, providing a more reliable resource. Also unlike the original, each line contains a sentence, and POS tags are appended to tokens after a "_".

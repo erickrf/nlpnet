@@ -16,20 +16,24 @@ If you just want to use the pre-trained the models, follow these steps (should w
 
 And then choose the Punkt Tokenizer Models under the Models tab.
 
-4. Run run.py from the command line:
+Now run run.py from the command line:
 
-$ python run.py --task pos|srl
+$ python run.py --task [TASK]
 
-Providing the desired task (pos or srl) as an argument. The system works interactively, but you may provide an input and/or output file using the standard syntax:
+Where [TASK] means either pos or srl. The system works interactively, but you may provide an input and/or output file using the standard syntax:
 
-$ python run.py --task pos|srl < input.txt > output.txt
+$ python run.py --task [TASK] < input.txt > output.txt
 
 Note that the system expects and returns text in UTF-8, so be sure to use this encoding. You may also run run.py with the -h flag to see more optional arguments. If you have any problem with the nlpnet module, see the section below -- perhaps you'll have to recompile it.
 
 COMPILING THE NLPNET MODULE
 ===========================
 
-The nlpnet module, which includes the actual neural networks, is written in Cython, a superset of Python for easily building C extensions. It's composed of two files: nlpnet.pyx and nlpnetconv.pyx. The pre-compiled version of the modules is already included to make it easier for users, but if you need or want it, you can compile from source. You will need Cython (get it from http://www.cython.org/) and a C compiler (by default, it will need Microsoft Visual Studio in Windows). You can compile the module with:
+The nlpnet module, which includes the actual neural networks, is written in Cython, a superset of Python for easily building C extensions. It is contained in the binary file nlpnet.so (in Linux) or nlpnet.pyd (in Windows). A pre-compiled version of the modules (for 64 bits) is already included to make it easier for users. If you need or want it (you will need if you are using a 32 bits Python interpreter), you can compile from source. You will need Cython (get it from http://www.cython.org/) and a C compiler. 
+
+N.B.: By default, it will need Microsoft Visual Studio in Windows, but generally running gcc under mingw is easier. See http://wiki.cython.org/InstallingOnWindows. 
+
+After installing Cython, you can compile the nlpnet module with:
 
 $ python setup.py build_ext --inplace
 
