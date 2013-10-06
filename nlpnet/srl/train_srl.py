@@ -10,9 +10,9 @@ import numpy as np
 from itertools import izip
 from collections import defaultdict
 
-import config
-import utils
-from srl import srl_reader
+from .. import config
+from .. import utils
+import srl_reader
 
 def load_srl_sentences():
     """

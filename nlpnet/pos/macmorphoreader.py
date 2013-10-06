@@ -4,7 +4,7 @@
 Class for dealing with POS data from MacMorpho.
 """
 
-from reader import TaggerReader
+from ..reader import TaggerReader
 
 class MacMorphoReader(TaggerReader):
     """

@@ -5,7 +5,7 @@ Auxiliary functions for POS tagging training and
 corpus reading.
 """
 
-from pos.macmorphoreader import MacMorphoReader
+from macmorphoreader import MacMorphoReader
 
 def create_reader_pos():
     """

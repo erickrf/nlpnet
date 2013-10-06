@@ -17,7 +17,7 @@ import metadata
 import srl.train_srl
 import pos
 from reader import TextReader
-from nlpnet import Network, ConvolutionalNetwork, LanguageModel
+from network import Network, ConvolutionalNetwork, LanguageModel
 from arguments import get_args, check_arguments
 
 

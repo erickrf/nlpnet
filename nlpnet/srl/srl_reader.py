@@ -9,11 +9,11 @@ import cPickle
 import numpy as np
 from itertools import izip
 
-import config
-import read_data
-import attributes
-from reader import TaggerReader
-from utils import clean_text
+from .. import config
+from .. import read_data
+from .. import attributes
+from ..reader import TaggerReader
+from ..utils import clean_text
 
 class SRLReader(TaggerReader):
     

@@ -14,7 +14,7 @@ import attributes
 from metadata import Metadata
 from pos.macmorphoreader import MacMorphoReader
 from srl.srl_reader import SRLReader
-from nlpnet import Network, ConvolutionalNetwork, LanguageModel
+from network import Network, ConvolutionalNetwork, LanguageModel
 
 def load_network(md):
     """
