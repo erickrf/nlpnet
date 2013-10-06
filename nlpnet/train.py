@@ -12,7 +12,7 @@ import numpy as np
 import config
 import read_data
 import utils
-import tagger
+import taggers
 import metadata
 import srl.train_srl
 import pos
@@ -142,7 +142,7 @@ def save_features(nn, md):
     
 def load_network_train(args, md):
     """Loads and returns a neural network with all the necessary data."""
-    nn = tagger.load_network(md)
+    nn = taggers.load_network(md)
     
     logger.info("Loaded network with following parameters:")
     logger.info(nn.description())

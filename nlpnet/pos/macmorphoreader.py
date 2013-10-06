@@ -17,7 +17,7 @@ class MacMorphoReader(TaggerReader):
     
     def __init__(self, sentences=None, filename=None):
         """
-        @param tagged_text: a sequence of tagged sentences. Each sentence must be a 
+        'param tagged_text: a sequence of tagged sentences. Each sentence must be a 
         sequence of (token, tag) tuples. If None, the sentences are read from the 
         default location.
         """

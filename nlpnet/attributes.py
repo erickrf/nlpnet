@@ -71,10 +71,11 @@ class Suffix(object):
         """
         Creates a file containing the list of the most common suffixes found in 
         wordlist.
-        @param wordlist: a list of word types (there shouldn't be repetitions)
-        @param num: maximum number of suffixes
-        @param size: desired size of suffixes
-        @param min_occurrences: minimum number of occurrences of each suffix
+        
+        :param wordlist: a list of word types (there shouldn't be repetitions)
+        :param num: maximum number of suffixes
+        :param size: desired size of suffixes
+        :param min_occurrences: minimum number of occurrences of each suffix
         in wordlist
         """
         all_endings = [x[-size:] for x in wordlist 
@@ -118,7 +119,7 @@ class TokenConverter(object):
     def get_padding_left(self, tokens_as_string=True):
         """
         Returns an object to be used as the left padding in the sentence.
-        @param tokens_as_string: if True, treat tokens as strings. 
+        :param tokens_as_string: if True, treat tokens as strings. 
         If False, treat them as Token objects.
         """
         if tokens_as_string:
@@ -130,7 +131,7 @@ class TokenConverter(object):
     def get_padding_right(self, tokens_as_string=True):
         """
         Returns an object to be used as the right padding in the sentence.
-        @param tokens_as_string: if True, treat tokens as strings. 
+        :param tokens_as_string: if True, treat tokens as strings. 
         If False, treat them as Token objects.
         """
         if tokens_as_string:

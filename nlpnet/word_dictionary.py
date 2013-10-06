@@ -17,13 +17,13 @@ class WordDictionary(dict):
         """
         Fills a dictionary (to be used for indexing) with the most
         common words in the given text.
-        @param tokens: Either a list of tokens or a list of lists of tokens 
+        :param tokens: Either a list of tokens or a list of lists of tokens 
         (each token represented as a string).
-        @param size: Maximum number of token indices 
+        :param size: Maximum number of token indices 
         (not including paddings, rare, etc.).
-        @param minimum_occurrences: The minimum number of occurrences a token must 
+        :param minimum_occurrences: The minimum number of occurrences a token must 
         have in order to be included.
-        @param wordlist: Use this list of words to build the dictionary. Overrides tokens
+        :param wordlist: Use this list of words to build the dictionary. Overrides tokens
         if not None.
         """
         if wordlist is None:
@@ -77,7 +77,7 @@ class WordDictionary(dict):
     def _get_frequency_count(self, token_list):
         """
         Returns a token counter for tokens in token_list.
-        @param token_list: Either a list of tokens (as strings) or a list 
+        :param token_list: Either a list of tokens (as strings) or a list 
         of lists of tokens.
         """
         if type(token_list[0]) == list:
@@ -90,7 +90,7 @@ class WordDictionary(dict):
     def update_tokens(self, tokens, size=None, minimum_occurrences=1, freqs=None):
         """
         Updates the dictionary, adding more types until size is reached.
-        @param freqs: a dictionary providing a token count.
+        :param freqs: a dictionary providing a token count.
         """
         if freqs is None:
             freqs = self._get_frequency_count(tokens)

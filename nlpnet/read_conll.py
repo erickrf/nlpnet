@@ -101,14 +101,14 @@ def get_chunk_tag(word, parse, expected_block):
 def get_chunks(tree, previous_node='', dominating_node='', new_block=False):
     """
     Traverses a tree extracting chunk information.
-    @param tree: A syntactic tree.
-    @param previous_node: the parent of the subtree passed as 
+    :param tree: A syntactic tree.
+    :param previous_node: the parent of the subtree passed as 
     first argument.
-    @param dominating_node: the label of the chunk dominating
+    :param dominating_node: the label of the chunk dominating
     the subtree so far.
-    @param new_block: whether a new block (a new chunk) must 
+    :param new_block: whether a new block (a new chunk) must 
     start if the new tag is the same as the previous dominating one.
-    @return: a list of (tag, chunk_tag) tuples.
+    :return: a list of (tag, chunk_tag) tuples.
     """
     new_node = tree.node
     node = verify_chunk_tag(new_node, dominating_node)
@@ -207,7 +207,7 @@ def read_trees(iterable):
 def read_sentences(iterable, read_srl=True):
     """
     Reads a sentence from a sequence of lines in a CoNLL format file.
-    @return: if read_srl is True, returns a list of tuples, where each
+    :return: if read_srl is True, returns a list of tuples, where each
     one has the sentence, its SRL attributions and the indices of the predicates.
     If it is False, returns a list of sentences.
     """

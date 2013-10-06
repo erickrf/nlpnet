@@ -25,7 +25,7 @@ def load_srl_sentences():
 def create_conll_gold_file():
     """
     Creates a gold standard file in the CoNLL format.
-    @param verbs: list of tuples (position, token)
+    :param verbs: list of tuples (position, token)
     """
     r = srl_reader.SRLReader(filename=config.FILES['conll_test'])
     r.convert_tags('iobes')
@@ -95,9 +95,9 @@ def init_transitions(tag_dict, scheme):
     """
     This function initializes the tag transition table setting 
     very low values for impossible transitions. 
-    @param tag_dict: The tag dictionary mapping tag names to the
+    :param tag_dict: The tag dictionary mapping tag names to the
     network output number.
-    @param scheme: either iob or iobes.
+    :param scheme: either iob or iobes.
     """
     scheme = scheme.lower()
     assert scheme in ('iob', 'iobes'), 'Unknown tagging scheme: %s' % scheme

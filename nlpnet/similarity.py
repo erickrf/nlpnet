@@ -34,9 +34,9 @@ def load_word_dict():
 def find_similar_words(feature_table, index, num=5):
     """
     Finds the most similar words to the one indicated. 
-    @param feature_table: 2-dim numpy array.
-    @param index: the index of the word that is to be similar.
-    @param num: number of words to be returned
+    :param feature_table: 2-dim numpy array.
+    :param index: the index of the word that is to be similar.
+    :param num: number of words to be returned
     """
     target_vector = feature_table[index]
     # calculate the similarity to each vector in the table

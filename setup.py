@@ -24,5 +24,7 @@ setup(
                                ["nlpnet.c"],
                                include_dirs=['.', np.get_include()]
                                )
-                     ]
+                     ],
+      author = 'Erick Fonseca',
+      author_email = 'erickrfonseca@gmail.com'
       )

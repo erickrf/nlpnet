@@ -115,7 +115,7 @@ Output size: %d
     def run(self, np.ndarray indices):
         """
         Runs the network for a given input. 
-        @param indices: a 2-dim np array of indices to the feature tables.
+        :param indices: a 2-dim np array of indices to the feature tables.
         Each element must have the indices to each feature table.
         """
         # find the actual input values concatenating the feature vectors
@@ -168,9 +168,9 @@ Output size: %d
         """
         Runs the network for each element in the sentence and returns 
         the sequence of tags.
-        @param sentence: a 2-dim numpy array, where each item
+        :param sentence: a 2-dim numpy array, where each item
         encodes a token.
-        @param logprob: a boolean indicating whether to return the 
+        :param logprob: a boolean indicating whether to return the 
         log-probability for each answer or not.
         """
         return self._tag_sentence(sentence, train=False, logprob=logprob)
@@ -179,10 +179,10 @@ Output size: %d
         """
         Runs the network for each element in the sentence and returns 
         the sequence of tags.
-        @param sentence: a 2-dim numpy array, where each item
+        :param sentence: a 2-dim numpy array, where each item
         encodes a token.
-        @param train: if True, perform weight and feature correction.
-        @param tags: the correct tags (needed when training)
+        :param train: if True, perform weight and feature correction.
+        :param tags: the correct tags (needed when training)
         """
         cdef np.ndarray answer
         cdef np.ndarray scores = np.empty((len(sentence), self.output_size))
@@ -274,7 +274,7 @@ Output size: %d
         Calculates the output and transition deltas for each token.
         The aim is to minimize the cost:
         logadd(score for all possible paths) - score(correct path)
-        @return: if True, normal gradient calculation was performed.
+        :returns: if True, normal gradient calculation was performed.
         If False, the error was too low and weight correction should be
         skipped.
         """
@@ -398,15 +398,15 @@ Output size: %d
               float desired_accuracy=0):
         """
         Trains the network to tag sentences.
-        @param sentences: a list of 2-dim numpy arrays, where each item
+        :param sentences: a list of 2-dim numpy arrays, where each item
         encodes a sentence. Each item in a sentence has the 
         indices to its features.
-        @param tags: a list of 1-dim numpy arrays, where each item has
+        :param tags: a list of 1-dim numpy arrays, where each item has
         the tags of the sentences.
-        @param epochs: number of training epochs
-        @param epochs_between_reports: number of epochs to wait between
+        :param epochs: number of training epochs
+        :param epochs_between_reports: number of epochs to wait between
         reports about the training performance. 0 means no reports.
-        @param desired_accuracy: training stops if the desired accuracy
+        :param desired_accuracy: training stops if the desired accuracy
         is reached. Ignored if 0.
         """
         print "Training for up to %d epochs" % epochs

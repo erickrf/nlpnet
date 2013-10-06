@@ -23,7 +23,7 @@ class SRLReader(TaggerReader):
         If no sentences argument is given, the reader will read the PropBank
         CoNLL file. If it is given, no reading is necessary (which saves a lot
         of time).
-        @param sentence: a list of tuples in the format (tokens, list of tags, 
+        :param sentence: a list of tuples in the format (tokens, list of tags, 
         predicate indices).
         """
         if only_boundaries:
@@ -59,7 +59,7 @@ class SRLReader(TaggerReader):
     def extend(self, data):
         """
         Adds more data to the reader.
-        @param data: a list of tuples in the format (tokens, tags, predicates), 
+        :param data: a list of tuples in the format (tokens, tags, predicates), 
         one for each sentence.
         """
         self.sentences.extend([(sent, tags) for sent, tags, _ in data])
@@ -310,10 +310,10 @@ class SRLReader(TaggerReader):
         """
         Replaces each word label with an IOB or IOBES version, appending a prefix
         to them. 
-        @param scheme: IOB or IOBES (In, Other, Begin, End, Single).
-        @param update_dict: whether to update or not the tag dictionary after
+        :param scheme: IOB or IOBES (In, Other, Begin, End, Single).
+        :param update_dict: whether to update or not the tag dictionary after
         converting the tags.
-        @param only_boundaries: if True, only leaves the IOBES tags and remove
+        :param only_boundaries: if True, only leaves the IOBES tags and remove
         the actual tags.
         """
         scheme = scheme.lower()

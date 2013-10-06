@@ -19,8 +19,8 @@ class TextReader(object):
     
     def __init__(self, sentences=None, filename=None):
         """
-        @param sentences: A list of lists of tokens.
-        @param filename: Alternatively, the name of the file from where sentences 
+        :param sentences: A list of lists of tokens.
+        :param filename: Alternatively, the name of the file from where sentences 
         can be read. The file should have one sentence per line, with tokens
         separated by white spaces.
         """
@@ -58,8 +58,8 @@ class TextReader(object):
     def generate_dictionary(self, dict_size=None, minimum_occurrences=None):
         """
         Generates a token dictionary based on the supplied text.
-        @param dict_size: Max number of tokens to be included in the dictionary.
-        @param minimum_occurrences: Minimum number of times that a token must
+        :param dict_size: Max number of tokens to be included in the dictionary.
+        :param minimum_occurrences: Minimum number of times that a token must
         appear in the text in order to be included in the dictionary. 
         """
         logger = logging.getLogger("Logger")
