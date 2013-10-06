@@ -464,7 +464,8 @@ if __name__ == '__main__':
                         help='Forces the classification step to avoid repeated argument labels (2 step SRL only).')
     parser.add_argument('--auto-pred', dest='auto_pred', action='store_true',
                         help='Determines SRL predicates automatically using a POS tagger.')
-    parser.add_argument('--data', help='File with gold standard data', type=str, required=True)
+    parser.add_argument('--gold', help='File with gold standard data', type=str, required=True)
+    parser.add_argument('--data', help='Directory with trained models', type=str, required=True)
     parser.add_argument('--oov', help='Analyze performance on OOV data', action='store_true')
     args = parser.parse_args()
     
@@ -478,6 +479,7 @@ if __name__ == '__main__':
     logging_level = logging.DEBUG if args.verbose else logging.WARNING
     utils.set_logger(logging_level)
     logger = logging.getLogger("Logger")
+    config.set_data_dir(args.data)
     
     if args.task == 'pos':
         
@@ -486,7 +488,7 @@ if __name__ == '__main__':
         else:
             oov = None
                     
-        accuracy = evaluate_pos(False, gold_file=args.data, oov=oov)
+        accuracy = evaluate_pos(False, gold_file=args.gold, oov=oov)
         print "Accuracy: %f" % accuracy
     
     elif args.task.startswith('srl'):
@@ -495,13 +497,13 @@ if __name__ == '__main__':
             logger.error('OOV not implemented for SRL.')
         
         if args.two_steps:
-            evaluate_srl_2_steps(args.no_repeat, args.auto_pred, args.data)
+            evaluate_srl_2_steps(args.no_repeat, args.auto_pred, args.gold)
         elif args.classify:
-            evaluate_srl_classify(args.no_repeat, args.data)
+            evaluate_srl_classify(args.no_repeat, args.gold)
         elif args.identify:
-            evaluate_srl_identify(args.data)
+            evaluate_srl_identify(args.gold)
         elif args.predicates:
-            evaluate_srl_predicates(args.data)
+            evaluate_srl_predicates(args.gold)
         else:
-            evaluate_srl_1step(args.auto_pred, args.data)
+            evaluate_srl_1step(args.auto_pred, args.gold)
         

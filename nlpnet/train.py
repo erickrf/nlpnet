@@ -31,15 +31,15 @@ def create_reader(args):
     """
     logger.info("Reading text...")
     if args.task == 'pos':
-        text_reader = pos.macmorphoreader.MacMorphoReader(filename=args.data)
+        text_reader = pos.macmorphoreader.MacMorphoReader(filename=args.gold)
         text_reader.load_tag_dict()
     
     elif args.task == 'lm':
-        text_reader = TextReader(filename=args.data)
+        text_reader = TextReader(filename=args.gold)
 
     elif args.task.startswith('srl'):
         text_reader = srl.train_srl.create_reader_srl(args)
-        text_reader = srl.srl_reader.SRLReader(filename=args.data, only_boundaries=args.identify, 
+        text_reader = srl.srl_reader.SRLReader(filename=args.gold, only_boundaries=args.identify, 
                                                only_classify=args.classify,
                                                only_predicates=args.predicates)
     
@@ -180,6 +180,7 @@ if __name__ == '__main__':
     utils.set_logger(logging_level)
     logger = logging.getLogger("Logger")
 
+    config.set_data_dir(args.data)
     text_reader = create_reader(args)
     
     use_caps = args.caps is not None

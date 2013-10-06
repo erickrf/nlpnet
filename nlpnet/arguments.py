@@ -9,12 +9,6 @@ import argparse
 # Tasks performed: part-of-speech tagging and semantic role labeling
 TASKS = set(['pos', 'srl', 'lm'])
 
-class ArgumentError(Exception):
-    """
-    Exception indicating that an expected program argument was not supplied.
-    """
-    pass
-
 def get_args():
     parser = argparse.ArgumentParser(description="Trains a neural\
         network for the language modeling task.\
@@ -80,7 +74,8 @@ def get_args():
                         type=str, choices=TASKS, required=True)
     parser.add_argument('--semi', help='Perform semi-supervised training. Supply the name of the file with automatically tagged data.',
                         type=str, default='')
-    parser.add_argument('--data', help='File with annotated data for training.', type=str, default=None)
+    parser.add_argument('--gold', help='File with annotated data for training.', type=str, default=None)
+    parser.add_argument('--data', help='Directory to save new models and load partially trained ones', type=str, default=None, required=True)
     
     args = parser.parse_args()
     
@@ -100,9 +95,6 @@ def check_arguments(args):
         elif args.predicates:
             args.task = 'srl_predicates'
     
-#    if args.semi and args.task != 'srl_boundary':
-#        print args.task
-#        raise ArgumentError('Semi supervised training only implemented for SRL boundary detection.') 
     
     return args
 

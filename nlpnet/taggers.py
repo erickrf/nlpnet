@@ -107,7 +107,22 @@ def _join_2_steps(boundaries, arguments):
     
     return answer
 
-class SRLTagger(object):
+class Tagger(object):
+    """
+    Base class for taggers. It should not be instantiated.
+    """
+    
+    def __init__(self):
+        """Creates a tagger and loads data preemptively"""
+        assert config.data_dir is not None, 'nlpnet data dir is not set.'
+        
+        self._load_data()
+    
+    def _load_data(self):
+        """Implemented by subclasses"""
+        pass
+
+class SRLTagger(Tagger):
     """
     An SRLTagger loads the models and performs SRL on text.
     
@@ -115,10 +130,6 @@ class SRLTagger(object):
     argument classification.    
     """
     
-    def __init__(self):
-        """Creates a tagger and loads data preemptively."""
-        self._load_data()
-
     def _load_data(self):
         """Loads data for SRL"""
         # load boundary identification network and reader 
@@ -186,13 +197,9 @@ class SRLTagger(object):
         return ((preds, joined))
 
 
-class POSTagger(object):
+class POSTagger(Tagger):
     """A POSTagger loads the models and performs POS tagging on text."""
     
-    def __init__(self):
-        """Creates a tagger and loads data preemptively."""
-        self._load_data()
-
     def _load_data(self):
         """Loads data for POS"""
         md = Metadata.load_from_file('pos')

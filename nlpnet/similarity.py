@@ -52,10 +52,12 @@ if __name__ == '__main__':
     
     parser = ArgumentParser(description="This script will search the word dictionary and \
     list the words most similar to the given one.")
+    parser.add_argument('data', type=str, help='Directory containing word vectors')
     parser.add_argument('word', type=str, help='Word to compare with', default=None)
     parser.add_argument('-n', help='Number of similar words', type=int, default=5, dest='num')
     args = parser.parse_args()
     
+    config.set_data_dir(args.data)
     target_word = unicode(args.word, 'utf-8')
     
     features = utils.load_features_from_file(config.FILES['type_features'])

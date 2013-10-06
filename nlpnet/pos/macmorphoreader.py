@@ -4,9 +4,6 @@
 Class for dealing with POS data from MacMorpho.
 """
 
-import cPickle
-
-import config
 from reader import TaggerReader
 
 class MacMorphoReader(TaggerReader):
@@ -34,21 +31,7 @@ class MacMorphoReader(TaggerReader):
                     for line in f:
                         items = unicode(line, 'utf-8').split()
                         self.sentences.append([item.split('_') for item in items])
-                        
             
-            """
-            To read sentences from scratch, use the following: 
-            
-            self.sentences = []
-            
-            for root, _, files in os.walk(config.DIRS['macmorpho']):
-                for file_ in files:
-                    filename = os.path.join(root, file_)
-                    file_sents = pos.train_pos.read_macmorpho_file(filename)
-                    self.sentences.extend(file_sents)
-            
-            Then set aside every 10th sentence to test
-            """     
 
     def get_inverse_tag_dictionary(self):
         """

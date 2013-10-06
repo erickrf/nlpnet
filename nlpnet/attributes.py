@@ -181,8 +181,3 @@ def capitalize(word, capitalization):
     else:
         raise ValueError("Unknown capitalization type.")
 
-
-if __name__ == '__main__':
-    pass
-    
-

@@ -89,7 +89,7 @@ class Metadata(object):
         to the task.
         """
         filename = 'metadata-%s.pickle' % self.task.replace('_', '-')
-        filename = os.path.join(config.DIRS['data'], filename)
+        filename = os.path.join(config.data_dir, filename)
         with open(filename, 'wb') as f:
             cPickle.dump(self.__dict__, f, 2)
     
@@ -101,7 +101,8 @@ class Metadata(object):
         """
         # the actual content of the file is the __dict__ member variable, which contain all
         # the instance's data
-        filename = os.path.join(config.DIRS['data'], 'metadata-%s.pickle' % task.replace('_', '-'))
+        filename = os.path.join(config.data_dir, 
+                                'metadata-%s.pickle' % task.replace('_', '-'))
         md = Metadata(None)
         with open(filename, 'rb') as f:
             data = cPickle.load(f)

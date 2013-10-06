@@ -43,12 +43,11 @@ class TextReader(object):
         """
         self.sentences.extend(text)
     
-    def load_dictionary(self, filename=config.FILES['word_dict_dat']):
-        """
-        Reads a dictionary from a pickled file.
-        """
+    def load_dictionary(self):
+        """Reads a dictionary from a pickled file."""
         logger = logging.getLogger("Logger")
         logger.info("Loading provided dictionary...")
+        filename = config.FILES['word_dict_dat']
         with open(filename, 'rb') as f:
             wd = cPickle.load(f)
         wd.check()

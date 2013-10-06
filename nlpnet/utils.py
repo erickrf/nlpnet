@@ -140,7 +140,7 @@ def clean_text(text, correct=True):
 
 
 
-contractible_base = ur'''(?iux)
+_contractible_base = ur'''(?iux)
     (
     [ao]s?|                # definite articles
     um(as?)?|uns|          # indefinite articles
@@ -153,9 +153,9 @@ contractible_base = ur'''(?iux)
     )
     $
     '''
-contractible_de = re.compile(contractible_base % u'|aqui|aí|ali|entre')
-contractible_em = re.compile(contractible_base % '')
-contractible_art = re.compile('[oa]s?')
+_contractible_de = re.compile(_contractible_base % u'|aqui|aí|ali|entre')
+_contractible_em = re.compile(_contractible_base % '')
+_contractible_art = re.compile('[oa]s?')
 
 def contract(w1, w2):
     """Makes a contraction of two words."""
@@ -164,18 +164,18 @@ def contract(w1, w2):
     w2 = w2.lower()
     contraction = None
     
-    if w1 == 'de' and contractible_de.match(w2):
+    if w1 == 'de' and _contractible_de.match(w2):
         contraction = 'd' + w2
-    elif w1 == 'em' and contractible_em.match(w2):
+    elif w1 == 'em' and _contractible_em.match(w2):
         contraction = 'n' + w2
-    elif w1 == 'por' and contractible_art.match(w2):
+    elif w1 == 'por' and _contractible_art.match(w2):
         contraction = 'pel' + w2
     elif w1 == 'a':
         if w2 in ['o', 'os']:
             contraction = 'a' + w2
         elif w2.startswith('a'):
             contraction = u'à' + w2[1:]
-    elif w1 == 'para' and contractible_art.match(w2):
+    elif w1 == 'para' and _contractible_art.match(w2):
         contraction = 'pr' + w2
     elif w1 == 'com':
         if w2 == 'mim':
@@ -188,7 +188,7 @@ def contract(w1, w2):
             contraction = 'conosco'
         elif w2 == u'vós':
             contraction = 'convosco'
-    elif w1 == 'lhe' and contractible_art.match(w2):
+    elif w1 == 'lhe' and _contractible_art.match(w2):
         contraction = 'lh' + w2
     elif w1 == "d'":
         contraction = w1 + w2
@@ -225,12 +225,13 @@ def count_chunk_tags():
 #TODO: this function could be more organized with less repeated code
 def set_features(args, md, text_reader):
     """
-    Sets the features to be used by the network. The actual number of 
+    Loads the features to be used by the network. The actual number of 
     feature tables will depend on the argument options.
     
     :param arguments: Parameters supplied to the program
     :param md: metadata about the network
     :param text_reader: The TextReader being used.
+    :returns: all the feature tables to be used
     """
     logger = logging.getLogger("Logger")
     feature_tables = []
