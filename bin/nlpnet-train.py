@@ -9,16 +9,16 @@ Author: Erick Rocha Fonseca
 import logging
 import numpy as np
 
-import config
-import read_data
-import utils
-import taggers
-import metadata
-import srl.train_srl
-import pos
-from reader import TextReader
-from network import Network, ConvolutionalNetwork, LanguageModel
-from arguments import get_args, check_arguments
+import nlpnet.config as config
+import nlpnet.read_data as read_data
+import nlpnet.utils as utils
+import nlpnet.taggers as taggers
+import nlpnet.metadata as metadata
+import nlpnet.srl as srl
+import nlpnet.pos as pos
+import nlpnet.arguments as arguments
+import nlpnet.reader as reader
+from nlpnet.network import Network, ConvolutionalNetwork, LanguageModel
 
 
 ############################
@@ -35,7 +35,7 @@ def create_reader(args):
         text_reader.load_tag_dict()
     
     elif args.task == 'lm':
-        text_reader = TextReader(filename=args.gold)
+        text_reader = reader.TextReader(filename=args.gold)
 
     elif args.task.startswith('srl'):
         text_reader = srl.train_srl.create_reader_srl(args)
@@ -173,8 +173,8 @@ def train(reader, args):
 
 
 if __name__ == '__main__':
-    args = get_args()
-    args = check_arguments(args)
+    args = arguments.get_args()
+    args = arguments.check_arguments(args)
 
     logging_level = logging.DEBUG if args.verbose else logging.INFO
     utils.set_logger(logging_level)

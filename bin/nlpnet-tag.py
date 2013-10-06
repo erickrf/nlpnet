@@ -10,7 +10,8 @@ import argparse
 import logging
 from itertools import izip
 
-import nlpnet.taggers as taggers
+import nlpnet
+#import nlpnet.taggers as taggers
 import nlpnet.utils as utils
 
 def interactive_running(task):
@@ -23,9 +24,9 @@ def interactive_running(task):
     """
     task_lower = task.lower()
     if task_lower == 'pos':
-        tagger = taggers.POSTagger()
+        tagger = nlpnet.taggers.POSTagger()
     elif task_lower == 'srl':
-        tagger = taggers.SRLTagger()
+        tagger = nlpnet.taggers.SRLTagger()
     else:
         raise ValueError('Unknown task: %s' % task)
     
@@ -90,8 +91,9 @@ def _print_tags(data):
 if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('--task', help='Task for which the network should be used.', 
-                        type=str, required=True, choices=['srl', 'pos'])
+    parser.add_argument('task', help='Task for which the network should be used.', 
+                        type=str, choices=['srl', 'pos'])
+    parser.add_argument('data', help='Directory containing trained models.', type=str)
     parser.add_argument('-v', help='Verbose mode', action='store_true', dest='verbose')
     parser.add_argument('--no-repeat', dest='no_repeat', action='store_true',
                         help='Forces the classification step to avoid repeated argument labels (SRL only).')
@@ -100,6 +102,7 @@ if __name__ == '__main__':
     logging_level = logging.DEBUG if args.verbose else logging.WARNING
     utils.set_logger(logging_level)
     logger = logging.getLogger("Logger")
+    nlpnet.set_data_dir(args.data)
     
     interactive_running(args.task)
     

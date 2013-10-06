@@ -114,7 +114,7 @@ class Tagger(object):
     
     def __init__(self):
         """Creates a tagger and loads data preemptively"""
-        assert config.data_dir is not None, 'nlpnet data dir is not set.'
+        assert config.data_dir is not None, 'nlpnet data directory is not set.'
         
         self._load_data()
     

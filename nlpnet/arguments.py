@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
 """
-Script for argument parsing and a few verifications.
+Script for argument parsing and a few verifications. 
+These arguments used by the training script.
 """
 
 import argparse

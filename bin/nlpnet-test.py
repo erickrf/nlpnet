@@ -1,15 +1,27 @@
 # -*- coding: utf-8 -*- 
 
+"""
+Script to test the networks on NLP tasks. 
+
+* For POS , it will compute the accuracy.
+* For SRL, it depends on the subtask:
+    - Argument identification - Precision, recall and F1
+    - Argument classification - Accuracy
+    - Predicate detection - TP, TN, FP, FN and accuracy
+    - Joint task - it will output the data in CoNLL-style to be 
+evaluated externally.
+"""
+
 import logging
 import argparse
 from itertools import izip
 import numpy as np
 from collections import Counter, defaultdict
 
-import config
-import utils
-import taggers
-from metadata import Metadata
+import nlpnet.config as config
+import nlpnet.utils as utils
+import nlpnet.taggers as taggers
+from nlpnet.metadata import Metadata
 
 def evaluate_pos(heuristics=False, wordlist=None, gold_file=None, oov=None):
     """
