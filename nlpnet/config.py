@@ -7,7 +7,7 @@ Configuration data for the system.
 import os
 
 
-DIRS = {'data': os.path.join('..', 'data'),
+DIRS = {'data': os.path.join('.', 'data'),
         'corpora': os.path.join('..', 'data', 'corpora'),
     }
 

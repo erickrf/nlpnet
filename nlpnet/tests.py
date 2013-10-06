@@ -8,18 +8,19 @@ from collections import Counter, defaultdict
 
 import config
 import utils
-from run import load_network, create_reader, run_2_steps, get_predicate_finder
+import taggers
 from metadata import Metadata
 
 def evaluate_pos(heuristics=False, wordlist=None, gold_file=None, oov=None):
     """
     Tests the network for tagging a given sequence.
-    @param heuristics: whether to use hand-crafted heuristics or not.
-    @param wordlist: if not None, only measure performance on these words.
+    
+    'param heuristics: whether to use hand-crafted heuristics or not.
+    'param wordlist: if not None, only measure performance on these words.
     """
     md = Metadata.load_from_file('pos')
-    nn = load_network(md)
-    pos_reader = create_reader(md, gold_file=gold_file)
+    nn = taggers.load_network(md)
+    pos_reader = taggers.create_reader(md, gold_file=gold_file)
     itd = pos_reader.get_inverse_tag_dictionary()
     
     logger = logging.getLogger("Logger")
@@ -58,14 +59,15 @@ def evaluate_pos(heuristics=False, wordlist=None, gold_file=None, oov=None):
 def sentence_precision(network_tags, gold_tags, gold_tag_dict, network_tag_dict):
     """
     Evaluates the network precision on a single sentence.
-    @param network_tags: the answers by the network
-    @param gold_tags: the correct tags
-    @param gold_tag_dict: inverse tag dictionary (numbers to tags) for the
+    
+    :param network_tags: the answers by the network
+    :param gold_tags: the correct tags
+    :param gold_tag_dict: inverse tag dictionary (numbers to tags) for the
     gold tags.
-    @param network_tag_dict: inverse tag dictionary (numbers to tags) for the
+    :param network_tag_dict: inverse tag dictionary (numbers to tags) for the
     network answers.
-    @param only_boundaries: only identify argument boundaries
-    @return: a tuple where the first member is the list of arguments
+    :param only_boundaries: only identify argument boundaries
+    :returns: a tuple where the first member is the list of arguments
     tagged right and the second is the list of arguments found by
     the network.
     """
@@ -120,13 +122,14 @@ def sentence_precision(network_tags, gold_tags, gold_tag_dict, network_tag_dict)
 def sentence_recall(network_tags, gold_tags, gold_tag_dict, network_tag_dict):
     """
     Evaluates the network recall on a single sentence.
-    @param network_tags: the answers by the network
-    @param gold_tags: the correct tags
-    @param gold_tag_dict: inverse tag dictionary (numbers to tags) for the
+    
+    :param network_tags: the answers by the network
+    :param gold_tags: the correct tags
+    :param gold_tag_dict: inverse tag dictionary (numbers to tags) for the
     gold tags.
-    @param network_tag_dict: inverse tag dictionary (numbers to tags) for the
+    :param network_tag_dict: inverse tag dictionary (numbers to tags) for the
     network answers.
-    @return: a tuple where the first member is the list of arguments
+    :returns: a tuple where the first member is the list of arguments
     got right and the second is the list of arguments that were in
     the sentence.
     """
@@ -179,13 +182,11 @@ def sentence_recall(network_tags, gold_tags, gold_tag_dict, network_tag_dict):
     return (correct_args, existing_args)
 
 def evaluate_srl_classify(no_repeat=False, gold_file=None):
-    """
-    Evaluates the performance of the network on the SRL classifying task.
-    """
+    """Evaluates the performance of the network on the SRL classifying task."""
     # load data
     md = Metadata.load_from_file('srl_classify')
-    nn = load_network(md)
-    r = create_reader(md, gold_file)
+    nn = taggers.load_network(md)
+    r = taggers.create_reader(md, gold_file)
     r.create_converter(md)
     
     r.codify_sentences()
@@ -208,9 +209,7 @@ def evaluate_srl_classify(no_repeat=False, gold_file=None):
     print 'Accuracy: %f' % (float(hits) / total_args)
 
 def convert_iob_to_iobes(iob_tags):
-    """
-    Converts a sequence of IOB tags into IOBES tags.
-    """
+    """Converts a sequence of IOB tags into IOBES tags."""
     iobes_tags = []
     
     # check each tag and its following one. A None object is appended 
@@ -238,8 +237,9 @@ def prop_conll(verbs, props, sent_length):
     """
     Returns the string representation for a single sentence
     using the CoNLL format for evaluation.
-    @param verbs: list of tuples (position, token)
-    @param props: list of lists with IOBES tags.
+    
+    :param verbs: list of tuples (position, token)
+    :param props: list of lists with IOBES tags.
     """
     # defaultdict to know what to print in the verbs column
     verb_dict = defaultdict(lambda: '-', verbs)
@@ -255,23 +255,21 @@ def prop_conll(verbs, props, sent_length):
     return result.encode('utf-8')
         
 def evaluate_srl_2_steps(no_repeat=False, find_preds_automatically=False, gold_file=None):
-    """
-    Prints the output of a 2-step SRL system in CoNLL style for evaluating.
-    """
+    """Prints the output of a 2-step SRL system in CoNLL style for evaluating."""
     # load boundary identification network and reader 
     md_boundary = Metadata.load_from_file('srl_boundary')
-    nn_boundary = load_network(md_boundary)
-    reader_boundary = create_reader(md_boundary, gold_file)
+    nn_boundary = taggers.load_network(md_boundary)
+    reader_boundary = taggers.create_reader(md_boundary, gold_file)
     itd_boundary = reader_boundary.get_inverse_tag_dictionary()
     
     # same for arg classification
     md_classify = Metadata.load_from_file('srl_classify')
-    nn_classify = load_network(md_classify)
-    reader_classify = create_reader(md_classify, gold_file)
+    nn_classify = taggers.load_network(md_classify)
+    reader_classify = taggers.create_reader(md_classify, gold_file)
     itd_classify = reader_classify.get_inverse_tag_dictionary()
     
     if find_preds_automatically:
-        pred_finder = get_predicate_finder()
+        tagger = taggers.SRLTagger()
     else:
         iter_predicates = iter(reader_boundary.predicates)
     
@@ -279,14 +277,30 @@ def evaluate_srl_2_steps(no_repeat=False, find_preds_automatically=False, gold_f
     
     for sent in actual_sentences:
         
-        pred_pos = pred_finder(sent) if find_preds_automatically else iter_predicates.next()
+        if find_preds_automatically:
+            pred_pos = tagger.find_predicates(sent)
+        else:
+            pred_pos = iter_predicates.next()
         
         verbs = [(position, sent[position].word) for position in pred_pos]
         sent_bound_codified = np.array([reader_boundary.converter.convert(t) for t in sent])
         sent_class_codified = np.array([reader_classify.converter.convert(t) for t in sent])
         
-        tags = run_2_steps(nn_boundary, nn_classify, sent_bound_codified, sent_class_codified,
-                           itd_boundary, itd_classify, pred_pos, no_repeat)
+#        tags = run_2_steps(nn_boundary, nn_classify, sent_bound_codified, sent_class_codified,
+#                           itd_boundary, itd_classify, pred_pos, no_repeat)
+        
+        answers = nn_boundary.tag_sentence(sent_bound_codified, pred_pos)
+        boundaries = [[itd_boundary[x] for x in pred_answer] for pred_answer in answers]
+        
+        arg_limits = [utils.boundaries_to_arg_limits(pred_boundaries) 
+                      for pred_boundaries in boundaries]
+        
+        answers = nn_classify.tag_sentence(sent_class_codified, 
+                                           pred_pos, arg_limits,
+                                           allow_repeats=not no_repeat)
+    
+        arguments = [[itd_classify[x] for x in pred_answer] for pred_answer in answers]        
+        tags = taggers._join_2_steps(boundaries, arguments)        
         
         print prop_conll(verbs, tags, len(sent))
 
@@ -296,13 +310,13 @@ def evaluate_srl_1step(find_preds_automatically=False, gold_file=None):
     id + class.
     """
     md = Metadata.load_from_file('srl')
-    nn = load_network(md)
-    r = create_reader(md, gold_file=gold_file)
+    nn = taggers.load_network(md)
+    r = taggers.create_reader(md, gold_file=gold_file)
     
     itd = r.get_inverse_tag_dictionary()
     
     if find_preds_automatically:
-        pred_finder = get_predicate_finder()
+        tagger = taggers.SRLTagger()
     else:
         iter_predicates = iter(r.predicates)
     
@@ -312,7 +326,7 @@ def evaluate_srl_1step(find_preds_automatically=False, gold_file=None):
         actual_sent = sent[0]
         
         if find_preds_automatically:
-            pred_positions = pred_finder(actual_sent)
+            pred_positions = tagger.find_predicates(sent)
         else:
             pred_positions = iter_predicates.next()
             
@@ -331,8 +345,8 @@ def evaluate_srl_predicates(gold_file):
     predicate detection subtask.
     """
     md = Metadata.load_from_file('srl_predicates')
-    nn = load_network(md)
-    reader = create_reader(md, gold_file=gold_file)
+    nn = taggers.load_network(md)
+    reader = taggers.create_reader(md, gold_file=gold_file)
     reader.codify_sentences()
     
     total_tokens = 0
@@ -370,8 +384,8 @@ def evaluate_srl_identify(gold_file):
     argument boundaries identification subtask
     """
     md = Metadata.load_from_file('srl_boundary')
-    nn = load_network(md)
-    srl_reader = create_reader(md, gold_file=gold_file)
+    nn = taggers.load_network(md)
+    srl_reader = taggers.create_reader(md, gold_file=gold_file)
     
     net_itd = srl_reader.get_inverse_tag_dictionary()
     srl_reader.load_tag_dict(config.FILES['srl_iob_tag_dict'])

@@ -12,7 +12,7 @@ import numpy as np
 import config
 import read_data
 import utils
-import run
+import tagger
 import metadata
 import srl.train_srl
 import pos
@@ -127,8 +127,8 @@ def create_network(args, text_reader, feature_tables, md=None):
 def save_features(nn, md):
     """
     Receives a sequence of feature tables and saves each one in the appropriate file.
-    @param nn: the neural network
-    @param md: a Metadata object describing the network
+    :param nn: the neural network
+    :param md: a Metadata object describing the network
     """
     # type features
     utils.save_features_to_file(nn.feature_tables[0], config.FILES[md.type_features])
@@ -141,10 +141,8 @@ def save_features(nn, md):
     if md.use_chunk: utils.save_features_to_file(iter_tables.next(), config.FILES[md.chunk_features])
     
 def load_network_train(args, md):
-    """
-    Loads and returns a neural network with all the necessary data.
-    """
-    nn = run.load_network(md)
+    """Loads and returns a neural network with all the necessary data."""
+    nn = tagger.load_network(md)
     
     logger.info("Loaded network with following parameters:")
     logger.info(nn.description())
@@ -157,9 +155,7 @@ def load_network_train(args, md):
     return nn
 
 def train(reader, args):
-    """
-    Trains a neural network for the selected task.
-    """
+    """Trains a neural network for the selected task."""
     intervals = max(args.iterations / 200, 1)
     np.seterr(over='raise')
     

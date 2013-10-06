@@ -11,19 +11,16 @@ import nltk
 import numpy as np
 
 from nltk.tokenize.regexp import RegexpTokenizer
-from word_dictionary import WordDictionary
 import config
 import attributes
 
-class LoopBreaker(Exception):
-    pass
 
-
-def tokenize(text, wiki=True):
+def tokenize(text, clean=True):
     """
     Returns a list of lists of the tokens in text.
     Each line break in the text starts a new list.
-    @param wiki: If True, performs some cleaning action on the text, such as replacing
+    
+    :param clean: If True, performs some cleaning action on the text, such as replacing
     numbers for the __NUMBER__ keyword.
     """
     ret = []
@@ -31,7 +28,7 @@ def tokenize(text, wiki=True):
     if type(text) != unicode:
         text = unicode(text, 'utf-8')
     
-    if wiki:
+    if clean:
         text = clean_text(text, correct=True)
     else:
         # replace numbers for __NUMBER__ and store them to replace them back
@@ -85,14 +82,14 @@ def tokenize(text, wiki=True):
             continue
         
         # Wikipedia cleaning 
-        if wiki:
+        if clean:
             # discard sentences with troublesome templates or links
             if any((x in p for x in ['__TEMPLATE__', '{{', '}}', '[[', ']]'])):
                 continue
         
         new_sent = t.tokenize(p)
         
-        if wiki:
+        if clean:
             # discard sentences that are a couple of words (it happens sometimes
             # when extracting data from lists).
             if len(new_sent) <= 2:
@@ -113,7 +110,8 @@ def clean_text(text, correct=True):
     """
     Apply some transformations to the text, such as mapping numbers to a __NUMBER__ keyword
     and simplifying quotation marks.
-    @param correct: If True, tries to correct punctuation misspellings. 
+    
+    :param correct: If True, tries to correct punctuation misspellings. 
     """
     
     # replaces different kinds of quotation marks with "
@@ -160,9 +158,7 @@ contractible_em = re.compile(contractible_base % '')
 contractible_art = re.compile('[oa]s?')
 
 def contract(w1, w2):
-    """
-    Makes a contraction of two words.
-    """
+    """Makes a contraction of two words."""
     cap = attributes.get_capitalization(w1)
     w1 = w1.lower()
     w2 = w2.lower()
@@ -215,17 +211,13 @@ def generate_feature_vectors(num_vectors, num_features, min_value=-0.1, max_valu
     return table
 
 def count_pos_tags():
-    """
-    Counts and returns how many POS tags there are.
-    """
+    """Counts and returns how many POS tags there are."""
     with open(config.FILES['pos_tag_dict']) as f:
         td = cPickle.load(f)
     return len(td)
 
 def count_chunk_tags():
-    """
-    Counts and returns how many chunk tags there are.
-    """
+    """Counts and returns how many chunk tags there are."""
     with open(config.FILES['chunk_tag_dict']) as f:
         td = cPickle.load(f)
     return len(td)
@@ -235,9 +227,10 @@ def set_features(args, md, text_reader):
     """
     Sets the features to be used by the network. The actual number of 
     feature tables will depend on the argument options.
-    @param arguments: Parameters supplied to the program
-    @param md: metadata about the network
-    @param text_reader: The TextReader being used.
+    
+    :param arguments: Parameters supplied to the program
+    :param md: metadata about the network
+    :param text_reader: The TextReader being used.
     """
     logger = logging.getLogger("Logger")
     feature_tables = []
@@ -325,9 +318,10 @@ def set_distance_features(md=None, max_dist=None,
     Returns the distance feature tables to be used by a convolutional network.
     One table is for relative distance to the target predicate, the other
     to the predicate.
-    @param md: metadata containing the names of saved tables. Needed for 
+    
+    :param md: metadata containing the names of saved tables. Needed for 
     loading tables.
-    @param max_dist: maximum distance to be used in new vectors.
+    :param max_dist: maximum distance to be used in new vectors.
     """
     logger = logging.getLogger("Logger")
     
@@ -341,24 +335,18 @@ def set_distance_features(md=None, max_dist=None,
     return [target_dist, pred_dist]
 
 def set_logger(level):
-    """
-    Sets the logger to be used throughout the system.
-    """
+    """Sets the logger to be used throughout the system."""
     log_format = '%(message)s'
     logging.basicConfig(format=log_format)
     logger = logging.getLogger("Logger")
     logger.setLevel(level)
 
 def load_features_from_file(features_file):
-    """
-    Reads a file with features written as binary data.
-    """
+    """Reads a file with features written as binary data."""
     return np.load(features_file)
 
 def save_features_to_file(table, features_file):
-    """
-    Saves a feature table to a given file, writing binary data.
-    """
+    """Saves a feature table to a given file, writing binary data."""
     logger = logging.getLogger("Logger")
     np.save(features_file, table)
     logger.info('Saved %d vectors with %d features each to file %s' % 
