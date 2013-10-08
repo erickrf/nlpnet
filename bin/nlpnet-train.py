@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 """
@@ -38,20 +39,19 @@ def create_reader(args):
         text_reader = reader.TextReader(filename=args.gold)
 
     elif args.task.startswith('srl'):
-        text_reader = srl.train_srl.create_reader_srl(args)
         text_reader = srl.srl_reader.SRLReader(filename=args.gold, only_boundaries=args.identify, 
                                                only_classify=args.classify,
                                                only_predicates=args.predicates)
     
-        if args.identify:
-            text_reader.convert_tags('iobes', only_boundaries=True)
-            
         if args.semi:
             # load data for semi supervised learning
             data = read_data.read_plain_srl(args.semi)
-            text_reader.extend(data)
+            text_reader.extend(data)    
+    
+        if args.identify:
+            text_reader.convert_tags('iobes', only_boundaries=True)
             
-        elif not args.classify:
+        elif not args.classify and not args.pred:
             # this is SRL as one step, we use IOB
             text_reader.convert_tags('iob')
         

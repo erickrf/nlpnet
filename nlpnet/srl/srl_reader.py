@@ -23,8 +23,14 @@ class SRLReader(TaggerReader):
         If no sentences argument is given, the reader will read the PropBank
         CoNLL file. If it is given, no reading is necessary (which saves a lot
         of time).
-        :param sentence: a list of tuples in the format (tokens, list of tags, 
-        predicate indices).
+        
+        :param sentences: a list of tuples in the format (tokens, list of tags, 
+        predicate indices)
+        :param filename: a file with CoNLL format data (read if sentences is not
+        given)
+        :param only_boundaries: train to identify only argument boundaries
+        :param only_classify: train to classify pre-determined argument
+        :param only_predicates: train to identify only predicates
         """
         if only_boundaries:
             self.task = 'srl_boundary'
@@ -214,18 +220,14 @@ class SRLReader(TaggerReader):
                              )
     
     def _remove_tag_names(self):
-        """
-        Removes the actual tag names, leaving only IOB or IOBES block delimiters.
-        """
+        """Removes the actual tag names, leaving only IOB or IOBES block delimiters."""
         for _, propositions in self.sentences:
             for tags in propositions:
                 for i, tag in enumerate(tags):
                     tags[i] = tag[0]
     
     def _codify_sentences(self):
-        """
-        Internal helper function.
-        """
+        """Internal helper function."""
         new_sentences = []
         self.tags = []
         

@@ -107,16 +107,62 @@ def _join_2_steps(boundaries, arguments):
     
     return answer
 
+def _group_arguments(tokens, predicate_positions, boundaries, labels):
+    """
+    Groups words pertaining to each argument and returns a dictionary for each predicate.
+    """
+    arg_structs = []
+    
+    for predicate_position, pred_boundaries, pred_labels in izip(predicate_positions,
+                                                                 boundaries, 
+                                                                 labels):
+        structure = {}
+        
+        for token, boundary_tag in izip(tokens, pred_boundaries):
+            if boundary_tag == 'O':
+                continue
+            
+            elif boundary_tag == 'B':
+                argument_tokens = [token]            
+            
+            elif boundary_tag == 'I':
+                argument_tokens.append(token)  
+                
+            elif boundary_tag == 'E': 
+                argument_tokens.append(token)
+                tag = pred_labels.pop(0)
+                structure[tag] = argument_tokens
+            
+            else:
+                # boundary_tag == 'S'
+                tag = pred_labels.pop(0)
+                structure[tag] = [token]
+        
+        predicate = tokens[predicate_position]
+        arg_structs.append((predicate, structure))
+    
+    return arg_structs
+        
+
 class Tagger(object):
     """
     Base class for taggers. It should not be instantiated.
     """
     
-    def __init__(self):
-        """Creates a tagger and loads data preemptively"""
+    def __init__(self, tokenizer=None):
+        """
+        Creates a tagger and loads data preemptively
+        
+        :param tokenizer: a function to tokenize text into lists of lists. 
+        (corresponding to sentences and their tokens). If None, the default from
+        nlpnet will be used (nlpnet.utils.tokenize)
+        """
         assert config.data_dir is not None, 'nlpnet data directory is not set.'
         
         self._load_data()
+        
+        if tokenizer is None:
+            tokenizer = utils.tokenize
     
     def _load_data(self):
         """Implemented by subclasses"""
@@ -161,22 +207,42 @@ class SRLTagger(Tagger):
         answer = np.array(self.pred_nn.tag_sentence(sent_codified))
         return answer.nonzero()[0]
 
-    def tag(self, tokens, no_repeats=False):
+    def tag(self, text, no_repeats=False):
+        """
+        Runs the SRL process on the given text.
+        
+        :param text: unicode or str encoded in utf-8.
+        :param no_repeats: whether to prevent repeated argument labels
+        :returns: a list of lists (one nested list for each sentence). Sentences have tuples 
+        (predicate, arg_structure), where arg_structure is a dictionary mapping argument
+        labels to the words it includes.
+        """
+        tokens = utils.tokenize(text, clean=False)
+        result = []
+        for sent in tokens:
+            tagged = self.tag_tokens(sent)
+            result.append(tagged)
+        
+        return result
+
+    def tag_tokens(self, tokens, no_repeats=False):
         """
         Runs the SRL process on the given tokens.
         
         :param tokens: a list of tokens (as strings)
         :param no_repeats: whether to prevent repeated argument labels
-        :returns: a tuple with the predicates and the tags for each token
+        :returns: a list of lists (one nested list for each sentence). Sentences have tuples 
+        (predicate, arg_structure), where arg_structure is a dictionary mapping argument
+        labels to the words it includes.
         """
-        tokens_obj = [attributes.Token(t) for t in tokens]
+        tokens_obj = [attributes.Token(utils.clean_text(t, False)) for t in tokens]
         converted_bound = np.array([self.boundary_reader.converter.convert(t) 
                                     for t in tokens_obj])
         converted_class = np.array([self.classify_reader.converter.convert(t) 
                                     for t in tokens_obj])
         
         pred_positions = self.find_predicates(tokens_obj)
-        preds = [t if i in pred_positions else '-' for i, t in enumerate(tokens)]
+#        preds = [t if i in pred_positions else '-' for i, t in enumerate(tokens)]
         
         # first, argument boundary detection
         # the answer includes all predicates
@@ -193,8 +259,9 @@ class SRLTagger(Tagger):
         arguments = [[self.classify_itd[x] for x in pred_answer] 
                      for pred_answer in answers]
         
-        joined = _join_2_steps(boundaries, arguments)
-        return ((preds, joined))
+        return _group_arguments(tokens, pred_positions, boundaries, arguments)
+#        joined = _join_2_steps(boundaries, arguments)
+#        return ((preds, joined))
 
 
 class POSTagger(Tagger):
@@ -207,17 +274,36 @@ class POSTagger(Tagger):
         self.reader = create_reader(md)
         self.itd = self.reader.get_inverse_tag_dictionary()
     
-    def tag(self, tokens):
+    def tag(self, text):
         """
-        Tags the given tokens for part-of-speech.
+        Tags the given text.
         
-        :param tokens: a list of tokens (as strings)
+        :param text: a string or unicode object. Strings assumed to be utf-8
+        :returns: a list of lists (sentences with tokens). Each sentence has (token, tag) tuples.
         """
-        converted_tokens = np.array([self.reader.converter.convert(token) 
+        tokens = utils.tokenize(text, clean=False)
+        result = []
+        for sent in tokens:
+            tags = self.tag_tokens(sent)
+            result.append(zip(sent, tags))
+        
+        return result
+    
+    def tag_tokens(self, tokens):
+        """
+        Tags a given list of tokens. 
+        
+        Tokens should be produced with the nlpnet tokenizer in order to 
+        match the entries in the vocabulary. If you have non-tokenized text,
+        use POSTagger.tag(text).
+        
+        :param tokens: a list of strings
+        :returns: a list of strings (the tags)
+        """
+        converter = self.reader.converter
+        converted_tokens = np.array([converter.convert(utils.clean_text(token, False)) 
                                      for token in tokens])
         answer = self.nn.tag_sentence(converted_tokens)
         tags = [self.itd[tag] for tag in answer]
         return tags
-    
 
-            

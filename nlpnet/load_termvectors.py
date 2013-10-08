@@ -17,7 +17,8 @@ import config
 import utils
 from word_dictionary import WordDictionary
 
-def convert_termvectors(input_file=config.FILES['termvectors'], output_file=config.FILES['type_features']):
+def convert_termvectors(input_file=config.FILES['termvectors'],
+                        output_file=config.FILES['type_features']):
     """
     Reads the termvectors file and converts it to the format used by nlpnet.
     """

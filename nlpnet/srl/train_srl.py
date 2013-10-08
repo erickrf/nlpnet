@@ -17,9 +17,15 @@ import srl_reader
 def load_srl_sentences():
     """
     Loads previously pickled sentences with SRL data.
+    
+    If there is no such file, returns None.
     """
-    with open(config.FILES['srl_sentences'], 'rb') as f:
-        sents = cPickle.load(f)
+    try:
+        with open(config.FILES['srl_sentences'], 'rb') as f:
+            sents = cPickle.load(f)
+    except IOError:
+        return None
+    
     return sents
 
 def create_conll_gold_file():
@@ -62,7 +68,7 @@ def create_reader_srl(args):
     Creates and returns a SRLReader object for the SRL task.
     """
     sents = load_srl_sentences()
-    return srl_reader.SRLReader(sents, only_boundaries=args.identify, 
+    return srl_reader.SRLReader(sents, args.gold, only_boundaries=args.identify, 
                                 only_classify=args.classify,
                                 only_predicates=args.predicates)
 

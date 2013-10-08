@@ -6,7 +6,6 @@ It can also be invoked in order to create a Metada object
 and save it to a file in the data directory.
 """
 
-
 import cPickle
 import os
 

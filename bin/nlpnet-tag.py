@@ -41,7 +41,7 @@ def interactive_running(task):
         if type(text) is not unicode:
             text = unicode(text, 'utf-8')
         
-        tokens = utils.tokenize(text, wiki=False)
+        tokens = utils.tokenize(text, clean=False)
         result = []
         for sent in tokens:
             # we use the cleaned tokens to match the entries in the dictionary, 

@@ -17,6 +17,7 @@ class WordDictionary(dict):
         """
         Fills a dictionary (to be used for indexing) with the most
         common words in the given text.
+        
         :param tokens: Either a list of tokens or a list of lists of tokens 
         (each token represented as a string).
         :param size: Maximum number of token indices 
@@ -133,8 +134,7 @@ class WordDictionary(dict):
     def __getitem__(self, key):
         """
         Overrides the [] read operator. Two differences from the original:
-        1) when given a word without an entry, it returns the value
-        for the *RARE* key.
+        1) when given a word without an entry, it returns the value for the *RARE* key.
         2) all entries are converted to lower case before verification.
         """
         return super(WordDictionary, self).get(key.lower(), self.index_rare)

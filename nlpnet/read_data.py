@@ -271,6 +271,7 @@ def read_trees(iterable):
 def read_conll(iterable, read_srl=True):
     """
     Reads a sentence from a sequence of lines in a CoNLL format file.
+    
     :returns: if read_srl is True, returns a list of tuples, where each
     one has the sentence, its SRL attributions and the indices of the predicates.
     If it is False, returns a list of sentences.
