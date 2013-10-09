@@ -3,7 +3,7 @@
 ===============================================================
 
 ``nlpnet`` is a Python library for Natural Language Processing tasks based on neural networks. 
-Currently, it performs only part-of-speech tagging and semantic role labeling. Most of the 
+Currently, it performs part-of-speech tagging and semantic role labeling. Most of the 
 architecture is language independent, but some functions were specially tailored for working
 with Portuguese.
 
@@ -37,17 +37,37 @@ Cython_ is used to generate C extensions and run faster. You probably won't need
 .. _Cython: http://cython.org
 .. _MinGW: http://www.mingw.org
 
-Contents:
+Basic usage
+-----------
 
-.. toctree::
-   :maxdepth: 2
+You can use `nlpnet` as a library in Python code. In order to use the existing models, you will need to download them from http://nilc.icmc.usp.br/nilc/download/nlpnet-data.zip and uncompress it somewhere. The library can be used as follows:
 
+    >>> import nlpnet
+    >>> nlpnet.set_data_dir('/path/to/nlpnet-data/')
+    >>> tagger = nlpnet.POSTagger()
+    >>> tagger.tag('O rato roeu a roupa do rei de Roma.')
+        [[(u'O', u'ART'), (u'rato', u'N'), (u'roeu', u'V'), (u'a', u'ART'), (u'roupa', u'N'), (u'do', u'PREP+ART'), (u'rei', u'N'), (u'de', u'PREP'), (u'Roma', u'NPROP'), (u'.', 'PU')]]
 
+`nlpnet` also provides scripts for tagging text, training new models and testing them. They are copied to the `scripts` subdirectory of your Python installation. You can call them from command line and give some text input.
 
-Indices and tables
-==================
+.. code-block:: bash
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+    $ nlpnet-tag.py pos /path/to/nlpnet-data/
+    O rato roeu a roupa do rei de Roma.
+    O_ART rato_N roeu_V a_ART roupa_N do_PREP+ART rei_N de_PREP Roma_NPROP ._PU
 
+Or with semantic role labeling:
+
+.. code-block:: bash
+
+    $ nlpnet-tag.py srl /path/to/nlpnet-data/
+    O rato roeu a roupa do rei de Roma.
+    O rato roeu a roupa do rei de Roma .
+    roeu
+        A1: a roupa do rei de Roma
+        A0: O rato
+        V: roeu
+
+The first line was typed by the user, and the second one is the result of tokenization.
+
+To learn more about training and testing new models, and other functionalities, refer to the documentation at http://nilc.icmc.usp.br/nilc/tools/nlpnet
