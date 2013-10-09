@@ -19,13 +19,13 @@ class WordDictionary(dict):
         common words in the given text.
         
         :param tokens: Either a list of tokens or a list of lists of tokens 
-        (each token represented as a string).
+            (each token represented as a string).
         :param size: Maximum number of token indices 
-        (not including paddings, rare, etc.).
+            (not including paddings, rare, etc.).
         :param minimum_occurrences: The minimum number of occurrences a token must 
-        have in order to be included.
+            have in order to be included.
         :param wordlist: Use this list of words to build the dictionary. Overrides tokens
-        if not None.
+            if not None.
         """
         if wordlist is None:
             # work with the supplied tokens. extract frequencies.
@@ -78,8 +78,9 @@ class WordDictionary(dict):
     def _get_frequency_count(self, token_list):
         """
         Returns a token counter for tokens in token_list.
+        
         :param token_list: Either a list of tokens (as strings) or a list 
-        of lists of tokens.
+            of lists of tokens.
         """
         if type(token_list[0]) == list:
             c = Counter(t.lower() for sent in token_list for t in sent)
@@ -91,6 +92,7 @@ class WordDictionary(dict):
     def update_tokens(self, tokens, size=None, minimum_occurrences=1, freqs=None):
         """
         Updates the dictionary, adding more types until size is reached.
+        
         :param freqs: a dictionary providing a token count.
         """
         if freqs is None:
@@ -133,7 +135,9 @@ class WordDictionary(dict):
     
     def __getitem__(self, key):
         """
-        Overrides the [] read operator. Two differences from the original:
+        Overrides the [] read operator. 
+        
+        Two differences from the original:
         1) when given a word without an entry, it returns the value for the *RARE* key.
         2) all entries are converted to lower case before verification.
         """

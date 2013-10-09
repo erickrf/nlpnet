@@ -9,9 +9,7 @@ import config
 from word_dictionary import WordDictionary as WD
 
 class Caps(object):
-    """
-    Dummy class for storing numeric values for capitalization.
-    """
+    """Dummy class for storing numeric values for capitalization."""
     num_values = 4
     lower = 0
     title = 1
@@ -37,9 +35,7 @@ class Token(object):
         return self.word.__repr__()
     
 class Suffix(object):
-    """
-    Dummy class for manipulating suffixes and their related codes.
-    """
+    """Dummy class for manipulating suffixes and their related codes."""
     codes = {}
     # words smaller than the suffix size
     small_word = 0
@@ -119,6 +115,7 @@ class TokenConverter(object):
     def get_padding_left(self, tokens_as_string=True):
         """
         Returns an object to be used as the left padding in the sentence.
+        
         :param tokens_as_string: if True, treat tokens as strings. 
         If False, treat them as Token objects.
         """
@@ -131,8 +128,9 @@ class TokenConverter(object):
     def get_padding_right(self, tokens_as_string=True):
         """
         Returns an object to be used as the right padding in the sentence.
+        
         :param tokens_as_string: if True, treat tokens as strings. 
-        If False, treat them as Token objects.
+            If False, treat them as Token objects.
         """
         if tokens_as_string:
             pad = WD.padding_right

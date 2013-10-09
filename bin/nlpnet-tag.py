@@ -41,50 +41,37 @@ def interactive_running(task):
         if type(text) is not unicode:
             text = unicode(text, 'utf-8')
         
-        tokens = utils.tokenize(text, clean=False)
-        result = []
-        for sent in tokens:
-            # we use the cleaned tokens to match the entries in the dictionary, 
-            # and the original (not cleaned) tokens to return in the answer. 
-            sent_cleaned = [utils.clean_text(token, correct=False) for token in sent]
-            tags = tagger.tag(sent_cleaned)
-            result.append((sent, tags))
-            
-        _print_tags(result)
+        result = tagger.tag(text)        
+        _print_tagged(result, task)
 
-def _print_tags(data):
+def _print_tagged(tagged_sents, task):
     """
-    Prints text with its corresponding tags.
+    Prints the tagged text to stdout.
     
-    :param data: a list of (sentence, tags) tuples. A sentence is a list of tokens,
-    and the tags depend on the task. In POS, they are a simple list, and in SRL, 
-    they are a tuple (predicates, tags), where there is one tag list for each 
-    predicate. 
+    :param tagged_sents: sentences tagged according to any of nlpnet taggers.
+    :param task: the tagging task (either 'pos' or 'srl')
     """
-    # each item in the data corresponds to a sentence
-    for sent in data:
-        actual_sent, tags = sent
-        # get the length of the longer token to have a nice formatting
-        max_len_token = max(len(token) for token in actual_sent)
-        format_str = u'{:<%d}' % (max_len_token + 1)
-        actual_sent = [format_str.format(token) for token in actual_sent]
-        
-        # in srl, the first element of the tags contains the verbs
-        if isinstance(tags, tuple):
-            verbs, srl_tags = tags
-            max_len_verb = max(len(token) for token in verbs)
-            format_str = u'{:<%d}' % (max_len_verb + 1)
-            verbs = [format_str.format(verb) for verb in verbs]
-            
-            # the asterisk tells izip to treat the elements in the list as separate arguments
-            the_iter = izip(actual_sent, verbs, *srl_tags)
-        else:
-            the_iter = izip(actual_sent, tags)
-        
-        for token_and_tags in the_iter:
-            print '\t'.join(token_and_tags).encode('utf-8')
-            
-        # linebreak after each sentence
+    if task == 'pos':
+        _print_tagged_pos(tagged_sents)
+    elif task == 'srl':
+        _print_tagged_srl(tagged_sents)
+    else:
+        raise ValueError('Unknown task: %s' % task)
+    
+def _print_tagged_pos(tagged_sents):
+    """Prints one sentence per line as token_tag"""
+    for sent in tagged_sents:
+        s = ' '.join('_'.join(item) for item in sent)
+        print s
+
+def _print_tagged_srl(tagged_sents):
+    for sent in tagged_sents:
+        print ' '.join(sent.tokens)
+        for predicate, arg_structure in sent.arg_structures:
+            print predicate
+            for label in arg_structure:
+                argument = ' '.join(arg_structure[label])
+                print '\t%s: %s' % (label, argument)
         print
 
 

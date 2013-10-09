@@ -21,7 +21,7 @@ def tokenize(text, clean=True):
     Each line break in the text starts a new list.
     
     :param clean: If True, performs some cleaning action on the text, such as replacing
-    numbers for the __NUMBER__ keyword.
+        numbers for the __NUMBER__ keyword.
     """
     ret = []
     
@@ -321,7 +321,7 @@ def set_distance_features(md=None, max_dist=None,
     to the predicate.
     
     :param md: metadata containing the names of saved tables. Needed for 
-    loading tables.
+        loading tables.
     :param max_dist: maximum distance to be used in new vectors.
     """
     logger = logging.getLogger("Logger")
@@ -356,6 +356,7 @@ def save_features_to_file(table, features_file):
 def convert_iobes_to_bracket(tag):
     """
     Convert tags from the IOBES scheme to the CoNLL bracketing.
+    
     Example:
     B-A0 -> (A0*
     I-A0 -> *

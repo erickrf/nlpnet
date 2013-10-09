@@ -65,9 +65,7 @@ def create_reader(args):
     
 
 def create_network(args, text_reader, feature_tables, md=None):
-    """
-    Creates and returns the neural network according to the task at hand.
-    """
+    """Creates and returns the neural network according to the task at hand."""
     logger = logging.getLogger("Logger")
     
     if args.task.startswith('srl') and args.task != 'srl_predicates':
@@ -127,6 +125,7 @@ def create_network(args, text_reader, feature_tables, md=None):
 def save_features(nn, md):
     """
     Receives a sequence of feature tables and saves each one in the appropriate file.
+    
     :param nn: the neural network
     :param md: a Metadata object describing the network
     """
@@ -219,6 +218,3 @@ if __name__ == '__main__':
     nn.save(nn_file)
     logger.info("Saved network to %s" % nn_file)
     
-
-
-

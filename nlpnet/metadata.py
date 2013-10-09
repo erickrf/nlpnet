@@ -71,9 +71,7 @@ class Metadata(object):
             self.suffix_features = 'suffix_features_%s' % task
     
     def __str__(self):
-        """
-        Shows the task at hand and which attributes are used.
-        """
+        """Shows the task at hand and which attributes are used."""
         lines = []
         lines.append("Metadata for task %s" % self.task)
         for k in self.__dict__:

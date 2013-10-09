@@ -21,8 +21,8 @@ class TextReader(object):
         """
         :param sentences: A list of lists of tokens.
         :param filename: Alternatively, the name of the file from where sentences 
-        can be read. The file should have one sentence per line, with tokens
-        separated by white spaces.
+            can be read. The file should have one sentence per line, with tokens
+            separated by white spaces.
         """
         if sentences is not None:
             self.sentences = sentences
@@ -57,9 +57,10 @@ class TextReader(object):
     def generate_dictionary(self, dict_size=None, minimum_occurrences=None):
         """
         Generates a token dictionary based on the supplied text.
+        
         :param dict_size: Max number of tokens to be included in the dictionary.
         :param minimum_occurrences: Minimum number of times that a token must
-        appear in the text in order to be included in the dictionary. 
+            appear in the text in order to be included in the dictionary. 
         """
         logger = logging.getLogger("Logger")
         logger.info("Creating dictionary...")
@@ -69,9 +70,7 @@ class TextReader(object):
         logger.info("Done. Dictionary size is %d tokens" % self.word_dict.num_tokens)
     
     def save_word_dict(self):
-        """
-        Saves the reader's word dictionary in cPickle format.
-        """
+        """Saves the reader's word dictionary in cPickle format."""
         logger = logging.getLogger("Logger")
         
         with open(config.FILES['word_dict_dat'], 'wb') as f:

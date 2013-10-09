@@ -81,32 +81,6 @@ def create_reader(md, gold_file=None):
     logger.info('Done')
     return tr
 
-
-def _join_2_steps(boundaries, arguments):
-    """
-    Joins the tags for argument boundaries and classification accordingly.
-    """
-    answer = []
-    
-    for pred_boundaries, pred_arguments in izip(boundaries, arguments):
-        cur_arg = ''
-        pred_answer = []
-        
-        for boundary_tag in pred_boundaries:
-            if boundary_tag == 'O':
-                pred_answer.append('O')
-            elif boundary_tag in 'BS':
-                cur_arg = pred_arguments.pop(0)
-                tag = '%s-%s' % (boundary_tag, cur_arg)
-                pred_answer.append(tag)
-            else:
-                tag = '%s-%s' % (boundary_tag, cur_arg)
-                pred_answer.append(tag)
-        
-        answer.append(pred_answer)
-    
-    return answer
-
 def _group_arguments(tokens, predicate_positions, boundaries, labels):
     """
     Groups words pertaining to each argument and returns a dictionary for each predicate.
@@ -144,26 +118,44 @@ def _group_arguments(tokens, predicate_positions, boundaries, labels):
     return arg_structs
         
 
+class SRLAnnotatedSentence(object):
+    """
+    Class storing a sentence with annotated semantic roles.
+    
+    It stores a list with the sentence tokens, called `tokens`, and a list of tuples
+    in the format `(predicate, arg_strucutres)`. Each `arg_structure` is a dict mapping 
+    semantic roles to the words that constitute it. This is used instead of a two-level
+    dictionary because one sentence may have more than one occurrence of the same 
+    predicate.
+    
+    This class is used only for storing data.
+    """
+    
+    def __init__(self, tokens, arg_structures):
+        """
+        Creates an instance of a sentence with SRL data.
+        
+        :param tokens: a list of strings
+        :param arg_structures: a list of tuples in the format (predicate, mapping).
+            Each predicate is a string and each mapping is a dictionary mapping role labels
+            to the words that constitute it. 
+        """
+        self.tokens = tokens
+        self.arg_structures = arg_structures
+        
+
+
 class Tagger(object):
     """
     Base class for taggers. It should not be instantiated.
     """
     
     def __init__(self, tokenizer=None):
-        """
-        Creates a tagger and loads data preemptively
-        
-        :param tokenizer: a function to tokenize text into lists of lists. 
-        (corresponding to sentences and their tokens). If None, the default from
-        nlpnet will be used (nlpnet.utils.tokenize)
-        """
+        """Creates a tagger and loads data preemptively"""
         assert config.data_dir is not None, 'nlpnet data directory is not set.'
         
         self._load_data()
         
-        if tokenizer is None:
-            tokenizer = utils.tokenize
-    
     def _load_data(self):
         """Implemented by subclasses"""
         pass
@@ -213,9 +205,7 @@ class SRLTagger(Tagger):
         
         :param text: unicode or str encoded in utf-8.
         :param no_repeats: whether to prevent repeated argument labels
-        :returns: a list of lists (one nested list for each sentence). Sentences have tuples 
-        (predicate, arg_structure), where arg_structure is a dictionary mapping argument
-        labels to the words it includes.
+        :returns: a list of SRLAnnotatedSentence objects
         """
         tokens = utils.tokenize(text, clean=False)
         result = []
@@ -231,9 +221,9 @@ class SRLTagger(Tagger):
         
         :param tokens: a list of tokens (as strings)
         :param no_repeats: whether to prevent repeated argument labels
-        :returns: a list of lists (one nested list for each sentence). Sentences have tuples 
-        (predicate, arg_structure), where arg_structure is a dictionary mapping argument
-        labels to the words it includes.
+        :returns: a list of lists (one list for each sentence). Sentences have tuples 
+            (all_tokens, predicate, arg_structure), where arg_structure is a dictionary 
+            mapping argument labels to the words it includes.
         """
         tokens_obj = [attributes.Token(utils.clean_text(t, False)) for t in tokens]
         converted_bound = np.array([self.boundary_reader.converter.convert(t) 
@@ -242,7 +232,6 @@ class SRLTagger(Tagger):
                                     for t in tokens_obj])
         
         pred_positions = self.find_predicates(tokens_obj)
-#        preds = [t if i in pred_positions else '-' for i, t in enumerate(tokens)]
         
         # first, argument boundary detection
         # the answer includes all predicates
@@ -259,10 +248,9 @@ class SRLTagger(Tagger):
         arguments = [[self.classify_itd[x] for x in pred_answer] 
                      for pred_answer in answers]
         
-        return _group_arguments(tokens, pred_positions, boundaries, arguments)
-#        joined = _join_2_steps(boundaries, arguments)
-#        return ((preds, joined))
-
+        structures = _group_arguments(tokens, pred_positions, boundaries, arguments)
+        return SRLAnnotatedSentence(tokens, structures)
+        
 
 class POSTagger(Tagger):
     """A POSTagger loads the models and performs POS tagging on text."""

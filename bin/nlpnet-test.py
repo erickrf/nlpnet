@@ -24,12 +24,12 @@ import nlpnet.utils as utils
 import nlpnet.taggers as taggers
 from nlpnet.metadata import Metadata
 
-def evaluate_pos(heuristics=False, wordlist=None, gold_file=None, oov=None):
+def evaluate_pos(gold_file=None, oov=None):
     """
     Tests the network for tagging a given sequence.
     
-    'param heuristics: whether to use hand-crafted heuristics or not.
-    'param wordlist: if not None, only measure performance on these words.
+    :param gold_file: file with gold data to evaluate against
+    :param oov: either None or a list of tokens, that should contain the oov words.
     """
     md = Metadata.load_from_file('pos')
     nn = taggers.load_network(md)
@@ -57,7 +57,6 @@ def evaluate_pos(heuristics=False, wordlist=None, gold_file=None, oov=None):
                 word = iter_sent.next()
                 if word.lower() not in oov:
                     continue
-                
             
             if itd[net_tag] == gold_tag:
                 hits += 1
@@ -76,13 +75,12 @@ def sentence_precision(network_tags, gold_tags, gold_tag_dict, network_tag_dict)
     :param network_tags: the answers by the network
     :param gold_tags: the correct tags
     :param gold_tag_dict: inverse tag dictionary (numbers to tags) for the
-    gold tags.
+        gold tags.
     :param network_tag_dict: inverse tag dictionary (numbers to tags) for the
-    network answers.
-    :param only_boundaries: only identify argument boundaries
+        network answers.
     :returns: a tuple where the first member is the list of arguments
-    tagged right and the second is the list of arguments found by
-    the network.
+        tagged right and the second is the list of arguments found by
+        the network.
     """
     inside_argument = False
     mistake = False
@@ -143,8 +141,8 @@ def sentence_recall(network_tags, gold_tags, gold_tag_dict, network_tag_dict):
     :param network_tag_dict: inverse tag dictionary (numbers to tags) for the
     network answers.
     :returns: a tuple where the first member is the list of arguments
-    got right and the second is the list of arguments that were in
-    the sentence.
+        got right and the second is the list of arguments that were in
+        the sentence.
     """
     inside_argument = False
     mistake = False
@@ -298,9 +296,6 @@ def evaluate_srl_2_steps(no_repeat=False, find_preds_automatically=False, gold_f
         verbs = [(position, sent[position].word) for position in pred_pos]
         sent_bound_codified = np.array([reader_boundary.converter.convert(t) for t in sent])
         sent_class_codified = np.array([reader_classify.converter.convert(t) for t in sent])
-        
-#        tags = run_2_steps(nn_boundary, nn_classify, sent_bound_codified, sent_class_codified,
-#                           itd_boundary, itd_classify, pred_pos, no_repeat)
         
         answers = nn_boundary.tag_sentence(sent_bound_codified, pred_pos)
         boundaries = [[itd_boundary[x] for x in pred_answer] for pred_answer in answers]
