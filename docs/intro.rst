@@ -1,38 +1,30 @@
-===============================================================
-``nlpnet`` --- Natural Language Processing with neural networks
-===============================================================
+============
+Introduction
+============
 
-``nlpnet`` is a Python library for Natural Language Processing tasks based on neural networks. 
-Currently, it performs part-of-speech tagging and semantic role labeling. Most of the 
-architecture is language independent, but some functions were specially tailored for working
-with Portuguese.
+This documents covers the basics for installing and using :mod:`nlpnet`. 
 
-This system was inspired by SENNA_, but has some conceptual and practical differences. 
-If you use ``nlpnet``, please cite one or both of the articles below, according to your needs (POS or
-SRL):
+Installation
+------------
 
-.. _SENNA: http://ronan.collobert.com/senna/
+:mod:`nlpnet` can be downloaded from the Python package index at https://pypi.python.org/pypi/nlpnet/ or installed with
 
-* Fonseca, E. R. and Rosa, J.L.G. *A Two-Step Convolutional Neural Network Approach for Semantic
-  Role Labeling*. Proceedings of the 2013 International Joint Conference on Neural Networks, 2013.
-  p. 2955-2961.
+.. code-block:: bash
 
-* Fonseca, E. R. and Rosa, J.L.G. *Mac-Morpho Revisited: Towards Robust Part-of-Speech Tagging*. 
-  Proceedings of the 9th Brazilian Symposium in Information and Human Language Technology, 2013. p.  
-  98-107 [`PDF <http://aclweb.org/anthology//W/W13/W13-4811.pdf>`_]
+    pip install nlpnet
 
 **Important:** in order to use the trained models for Portuguese NLP, you will need to download the data from http://nilc.icmc.usp.br/nilc/download/nlpnet-data.zip and unzip it into some directory.
 
 Dependencies
-------------
+~~~~~~~~~~~~
 
-``nlpnet`` requires NLTK_ and numpy_. Additionally, it needs to download some data from NLTK. After installing it, call
+:mod:`nlpnet` requires NLTK_ and numpy_. Additionally, it needs to download some data from NLTK. After installing it, call
 
     >>> nltk.download()
 
 go to the `Models` tab and select the Punkt tokenizer. It is used in order to split the text into sentences.
 
-Cython_ is used to generate C extensions and run faster. You probably won't need it, since the generated ``.c`` file is already provided with `nlpnet`, but you will need a C compiler. On Linux and Mac systems this shouldn't be a problem, but may be on Windows, because  setuptools_ requires the Microsoft C Compiler by default. If you don't have it already, it is usually easier to install MinGW_ instead and follow the instructions `here <http://docs.cython.org/src/tutorial/appendix.html>`_.
+Cython_ is used to generate C extensions and run faster. You probably won't need it, since the generated ``.c`` file is already provided with :mod:`nlpnet`, but you will need a C compiler. On Linux and Mac systems this shouldn't be a problem, but may be on Windows, because  setuptools_ requires the Microsoft C Compiler by default. If you don't have it already, it is usually easier to install MinGW_ instead and follow the instructions `here <http://docs.cython.org/src/tutorial/appendix.html>`_.
 
 .. _NLTK: http://www.nltk.org
 .. _numpy: http://www.numpy.org
@@ -43,12 +35,12 @@ Cython_ is used to generate C extensions and run faster. You probably won't need
 Basic usage
 -----------
 
-``nlpnet`` can be used both as a Python library or by its standalone scripts. Both usages are explained below.
+:mod:`nlpnet` can be used both as a Python library or by its standalone scripts. Both usages are explained below.
 
 Library usage
 ~~~~~~~~~~~~~
 
-You can use ``nlpnet`` as a library in Python code as follows:
+You can use :mod:`nlpnet` as a library in Python code as follows:
 
 .. code-block:: python
 
@@ -58,7 +50,7 @@ You can use ``nlpnet`` as a library in Python code as follows:
     >>> tagger.tag('O rato roeu a roupa do rei de Roma.')
     [[(u'O', u'ART'), (u'rato', u'N'), (u'roeu', u'V'), (u'a', u'ART'), (u'roupa', u'N'), (u'do', u'PREP+ART'), (u'rei', u'N'), (u'de', u'PREP'), (u'Roma', u'NPROP'), (u'.', 'PU')]]
 
-In the example above, the call to ``set_data_dir`` indicates where the data directory is located. This location must be given whenever ``nlpnet`` is imported. 
+In the example above, the call to ``set_data_dir`` indicates where the data directory is located. This location must be given whenever :mod:`nlpnet` is imported. 
 
 Calling a tagger is pretty straightforward. The two provided taggers are ``POSTagger`` and ``SRLTagger``, both having a method ``tag`` which receives strings with text to be tagged. The tagger splits the text into sentences and then tokenizes each one (hence the return of the POSTagger is a list of lists).
 
@@ -86,7 +78,7 @@ Note that the verb appears as the first member of the tuple and also as the cont
 Standalone scripts
 ~~~~~~~~~~~~~~~~~~
 
-``nlpnet`` also provides scripts for tagging text, training new models and testing them. They are copied to the `scripts` subdirectory of your Python installation, which can be included in the system PATH variable. You can call them from command line and give some text input.
+:mod:`nlpnet` also provides scripts for tagging text, training new models and testing them. They are copied to the `scripts` subdirectory of your Python installation, which can be included in the system PATH variable. You can call them from command line and give some text input.
 
 .. code-block:: bash
 
@@ -107,5 +99,3 @@ Or with semantic role labeling:
         V: roeu
 
 The first line was typed by the user, and the second one is the result of tokenization.
-
-To learn more about training and testing new models, and other functionalities, refer to the documentation at http://nilc.icmc.usp.br/nlpnet

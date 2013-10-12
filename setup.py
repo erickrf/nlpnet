@@ -9,6 +9,11 @@ except ImportError:
     print "copy from www.numpy.org and install it"
     sys.exit(1)
 
+def readme():
+    with open('README.rst') as f:
+        text = f.read()
+    return text
+
 setup(
       name = 'nlpnet',
       description = 'Neural networks for NLP tasks',
@@ -21,8 +26,10 @@ setup(
       scripts = ['bin/nlpnet-tag.py',
                  'bin/nlpnet-train.py',
                  'bin/nlpnet-test.py'],
-      license = 'LICENSE.txt',
+      license = 'MIT',
       version = '1.0.0',
       author = 'Erick Fonseca',
-      author_email = 'erickrfonseca@gmail.com'
+      author_email = 'erickrfonseca@gmail.com',
+      url = 'http://nilc.icmc.usp.br/nlpnet',
+      long_description = readme()
       )

@@ -198,7 +198,7 @@ if __name__ == '__main__':
     text_reader.create_converter(md)
     text_reader.codify_sentences()
     
-    feature_tables = utils.set_features(args, md, text_reader)
+    feature_tables = utils.load_features(args, md, text_reader)
     
     if args.load_network or args.semi:
         logger.info("Loading provided network...")

@@ -152,7 +152,9 @@ class Tagger(object):
     
     def __init__(self, tokenizer=None):
         """Creates a tagger and loads data preemptively"""
-        assert config.data_dir is not None, 'nlpnet data directory is not set.'
+        asrt_msg = "nlpnet data directory is not set. \
+If you don't have the trained models, download them from http://nilc.icmc.usp.br/nilc/download/nlpnet-data.zip"
+        assert config.data_dir is not None, asrt_msg
         
         self._load_data()
         

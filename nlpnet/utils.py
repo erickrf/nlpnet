@@ -17,11 +17,11 @@ import attributes
 
 def tokenize(text, clean=True):
     """
-    Returns a list of lists of the tokens in text.
+    Returns a list of lists of the tokens in text, separated by sentences.
     Each line break in the text starts a new list.
     
     :param clean: If True, performs some cleaning action on the text, such as replacing
-        numbers for the __NUMBER__ keyword.
+        numbers for the __NUMBER__ keyword (by calling :func:`clean_text`)
     """
     ret = []
     
@@ -108,8 +108,8 @@ def tokenize(text, clean=True):
 
 def clean_text(text, correct=True):
     """
-    Apply some transformations to the text, such as mapping numbers to a __NUMBER__ keyword
-    and simplifying quotation marks.
+    Apply some cleaning transformations to the text, such as mapping 
+    numbers to a __NUMBER__ keyword and normalizing quotation marks.
     
     :param correct: If True, tries to correct punctuation misspellings. 
     """
@@ -158,7 +158,13 @@ _contractible_em = re.compile(_contractible_base % '')
 _contractible_art = re.compile('[oa]s?')
 
 def contract(w1, w2):
-    """Makes a contraction of two words."""
+    """
+    Makes a contraction of two words.
+
+    For example: contract('de', 'os') returns 'dos'
+    If a contraction between the given words doesn't exist in Portuguese, a ValueError
+    exception is thrown.
+    """
     cap = attributes.get_capitalization(w1)
     w1 = w1.lower()
     w2 = w2.lower()
@@ -223,7 +229,7 @@ def count_chunk_tags():
     return len(td)
 
 #TODO: this function could be more organized with less repeated code
-def set_features(args, md, text_reader):
+def load_features(args, md, text_reader):
     """
     Loads the features to be used by the network. The actual number of 
     feature tables will depend on the argument options.

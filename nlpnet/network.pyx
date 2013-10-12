@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+#cython: embedsignature=True
 
 """
 A neural network for NLP tagging tasks.
@@ -31,7 +32,7 @@ cdef class Network:
     cdef readonly np.ndarray hidden_bias, output_bias
     cdef readonly np.ndarray input_values, hidden_values
     
-    # feature_tables 
+    # feature tables 
     cdef public list feature_tables
     
     # transitions
@@ -96,7 +97,7 @@ cdef class Network:
     
     def description(self):
         """
-        Returns a description of the network.
+        Returns a textual description of the network.
         """
         table_dims = [str(t.shape[1]) for t in self.feature_tables]
         table_dims =  ', '.join(table_dims)

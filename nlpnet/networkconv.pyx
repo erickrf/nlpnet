@@ -85,7 +85,7 @@ cdef class ConvolutionalNetwork(Network):
         return net
     
     def description(self):
-        """Returns a description of the network."""
+        """Returns a textual description of the network."""
         hidden2_size = 0 if self.hidden2_weights is None else self.hidden2_size
         table_dims = [str(t.shape[1]) for t in self.feature_tables]
         table_dims =  ', '.join(table_dims)
