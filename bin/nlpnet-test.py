@@ -496,7 +496,7 @@ if __name__ == '__main__':
         else:
             oov = None
                     
-        accuracy = evaluate_pos(False, gold_file=args.gold, oov=oov)
+        accuracy = evaluate_pos(gold_file=args.gold, oov=oov)
         print "Accuracy: %f" % accuracy
     
     elif args.task.startswith('srl'):
