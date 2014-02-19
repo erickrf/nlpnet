@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import itertools
 from collections import Counter
 
 class WordDictionary(dict):
@@ -50,15 +51,26 @@ class WordDictionary(dict):
             size = min(size, len(words))
             words = words[:size]
         
-        self.num_tokens = size
-        self.index_rare = size
-        self.index_padding_left = size + 1
-        self.index_padding_right = size + 2
-        self[WordDictionary.rare] = self.index_rare
+        # set all words in the dictionary
+        for word, num in itertools.izip(words, xrange(size)):
+            self[word] = num
+        
+        # if the given words include the rare symbol, don't replace it
+        if WordDictionary.rare in words:
+            self.num_tokens = size - 1
+            
+            # using dict.get() instead of [] because we override the latter
+            key = WordDictionary.rare.lower()
+            self.index_rare = super(WordDictionary, self).get(key)
+        else:
+            self.num_tokens = size
+            self.index_rare = size
+            self[WordDictionary.rare] = self.index_rare
+        
+        self.index_padding_left = self.num_tokens + 1
+        self.index_padding_right = self.num_tokens + 2
         self[WordDictionary.padding_left] = self.index_padding_left
         self[WordDictionary.padding_right] = self.index_padding_right
-        
-        super(WordDictionary, self).__init__( zip(words, xrange(self.num_tokens)) )
     
     @classmethod
     def init_from_wordlist(cls, wordlist):
@@ -126,6 +138,12 @@ class WordDictionary(dict):
         
         self.check()
     
+    def __contains__(self, key):
+        """
+        Overrides the "in" operator. Case insensitive.
+        """
+        return super(WordDictionary, self).__contains__(key.lower())
+    
     def __setitem__(self, key, value):
         """
         Overrides the [] write operator. It converts every key to lower case
@@ -156,6 +174,9 @@ class WordDictionary(dict):
         Checks the internal structure of the dictionary and makes necessary adjustments, 
         such as updating num_tokens.
         """
+        self.index_padding_left = self[WordDictionary.padding_left]
+        self.index_padding_right = self[WordDictionary.padding_right]
+        self.index_rare = self[WordDictionary.rare]
         self.num_tokens = len(self) - 3
     
     def get_words(self, indices):
