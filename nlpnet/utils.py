@@ -260,7 +260,7 @@ def load_features(args, md, text_reader):
             logger.warning("Generating features for %d new types." % diff)
             num_features = len(types_table[0])
             new_vecs =  generate_feature_vectors(diff, num_features)
-            types_table = np.append(types_table, new_vecs)
+            types_table = np.append(types_table, new_vecs, axis=0)
             
         elif len(types_table) < len(text_reader.word_dict):
             logger.warning("Number of features provided is greater than the number of tokens\
