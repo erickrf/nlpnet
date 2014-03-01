@@ -12,7 +12,7 @@ import utils
 import config
 import attributes
 from metadata import Metadata
-from pos.macmorphoreader import MacMorphoReader
+from pos.pos_reader import POSReader
 from srl.srl_reader import SRLReader
 from network import Network, ConvolutionalNetwork, LanguageModel
 

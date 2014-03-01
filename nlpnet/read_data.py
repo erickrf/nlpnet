@@ -481,14 +481,13 @@ def valid_sentence(sentence, tags):
         
     return True
 
-def read_macmorpho_file(filename):
+def read_pos_file(filename):
     """
-    Reads a file from the MacMorpho corpus and returns it as a list
+    Reads a file from a POS tagged corpus and returns it as a list
     of sentences, where each sentence element is composed of a 
     tuple (token, tag).
-    NOTE: Maybe it would be interesting to collapse the tags PRO-KS
-    and PRO-KS-REL together, since they are very similar and distinguishing 
-    them requires anaphora resolution 
+    The file must have one sentence per line, and sentences must have
+    tokens in the format token_tag. 
     """
     
     tokens = []
