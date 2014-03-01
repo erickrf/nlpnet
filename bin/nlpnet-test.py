@@ -129,6 +129,31 @@ def sentence_precision(network_tags, gold_tags, gold_tag_dict, network_tag_dict)
         
     return (correct_args, predicted_args)
         
+def join_2_steps(boundaries, arguments):
+    """
+    Joins the tags for argument boundaries and classification accordingly.
+    """
+    answer = []
+    
+    for pred_boundaries, pred_arguments in izip(boundaries, arguments):
+        cur_arg = ''
+        pred_answer = []
+        
+        for boundary_tag in pred_boundaries:
+            if boundary_tag == 'O':
+                pred_answer.append('O')
+            elif boundary_tag in 'BS':
+                cur_arg = pred_arguments.pop(0)
+                tag = '%s-%s' % (boundary_tag, cur_arg)
+                pred_answer.append(tag)
+            else:
+                tag = '%s-%s' % (boundary_tag, cur_arg)
+                pred_answer.append(tag)
+        
+        answer.append(pred_answer)
+    
+    return answer
+
 
 def sentence_recall(network_tags, gold_tags, gold_tag_dict, network_tag_dict):
     """
@@ -306,9 +331,9 @@ def evaluate_srl_2_steps(no_repeat=False, find_preds_automatically=False, gold_f
         answers = nn_classify.tag_sentence(sent_class_codified, 
                                            pred_pos, arg_limits,
                                            allow_repeats=not no_repeat)
-    
+        
         arguments = [[itd_classify[x] for x in pred_answer] for pred_answer in answers]        
-        tags = taggers._join_2_steps(boundaries, arguments)        
+        tags = join_2_steps(boundaries, arguments)        
         
         print prop_conll(verbs, tags, len(sent))
 
@@ -446,9 +471,9 @@ def evaluate_srl_identify(gold_file):
                 
         print '%s\t\t%f' % (arg, rec)
 
-def read_oov_words():
+def read_oov_words(oov_file):
     words = set()
-    with open('oov.txt', 'rb') as f:
+    with open(oov_file, 'rb') as f:
         for line in f:
             uline = unicode(line, 'utf-8').strip()
             words.add(uline)
@@ -474,7 +499,7 @@ if __name__ == '__main__':
                         help='Determines SRL predicates automatically using a POS tagger.')
     parser.add_argument('--gold', help='File with gold standard data', type=str, required=True)
     parser.add_argument('--data', help='Directory with trained models', type=str, required=True)
-    parser.add_argument('--oov', help='Analyze performance on OOV data', action='store_true')
+    parser.add_argument('--oov', help='Analyze performance on OOV data', type=str)
     args = parser.parse_args()
     
     if args.identify:
