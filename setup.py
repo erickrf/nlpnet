@@ -27,7 +27,7 @@ setup(
                  'bin/nlpnet-train.py',
                  'bin/nlpnet-test.py'],
       license = 'MIT',
-      version = '1.0.1',
+      version = '1.0.2',
       author = 'Erick Fonseca',
       author_email = 'erickrfonseca@gmail.com',
       url = 'http://nilc.icmc.usp.br/nlpnet',

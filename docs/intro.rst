@@ -13,6 +13,8 @@ Installation
 
     pip install nlpnet
 
+See the `Dependencies`_ section below for additional installation requirements.
+    
 **Important:** in order to use the trained models for Portuguese NLP, you will need to download the data from http://nilc.icmc.usp.br/nilc/download/nlpnet-data.zip and unzip it into some directory.
 
 Dependencies
@@ -32,10 +34,42 @@ Cython_ is used to generate C extensions and run faster. You probably won't need
 .. _MinGW: http://www.mingw.org
 .. _setuptools: http://pythonhosted.org/setuptools/
 
+Brief explanation
+-----------------
+
+Here is a brief exaplanation about how stuff works in the internals of :mod:`nlpnet` (*you don't need
+to know it to use this library*).
+For a more detailed view, refer to the articles in the index page or about the SENNA system.
+
+Two types of neural networks are available: the common MLP (multilayer perceptron) and the convolutional one. 
+The former was used to train a POS model, and the latter an SRL model. Basically, the common MLP examines
+word windows, outputs a score for assigning each tag to each word, and then determines 
+the tags using the Viterbi algorithm (which is essentially picking the best combination from network
+scores and tag transition scores).
+
+During training, adjustments are made to the network connections, word representations and 
+the tag transition scores. Their learning rates may be set separately, although the best
+results seem to arise when all three have the same value.
+
+The convolutional network is a little more complicated. In order to output a score for each 
+word, it examines the whole sentence. It does so by picking a word window at a time and forwarding it to 
+a convolution layer. This layer stores in each of its neurons the biggest value found so far.
+After all words have been examined, the convolution layer forwards its output like a usual MLP network.
+Then, it works like the previous model: the network outputs scores for each word/tag combination,
+and a Viterbi search is performed.
+
+In the convolution layer, the values found by each neuron may come from different words, i.e., each neuron stores
+its maximum independently from the others. This is particularly complex during training, because 
+neurons must backpropagate their error only to the word window that yielded their stored value.
+
+All the details concerning the neural networks are hidden from the user when calling the tagger methods or 
+the ``nlpnet-tag`` standalone script. However, they are available to play with in the :ref:`network` module.
+
 Basic usage
 -----------
 
-:mod:`nlpnet` can be used both as a Python library or by its standalone scripts. Both usages are explained below.
+:mod:`nlpnet` can be used both as a Python library or by its standalone scripts. The basic library API is explained below.
+See also :ref:`scripts`.
 
 Library usage
 ~~~~~~~~~~~~~
@@ -75,27 +109,3 @@ The ``arg_structures`` is a list containing all predicate-argument structures in
 
 Note that the verb appears as the first member of the tuple and also as the content of label 'V' (which stands for verb). This is because some predicates are multiwords. In these cases, the "main" predicate word (usually the verb itself) appears in ``arg_structures[0]``, and all the words appear under the key 'V'.
 
-Standalone scripts
-~~~~~~~~~~~~~~~~~~
-
-:mod:`nlpnet` also provides scripts for tagging text, training new models and testing them. They are copied to the `scripts` subdirectory of your Python installation, which can be included in the system PATH variable. You can call them from command line and give some text input.
-
-.. code-block:: bash
-
-    $ nlpnet-tag.py pos /path/to/nlpnet-data/
-    O rato roeu a roupa do rei de Roma.
-    O_ART rato_N roeu_V a_ART roupa_N do_PREP+ART rei_N de_PREP Roma_NPROP ._PU
-
-Or with semantic role labeling:
-
-.. code-block:: bash
-
-    $ nlpnet-tag.py srl /path/to/nlpnet-data/
-    O rato roeu a roupa do rei de Roma.
-    O rato roeu a roupa do rei de Roma .
-    roeu
-        A1: a roupa do rei de Roma
-        A0: O rato
-        V: roeu
-
-The first line was typed by the user, and the second one is the result of tokenization.
