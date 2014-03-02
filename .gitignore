@@ -1,2 +1,11 @@
 *.pyc
-. .. .git .gitignore .project .pydevproject .settings .spyderproject
+.*
+data
+docs/Makefile
+docs/conf.py
+docs/make.bat
+docs/sphinx_build/
+nlpnet/network.pyd
+build
+dist
+MANIFEST
