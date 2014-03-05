@@ -63,7 +63,7 @@ def create_reader(md, gold_file=None):
     logger.info('Loading text reader...')
     
     if md.task == 'pos':
-        tr = MacMorphoReader(filename=gold_file)
+        tr = POSReader(filename=gold_file)
         tr.load_tag_dict()
         
     elif md.task.startswith('srl'):

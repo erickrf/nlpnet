@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Class for dealing with POS data from MacMorpho.
+Class for dealing with POS data.
 """
 
 from ..reader import TaggerReader
