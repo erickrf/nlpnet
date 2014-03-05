@@ -32,7 +32,7 @@ def create_reader(args):
     """
     logger.info("Reading text...")
     if args.task == 'pos':
-        text_reader = pos.macmorphoreader.MacMorphoReader(filename=args.gold)
+        text_reader = pos.pos_reader.POSReader(filename=args.gold)
         text_reader.load_tag_dict()
     
     elif args.task == 'lm':
