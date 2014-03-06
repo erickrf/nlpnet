@@ -48,7 +48,7 @@ cdef class Network:
     
     # data for statistics during training. 
     cdef float error, accuracy
-    cdef int total_items, train_hits, skips
+    cdef int total_items, train_hits, skips, float_errors
     
     @classmethod
     def create_new(cls, feature_tables, int word_window, int hidden_size, 
@@ -415,6 +415,8 @@ Output size: %d
         last_accuracy = 0
         last_error = np.Infinity 
         
+        np.seterr(all='raise')
+
         for i in range(epochs):
             self._train_epoch(sentences, tags)
             
@@ -437,6 +439,8 @@ Output size: %d
             last_error = self.error
         
         self.error = 0
+        self.float_errors = 0
+        self.skips = 0
         self.train_hits = 0
         self.total_items = 0
             
@@ -446,10 +450,11 @@ Output size: %d
         epoch, including error and accuracy.
         """
         cdef float error = self.error / self.total_items
-        print "%d epochs   Error:   %f   Accuracy: %f   %d corrections could be skipped" % (num,
-                                                                                            error,
-                                                                                            self.accuracy,
-                                                                                            self.skips)
+        print "%d epochs   Error: %f   Accuracy: %f   %d corrections could be skipped   %d floating point errors" % (num,
+                                                                                                                     error,
+                                                                                                                     self.accuracy,
+                                                                                                                     self.skips,
+                                                                                                                     self.float_errors)
     
     def _train_epoch(self, list sentences, list tags):
         """
@@ -459,6 +464,7 @@ Output size: %d
         self.error = 0
         self.total_items = 0
         self.skips = 0
+        self.float_errors = 0
         
         # shuffle data
         # get the random number generator state in order to shuffle
@@ -473,6 +479,7 @@ Output size: %d
                 self._tag_sentence(sent, True, sent_tags)
             except FloatingPointError:
                 # just ignore the sentence in case of an overflow
+                self.float_errors += 1
                 continue
     
     def _corrections(self, np.ndarray[INT_t, ndim=2]  window, 
