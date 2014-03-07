@@ -293,6 +293,13 @@ Output size: %d
         all_scores = self._calculate_all_scores(scores)
         error = np.log(np.sum(np.exp(all_scores[-1]))) - correct_path_score
         self.error += error
+        
+        # if the error is too low, don't bother training (saves time and avoids
+        # overfitting). An error of 0.01 means a log-prob of -0.01 for the right
+        # tag, i.e., more than 99% probability
+        # error 0.69 -> 50% probability for right tag (minimal threshold)
+        # error 0.22 -> 80%
+        # error 0.1  -> 90%
         if error <= 0.01:
             self.skips += 1
             return False
@@ -450,11 +457,13 @@ Output size: %d
         epoch, including error and accuracy.
         """
         cdef float error = self.error / self.total_items
-        print "%d epochs   Error: %f   Accuracy: %f   %d corrections could be skipped   %d floating point errors" % (num,
-                                                                                                                     error,
-                                                                                                                     self.accuracy,
-                                                                                                                     self.skips,
-                                                                                                                     self.float_errors)
+        print "%d epochs   Error: %f   Accuracy: %f   " \
+            "%d corrections could be skipped   " \
+            "%d floating point errors" % (num,
+                                          error,
+                                          self.accuracy,
+                                          self.skips,
+                                          self.float_errors)
     
     def _train_epoch(self, list sentences, list tags):
         """
@@ -482,42 +491,6 @@ Output size: %d
                 self.float_errors += 1
                 continue
     
-    def _corrections(self, np.ndarray[INT_t, ndim=2]  window, 
-                     np.ndarray[FLOAT_t, ndim=1] scores, int tag):
-        """
-        Performs corrections in the network after a pattern
-        has been seen. It calls backpropagation, weights 
-        and features ajustments.
-        """
-        # find the logadd
-        cdef np.ndarray exponentials = np.exp(scores)
-        cdef float exp_sum = np.sum(exponentials)
-        cdef float logadd = math.log(exp_sum)
-        
-        # update information about training
-        self.total_items += 1
-        error = logadd - scores[tag]
-        self.error += error
-        if scores.argmax() == tag:
-            self.train_hits += 1
-            
-        # if the error is too low, don't bother training (saves time and avoids
-        # overfitting). An error of 0.01 means a log-prob of -0.01 for the right
-        # tag, i.e., more than 99% probability
-        # error 0.69 -> 50% probability for right tag (minimal threshold)
-        # error 0.22 -> 80%
-        # error 0.1  -> 90% 
-        if error <= 0.01:
-            self.skips += 1
-            return
-        
-        # the gradient at each output neuron i is given by:
-        # exp(i) / exp_sum, for wrong labels
-        # (exp(i) / exp_sum) - 1, for the right label 
-        cdef np.ndarray[FLOAT_t, ndim=1] output_gradients = - exponentials / exp_sum
-        output_gradients[tag] += 1
-        output_gradients *= self.learning_rate
-        
     def _backpropagate(self, sentence):
         """Backpropagate the error gradient."""
         # find the hidden gradients by backpropagating the output
