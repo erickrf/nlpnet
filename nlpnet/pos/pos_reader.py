@@ -4,6 +4,7 @@
 Class for dealing with POS data.
 """
 
+from .. import utils
 from ..reader import TaggerReader
 
 class POSReader(TaggerReader):
@@ -29,7 +30,8 @@ class POSReader(TaggerReader):
             if filename is not None:
                 with open(filename, 'rb') as f:
                     for line in f:
-                        items = unicode(line, 'utf-8').split()
+                        cleaned = utils.clean_text(unicode(line, 'utf-8'), False)
+                        items = cleaned.split()
                         self.sentences.append([item.split('_') for item in items])
             
 

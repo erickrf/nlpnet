@@ -269,7 +269,8 @@ class POSTagger(Tagger):
         Tags the given text.
         
         :param text: a string or unicode object. Strings assumed to be utf-8
-        :returns: a list of lists (sentences with tokens). Each sentence has (token, tag) tuples.
+        :returns: a list of lists (sentences with tokens). 
+            Each sentence has (token, tag) tuples.
         """
         tokens = utils.tokenize(text, clean=False)
         result = []
