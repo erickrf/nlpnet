@@ -39,6 +39,7 @@ class Token(object):
 class Suffix(object):
     """Dummy class for manipulating suffixes and their related codes."""
     codes = {}
+    suffixes_by_size = []
     other = 0
     
     # initially, there is only the "other" (rare) suffix
@@ -63,6 +64,9 @@ class Suffix(object):
             raise
         
         Suffix.num_suffixes = code
+        Suffix.suffixes_by_size = sorted(Suffix.codes,
+                                         key=len,
+                                         reverse=True)
     
     
     @classmethod
@@ -74,7 +78,8 @@ class Suffix(object):
         suffix separately, instead of using a tree structure), but 
         it is intended to be called only once per word.
         """
-        for suffix in Suffix.codes:
+        # check longer suffixes first
+        for suffix in Suffix.suffixes_by_size:
             if word.endswith(suffix) and len(word) > suffix:
                 return Suffix.codes[suffix]
         
