@@ -11,8 +11,8 @@ import numpy as np
 from collections import Counter
 
 import config
-from word_dictionary import WordDictionary
 import attributes
+from word_dictionary import WordDictionary
 from attributes import get_capitalization
 
 class TextReader(object):

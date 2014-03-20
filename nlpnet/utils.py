@@ -15,13 +15,50 @@ import config
 import attributes
 
 
+# these variables appear at module level for faster access and to avoid
+# repeated initialization
+
+_tokenizer_regexp = ur'''(?ux)
+    # the order of the patterns is important!!
+    ([^\W\d_]\.)+|                # one letter abbreviations, e.g. E.U.A.
+    \d{1,3}(\.\d{3})*(,\d+)|      # numbers in format 999.999.999,99999
+    \d{1,3}(,\d{3})*(\.\d+)|      # numbers in format 999,999,999.99999
+    \d+:\d+|                      # time and proportions
+    \d+([-\\/]\d+)*|              # dates. 12/03/2012 12-03-2012
+    [DSds][Rr][Aa]?\.|            # common abbreviations such as dr., sr., sra., dra.
+    [Mm]\.?[Ss][Cc]\.?|           # M.Sc. with or without capitalization and dots
+    [Pp][Hh]\.?[Dd]\.?|           # Same for Ph.D.
+    [^\W\d_]{1,2}\$|              # currency
+    (?:(?<=\s)|^)[\#@]\w*[A-Za-z_]+\w*|  # Hashtags and twitter user names
+    -[^\W\d_]+|                   # clitic pronouns with leading hyphen
+    \w+([-']\w+)*|                # words with hyphens or apostrophes, e.g. não-verbal, McDonald's
+    -+|                           # any sequence of dashes
+    \.{3,}|                       # ellipsis or sequences of dots
+    \S                            # any non-space character
+    '''
+_tokenizer = RegexpTokenizer(_tokenizer_regexp)
+
+# clitic pronouns
+_clitic_regexp_str = r'''(?ux)
+    (?<=\w)                           # a letter before
+    -(me|
+    te|
+    o|a|no|na|lo|la|se|
+    lhe|lho|lha|lhos|lhas|
+    nos|
+    vos|
+    os|as|nos|nas|los|las|            # unless if followed by more chars
+    lhes)(?![-\w])                    # or digits or hyphens
+'''
+_clitic_regexp = re.compile(_clitic_regexp_str)
+
 def tokenize(text, clean=True):
     """
     Returns a list of lists of the tokens in text, separated by sentences.
     Each line break in the text starts a new list.
     
     :param clean: If True, performs some cleaning action on the text, such as replacing
-        numbers for the __NUMBER__ keyword (by calling :func:`clean_text`)
+        all digits for 9 (by calling :func:`clean_text`)
     """
     ret = []
     
@@ -30,86 +67,32 @@ def tokenize(text, clean=True):
     
     if clean:
         text = clean_text(text, correct=True)
-    else:
-        # replace numbers for __NUMBER__ and store them to replace them back
-        numbers = re.findall(ur'\d+(?: \d+)*(?:[\.,]\d+)*[²³]*', text)
-        numbers.extend(re.findall(ur'[²³]+', text))
-        text = re.sub(ur'\d+( \d+)*([\.,]\d+)*[²³]*', '__NUMBER__', text)
-        text = re.sub(ur'[²³]+', '__NUMBER__', text)
     
-    # clitic pronouns
-    regexp = r'''(?ux)
-        (?<=\w)                           # a letter before
-        -(me|
-        te|
-        o|a|no|na|lo|la|se|
-        lhe|lho|lha|lhos|lhas|
-        nos|
-        vos|
-        os|as|nos|nas|los|las|            # unless if followed by more chars
-        lhes)(?![-\w])                    # or digits or hyphens
-    '''
-    text = re.sub(regexp, r'- \1', text)
-    
-    regexp = ur'''(?ux)
-    # the order of the patterns is important!!
-    ([^\W\d_]\.)+|                # one letter abbreviations, e.g. E.U.A.
-    __NUMBER__:__NUMBER__|        # time and proportions
-    [DSds][Rr][Aa]?\.|            # common abbreviations such as dr., sr., sra., dra.
-    [^\W\d_]{1,2}\$|              # currency
-    \w+([-']\w+)*-?|              # words with hyphens or apostrophes, e.g. não-verbal, McDonald's
-                                  # or a verb with clitic pronoun removed (trailing hyphen is kept)
-    -+|                           # any sequence of dashes
-    \.{3,}|                       # ellipsis or sequences of dots
-    __LINK__|                     # links found on wikipedia
-    \S                            # any non-space character
-    '''
+    text = _clitic_regexp.sub(r' -\1', text)
     
     # loads trained model for tokenizing Portuguese sentences (provided by NLTK)
     sent_tokenizer = nltk.data.load('tokenizers/punkt/portuguese.pickle')
     
     # the sentence tokenizer doesn't consider line breaks as sentence delimiters, so
-    # we split them manually.
+    # we split them manually where there are two consecutive line breaks.
     sentences = []
-    lines = text.split('\n')
+    lines = text.split('\n\n')
     for line in lines:
         sentences.extend(sent_tokenizer.tokenize(line, realign_boundaries=True))
-    
-    t = RegexpTokenizer(regexp)
     
     for p in sentences:
         if p.strip() == '':
             continue
         
-        # Wikipedia cleaning 
-        if clean:
-            # discard sentences with troublesome templates or links
-            if any((x in p for x in ['__TEMPLATE__', '{{', '}}', '[[', ']]'])):
-                continue
-        
-        new_sent = t.tokenize(p)
-        
-        if clean:
-            # discard sentences that are a couple of words (it happens sometimes
-            # when extracting data from lists).
-            if len(new_sent) <= 2:
-                continue
-        elif len(numbers) > 0:
-            # put back numbers that were previously replaced
-            for i in xrange(len(new_sent)):
-                token = new_sent[i]
-                while '__NUMBER__' in token:
-                    token = token.replace('__NUMBER__', numbers.pop(0), 1)
-                new_sent[i] = token
-        
+        new_sent = _tokenizer.tokenize(p)
         ret.append(new_sent)
         
     return ret
 
 def clean_text(text, correct=True):
     """
-    Apply some cleaning transformations to the text, such as mapping 
-    numbers to a __NUMBER__ keyword and normalizing quotation marks.
+    Apply some transformations to the text, such as 
+    replacing digits for 9 and simplifying quotation marks.
     
     :param correct: If True, tries to correct punctuation misspellings. 
     """
@@ -129,12 +112,11 @@ def clean_text(text, correct=True):
         # blablabla -that is, bloblobloblo
         text = re.sub(' -(?=[^\W\d_])', ' - ', text)
     
-    # replaces numbers with the __NUMBER__ token
-    text = re.sub(ur'\d+( \d+)*([\.,]\d+)*[²³]*', '__NUMBER__', text)
-    text = re.sub(ur'[²³]+', '__NUMBER__', text)
+    # replaces numbers with the 9's
+    text = re.sub(r'\d', '9', text)
     
     # replaces special ellipsis character 
-    text = re.sub(u'…', '...', text)
+    text = text.replace(u'…', '...')
     
     return text
 
