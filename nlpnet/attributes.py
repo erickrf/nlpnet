@@ -80,7 +80,7 @@ class Suffix(object):
         """
         # check longer suffixes first
         for suffix in Suffix.suffixes_by_size:
-            if word.endswith(suffix) and len(word) > suffix:
+            if word.endswith(suffix) and len(word) > len(suffix):
                 return Suffix.codes[suffix]
         
         return Suffix.other
