@@ -64,18 +64,15 @@ def create_reader(md, gold_file=None):
     
     if md.task == 'pos':
         tr = POSReader(filename=gold_file)
-        tr.load_tag_dict()
         
     elif md.task.startswith('srl'):
         tr = SRLReader(filename=gold_file, only_boundaries= (md.task == 'srl_boundary'),
                        only_classify= (md.task == 'srl_classify'), 
                        only_predicates= (md.task == 'srl_predicates'))
-        tr.load_tag_dict()
             
     else:
         raise ValueError("Unknown task: %s" % md.task)
     
-    tr.load_dictionary()
     tr.create_converter(md)
     
     logger.info('Done')

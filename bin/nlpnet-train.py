@@ -33,7 +33,6 @@ def create_reader(args):
     logger.info("Reading text...")
     if args.task == 'pos':
         text_reader = pos.pos_reader.POSReader(filename=args.gold)
-        text_reader.load_tag_dict()
     
     elif args.task == 'lm':
         text_reader = reader.TextReader(filename=args.gold)
@@ -54,13 +53,10 @@ def create_reader(args):
         elif not args.classify and not args.pred:
             # this is SRL as one step, we use IOB
             text_reader.convert_tags('iob')
-        
-        text_reader.load_tag_dict()
     
     else:
         raise ValueError("Unknown task: %s" % args.task)
     
-    text_reader.load_dictionary()
     return text_reader
     
 

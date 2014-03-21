@@ -21,6 +21,7 @@ class POSReader(TaggerReader):
         """
         self.task = 'pos'
         self.rare_tag = None
+        super(POSReader, self).__init__()
         
         if sentences is not None:
             self.sentences = sentences

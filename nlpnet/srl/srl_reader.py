@@ -12,22 +12,21 @@ from itertools import izip
 from .. import config
 from .. import read_data
 from .. import attributes
+from .. import utils
 from ..reader import TaggerReader
-from ..utils import clean_text
 
 class SRLReader(TaggerReader):
     
-    def __init__(self, sentences=None, filename=None, only_boundaries=False, 
+    def __init__(self, filename=None, only_boundaries=False, 
                  only_classify=False, only_predicates=False):
         """
-        If no sentences argument is given, the reader will read the PropBank
-        CoNLL file. If it is given, no reading is necessary (which saves a lot
-        of time).
+        The reader will read sentences from a given file. This file must
+        be in the correct format (one token per line, columns indicating
+        which tokens are predicates and their argument structure. See
+        function read_data.read_plain_srl for more details).
         
-        :param sentences: a list of tuples in the format (tokens, list of tags, 
-        predicate indices)
-        :param filename: a file with CoNLL format data (read if sentences is not
-        given)
+        :param filename: a file with CoNLL-like format data. If it is None,
+            the reader will be created with no data.
         :param only_boundaries: train to identify only argument boundaries
         :param only_classify: train to classify pre-determined argument
         :param only_predicates: train to identify only predicates
@@ -42,24 +41,31 @@ class SRLReader(TaggerReader):
             self.task = 'srl'
         self.rare_tag = 'O'
         
-        if sentences is None:
+        super(SRLReader, self).__init__()
+        
+        if filename is not None:
+        
+            with open(filename) as f:
+                sent_data = read_data.read_conll(f)
             
-            if filename is not None:
+            sents = []
+            tags = []
+            preds = []
+            for item in sent_data:
+                sents.append(item[0])
+                tags.append(item[1])
+                preds.append(item[2])
             
-                with open(filename) as f:
-                    sent_data = read_data.read_conll(f)
-                sents = [x[0] for x in sent_data]
-                tags = [x[1] for x in sent_data]
-                self.sentences = zip(sents, tags)
-                
-                preds = [x[2] for x in sent_data]
-                self.predicates = [np.array(x) for x in preds]
-                self._clean_text()
-                self._make_contractions()
+            self.sentences = zip(sents, tags)
             
-        else:
-            self.sentences, self.predicates = sentences
+            self.predicates = [np.array(x) for x in preds]
+            self._clean_text()
             
+            # remove this line if working with languages other than Portuguese
+            # TODO: paramaterize this behavior
+            self.sentences, self.predicates = utils.make_contractions_srl(self.sentences, 
+                                                                          self.predicates)
+        
         self.codified = False
     
     def extend(self, data):
@@ -78,78 +84,12 @@ class SRLReader(TaggerReader):
         """
         for sent, _ in self.sentences:
             for i, token in enumerate(sent):
-                new_word = clean_text(token.word, correct=False)
-                new_lemma = clean_text(token.lemma, correct=False) 
+                new_word = utils.clean_text(token.word, correct=False)
+                new_lemma = utils.clean_text(token.lemma, correct=False) 
                 token.word = new_word
                 token.lemma = new_lemma
                 sent[i] = token
-        
-    
-    def _make_contractions(self):
-        """
-        Makes preposition contractions in the input data. It will contract words
-        likely to be contracted, but there's no way to be sure the contraction 
-        actually happened in the corpus. 
-        """
-        def_articles = ['a', 'as', 'o', 'os']
-        adverbs = [u'aí', 'aqui', 'ali']
-        pronouns = ['ele', 'eles', 'ela', 'elas', 'esse', 'esses', 
-                    'essa', 'essas', 'isso', 'este', 'estes', 'esta',
-                    'estas', 'isto', ]
-        pronouns_a = ['aquele', 'aqueles', 'aquela', 'aquelas', 'aquilo',]
-        
-        for (sent, props), preds in zip(self.sentences, self.predicates):
-            for i, token in enumerate(sent):
-                try:
-                    next_token = sent[i + 1]
-                    next_word = next_token.word
-                except IndexError:
-                    # we are already at the last word.
-                    break
-                
-                # look at the arg types for this and the next token in all propostions
-                arg_types = [prop[i] for prop in props]
-                next_arg_types = [prop[i + 1] for prop in props]
-                
-                # store the type of capitalization to convert it back
-                word = token.word.lower()
-                cap = attributes.get_capitalization(token.word)
-                
-                def contract(new_word, new_lemma):
-                    token.word = attributes.capitalize(new_word, cap)
-                    token.lemma = new_lemma
-                    token.pos = '%s+%s' % (token.pos, next_token.pos)
-                    sent[i] = token
-                    del sent[i + 1]
-                    # removing a token will change the position of predicates
-                    preds[preds > i] -= 1
-                    for prop in props: del prop[i]
-                
-                # check if the tags for this token and the next are the same in all propositions
-                # if the first is O, however, we will merge them anyway.
-                if all(a1 == a2 or a1 == 'O' for a1, a2 in zip(arg_types, next_arg_types)):
-                    
-                    if word == 'de' and next_word in (def_articles + pronouns + pronouns_a + adverbs):
-                        contract('d' + next_word, 'd' + next_token.lemma)
-                    
-                    elif word == 'em' and next_word in (def_articles + pronouns + pronouns_a):
-                        contract('n' + next_word, 'n' + next_token.lemma)
-                    
-                    elif word == 'por' and next_word in def_articles:
-                        contract('pel' + next_word, 'pel' + next_token.lemma)
-                    
-                    elif word == 'a':
-                        if next_word in pronouns_a:
-                            contract(u'à' + next_word[1:], u'à' + next_token.lemma[1:])
-                        
-                        elif next_word in ['o', 'os']:
-                            contract('a' + next_word, 'ao')
-                        
-                        elif next_word == 'a':
-                            contract(u'à', 'ao')
-                        
-                        elif next_word == 'as':
-                            contract(u'às', 'ao')
+
                     
     def _find_predicates(self):
         """
@@ -312,11 +252,12 @@ class SRLReader(TaggerReader):
         """
         Replaces each word label with an IOB or IOBES version, appending a prefix
         to them. 
+        
         :param scheme: IOB or IOBES (In, Other, Begin, End, Single).
         :param update_dict: whether to update or not the tag dictionary after
-        converting the tags.
+            converting the tags.
         :param only_boundaries: if True, only leaves the IOBES tags and remove
-        the actual tags.
+            the actual tags.
         """
         scheme = scheme.lower()
         if scheme not in ('iob', 'iobes'):
@@ -364,10 +305,4 @@ class SRLReader(TaggerReader):
             for tag in tagset:
                 if tag not in self.tag_dict:
                     self.tag_dict[tag] = self.tag_dict['O']
-    
-    
-if __name__ == '__main__':
-    pass
-    
-    
     

@@ -111,7 +111,12 @@ class TaggerReader(TextReader):
     """
     
     def __init__(self):
-        raise NotImplemented('Abstract class')
+        '''
+        This class shouldn't be used directly. The constructor only
+        provides method calls for subclasses.
+        '''
+        self.load_dictionary()
+        self.load_tag_dict()
     
     def get_inverse_tag_dictionary(self):
         """

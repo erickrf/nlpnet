@@ -323,6 +323,78 @@ def set_distance_features(md=None, max_dist=None,
     
     return [target_dist, pred_dist]
 
+def make_contractions_srl(sentences, predicates):
+    """
+    Makes preposition contractions in the input data for SRL. It will contract 
+    words likely to be contracted, but there's no way to be sure the contraction 
+    actually happened in the corpus. 
+    
+    :param sentences: the sentences list used by SRLReader objects.
+    :param predicates: the predicates list used by SRLReader objects.
+    :returns: a tuple (sentences, predicates) after contractions have been made.
+    """
+    def_articles = ['a', 'as', 'o', 'os']
+    adverbs = [u'aí', 'aqui', 'ali']
+    pronouns = ['ele', 'eles', 'ela', 'elas', 'esse', 'esses', 
+                'essa', 'essas', 'isso', 'este', 'estes', 'esta',
+                'estas', 'isto', ]
+    pronouns_a = ['aquele', 'aqueles', 'aquela', 'aquelas', 'aquilo',]
+    
+    for (sent, props), preds in zip(sentences, predicates):
+        for i, token in enumerate(sent):
+            try:
+                next_token = sent[i + 1]
+                next_word = next_token.word
+            except IndexError:
+                # we are already at the last word.
+                break
+            
+            # look at the arg types for this and the next token in all propostions
+            arg_types = [prop[i] for prop in props]
+            next_arg_types = [prop[i + 1] for prop in props]
+            
+            # store the type of capitalization to convert it back
+            word = token.word.lower()
+            cap = attributes.get_capitalization(token.word)
+            
+            def contract(new_word, new_lemma):
+                token.word = attributes.capitalize(new_word, cap)
+                token.lemma = new_lemma
+                token.pos = '%s+%s' % (token.pos, next_token.pos)
+                sent[i] = token
+                del sent[i + 1]
+                # removing a token will change the position of predicates
+                preds[preds > i] -= 1
+                for prop in props: del prop[i]
+            
+            # check if the tags for this token and the next are the same in all propositions
+            # if the first is O, however, we will merge them anyway.
+            if all(a1 == a2 or a1 == 'O' for a1, a2 in zip(arg_types, next_arg_types)):
+                
+                if word == 'de' and next_word in (def_articles + pronouns + pronouns_a + adverbs):
+                    contract('d' + next_word, 'd' + next_token.lemma)
+                
+                elif word == 'em' and next_word in (def_articles + pronouns + pronouns_a):
+                    contract('n' + next_word, 'n' + next_token.lemma)
+                
+                elif word == 'por' and next_word in def_articles:
+                    contract('pel' + next_word, 'pel' + next_token.lemma)
+                
+                elif word == 'a':
+                    if next_word in pronouns_a:
+                        contract(u'à' + next_word[1:], u'à' + next_token.lemma[1:])
+                    
+                    elif next_word in ['o', 'os']:
+                        contract('a' + next_word, 'ao')
+                    
+                    elif next_word == 'a':
+                        contract(u'à', 'ao')
+                    
+                    elif next_word == 'as':
+                        contract(u'às', 'ao')
+    
+    return (sentences, predicates)
+
 def set_logger(level):
     """Sets the logger to be used throughout the system."""
     log_format = '%(message)s'
