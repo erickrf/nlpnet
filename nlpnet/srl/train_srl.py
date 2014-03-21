@@ -4,73 +4,9 @@
 Auxiliary functions for SRL training.
 """
 
-import cPickle
 import re
 import numpy as np
-from itertools import izip
-from collections import defaultdict
 
-from .. import config
-from .. import utils
-import srl_reader
-
-def load_srl_sentences():
-    """
-    Loads previously pickled sentences with SRL data.
-    
-    If there is no such file, returns None.
-    """
-    try:
-        with open(config.FILES['srl_sentences'], 'rb') as f:
-            sents = cPickle.load(f)
-    except IOError:
-        return None
-    
-    return sents
-
-def create_conll_gold_file():
-    """
-    Creates a gold standard file in the CoNLL format.
-    :param verbs: list of tuples (position, token)
-    """
-    r = srl_reader.SRLReader(filename=config.FILES['conll_test'])
-    r.convert_tags('iobes')
-    lines = []
-    
-    for sentence, predicates in izip(r.sentences, r.predicates):
-        sent_lines = []
-        
-        # get the verbs with their indices
-        actual_sentence = sentence[0]
-        verbs = [(pred, actual_sentence[pred].word) for pred in predicates]
-        
-        # get the proposition tags
-        props = sentence[1]
-        sent_length = len(props[0])
-        
-        # defaultdict to know what to print in the verbs column
-        verb_dict = defaultdict(lambda: '-', verbs)
-        
-        for i in range(sent_length):
-            verb = verb_dict[i]
-            args = [utils.convert_iobes_to_bracket(x[i]) for x in props]
-            sent_lines.append('\t'.join([verb] + args))
-        
-        lines.append('%s\n' % '\n'.join(sent_lines))
-        
-    # add a line break at the end
-    result = '\n'.join(lines) 
-    with open(config.FILES['srl_gold'], 'wb') as f:
-        f.write(result.encode('utf-8'))
-
-def create_reader_srl(args):
-    """
-    Creates and returns a SRLReader object for the SRL task.
-    """
-    sents = load_srl_sentences()
-    return srl_reader.SRLReader(sents, args.gold, only_boundaries=args.identify, 
-                                only_classify=args.classify,
-                                only_predicates=args.predicates)
 
 def init_transitions_simplified(tag_dict):
     """
@@ -100,9 +36,10 @@ def init_transitions_simplified(tag_dict):
 def init_transitions(tag_dict, scheme):
     """
     This function initializes the tag transition table setting 
-    very low values for impossible transitions. 
+    very low values for impossible transitions.
+     
     :param tag_dict: The tag dictionary mapping tag names to the
-    network output number.
+        network output number.
     :param scheme: either iob or iobes.
     """
     scheme = scheme.lower()

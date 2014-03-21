@@ -41,7 +41,7 @@ def read_plain_srl(filename):
     Reads an SRL file and returns the training data. The file
     should be divided in columns, separated by tabs and/or whitespace.
     First column: tokens
-    Second column: - for non-predicates, anything else for predicates.
+    Second column: - (hyphen) for non-predicates, anything else for predicates.
     Third and next columns: the SRL IOBES tags for each token concerning
     each predicate (3rd column for 1st predicate, 4th for the 2nd, and
     so on).
@@ -68,7 +68,7 @@ def read_plain_srl(filename):
                 token_num = 0
                 continue
             
-            parts = line.split('\t')
+            parts = line.split()
             token = Token(parts[0].strip())
             sentence.append(token)
             
@@ -91,7 +91,7 @@ def read_plain_srl(filename):
         sentences.append((sentence, tags, predicates))
     
     return sentences
-             
+    
 
 def verify_chunk_tag(new_tag, expected_tag):
     """
@@ -273,8 +273,13 @@ def read_conll(iterable, read_srl=True):
     Reads a sentence from a sequence of lines in a CoNLL format file.
     
     :returns: if read_srl is True, returns a list of tuples, where each
-        one has the sentence, its SRL attributions and the indices of the predicates.
-        If it is False, returns a list of sentences.
+        one has the format:
+        ([token1, token2, ...], [[tag-for-pred1, tag-for-pred1, ...],
+                                 [tag-for-pred2, tag-for-pred2, ...]],
+         [index-of-pred1, index-of-pred2, ...])
+        
+        Tags are repeated, NOT in IOBES format.
+        If read_srl is False, returns a list of sentences.
     """
     from nltk import Tree
     

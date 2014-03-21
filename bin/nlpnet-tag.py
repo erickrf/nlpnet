@@ -11,7 +11,6 @@ import logging
 from itertools import izip
 
 import nlpnet
-#import nlpnet.taggers as taggers
 import nlpnet.utils as utils
 
 def interactive_running(task):
