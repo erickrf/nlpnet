@@ -475,7 +475,7 @@ def read_oov_words(oov_file):
     words = set()
     with open(oov_file, 'rb') as f:
         for line in f:
-            uline = unicode(line, 'utf-8').strip()
+            uline = unicode(line, 'utf-8').strip().lower()
             words.add(uline)
     
     return words
@@ -517,7 +517,7 @@ if __name__ == '__main__':
     if args.task == 'pos':
         
         if args.oov:
-            oov = read_oov_words()
+            oov = read_oov_words(args.oov)
         else:
             oov = None
                     
