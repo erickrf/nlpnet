@@ -20,7 +20,7 @@ def get_args():
                         default=5, dest='window')
     parser.add_argument('-f', '--num_features', type=int,
                         help='Number of features per word',
-                        default=3, dest='num_features')
+                        default=50, dest='num_features')
     parser.add_argument('--load_features', action='store_true',
                         help="Load previously saved word type features (overrides -f and must also \
                         load a dictionary file)", dest='load_types')
