@@ -37,6 +37,8 @@ def evaluate_pos(gold_file=None, oov=None):
     itd = pos_reader.get_inverse_tag_dictionary()
     
     logger = logging.getLogger("Logger")
+    logger.debug('Loaded network')
+    logger.debug(nn.description())
     logger.info('Starting test...')
     hits = 0
     total = 0
