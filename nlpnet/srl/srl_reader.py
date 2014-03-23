@@ -6,6 +6,7 @@ Class for dealing with SRL data.
 
 from collections import defaultdict
 import cPickle
+import logging
 import numpy as np
 from itertools import izip
 
@@ -13,6 +14,7 @@ from .. import config
 from .. import read_data
 from .. import attributes
 from .. import utils
+from ..word_dictionary import WordDictionary
 from ..reader import TaggerReader
 
 class SRLReader(TaggerReader):
@@ -76,6 +78,22 @@ class SRLReader(TaggerReader):
         """
         self.sentences.extend([(sent, tags) for sent, tags, _ in data])
         self.predicates.extend([np.array(preds) for _, _, preds in data])
+    
+    def generate_dictionary(self, dict_size=None, minimum_occurrences=None):
+        """
+        Generates a token dictionary based on the given sentences.
+        
+        :param dict_size: Max number of tokens to be included in the dictionary.
+        :param minimum_occurrences: Minimum number of times that a token must
+            appear in the text in order to be included in the dictionary.
+        """
+        logger = logging.getLogger("Logger")
+        logger.info("Creating dictionary...")
+        
+        all_tokens = [tokens for sent in self.sentences for tokens, _ in sent]
+        self.word_dict = WordDictionary(all_tokens, dict_size, minimum_occurrences)
+            
+        logger.info("Done. Dictionary size is %d tokens" % self.word_dict.num_tokens)
     
     def _clean_text(self):
         """

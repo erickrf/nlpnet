@@ -118,6 +118,22 @@ class TaggerReader(TextReader):
         self.load_dictionary()
         self.load_tag_dict()
     
+    def generate_dictionary(self, dict_size=None, minimum_occurrences=None):
+        """
+        Generates a token dictionary based on the given sentences.
+        
+        :param dict_size: Max number of tokens to be included in the dictionary.
+        :param minimum_occurrences: Minimum number of times that a token must
+            appear in the text in order to be included in the dictionary. 
+        """
+        logger = logging.getLogger("Logger")
+        logger.info("Creating dictionary...")
+        
+        tokens = [token for sent in self.sentences for token, _ in sent]
+        self.word_dict = WordDictionary(tokens, dict_size, minimum_occurrences)
+            
+        logger.info("Done. Dictionary size is %d tokens" % self.word_dict.num_tokens)
+    
     def get_inverse_tag_dictionary(self):
         """
         Returns a version of the tag dictionary that maps numbers to tags.
