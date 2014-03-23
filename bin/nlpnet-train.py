@@ -66,7 +66,7 @@ def create_network(args, text_reader, feature_tables, md=None):
     
     if args.task.startswith('srl') and args.task != 'srl_predicates':
         num_tags = len(text_reader.tag_dict)
-        distance_tables = utils.set_distance_features(md, args.max_dist, args.target_features,
+        distance_tables = utils.set_distance_features(args.max_dist, args.target_features,
                                                       args.pred_features)
         nn = ConvolutionalNetwork.create_new(feature_tables, distance_tables[0], 
                                              distance_tables[1], args.window, 

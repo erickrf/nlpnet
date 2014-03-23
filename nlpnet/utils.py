@@ -301,15 +301,13 @@ def load_features(args, md, text_reader):
     
     return feature_tables
 
-def set_distance_features(md=None, max_dist=None, 
+def set_distance_features(max_dist=None, 
                           num_target_features=None, num_pred_features=None):
     """
     Returns the distance feature tables to be used by a convolutional network.
     One table is for relative distance to the target predicate, the other
     to the predicate.
     
-    :param md: metadata containing the names of saved tables. Needed for 
-        loading tables.
     :param max_dist: maximum distance to be used in new vectors.
     """
     logger = logging.getLogger("Logger")
