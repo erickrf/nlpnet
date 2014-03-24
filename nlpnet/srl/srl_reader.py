@@ -20,7 +20,8 @@ from ..reader import TaggerReader
 class SRLReader(TaggerReader):
     
     def __init__(self, filename=None, only_boundaries=False, 
-                 only_classify=False, only_predicates=False):
+                 only_classify=False, only_predicates=False,
+                 load_dictionaries=True):
         """
         The reader will read sentences from a given file. This file must
         be in the correct format (one token per line, columns indicating
@@ -43,7 +44,7 @@ class SRLReader(TaggerReader):
             self.task = 'srl'
         self.rare_tag = 'O'
         
-        super(SRLReader, self).__init__()
+        super(SRLReader, self).__init__(load_dictionaries)
         
         if filename is not None:
         

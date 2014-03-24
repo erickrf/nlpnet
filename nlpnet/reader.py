@@ -118,13 +118,14 @@ class TaggerReader(TextReader):
     for tagging tasks. 
     """
     
-    def __init__(self):
+    def __init__(self, load_dictionaries=True):
         '''
         This class shouldn't be used directly. The constructor only
         provides method calls for subclasses.
         '''
-        self.load_dictionary()
-        self.load_tag_dict()
+        if load_dictionaries:
+            self.load_dictionary()
+            self.load_tag_dict()
     
     def generate_dictionary(self, dict_size=None, minimum_occurrences=None):
         """

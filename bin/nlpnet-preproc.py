@@ -67,7 +67,7 @@ def generate_tag_dict(args):
     Generate and save a tag dictionary from the corpus.
     '''
     reader_class = get_reader_for_task(args.task)
-    r = reader_class(filename=args.corpus)
+    r = reader_class(filename=args.corpus, load_dictionaries=False)
     r.generate_tag_dict()
 
 
@@ -76,7 +76,7 @@ def generate_dict(args):
     Generate and save a WordDictionary from the corpus.
     '''
     reader_class = get_reader_for_task(args.task)
-    r = reader_class(filename=args.corpus)
+    r = reader_class(filename=args.corpus, load_dictionaries=False)
     r.generate_dictionary(minimum_occurrences=args.minimum_occurrences)
     r.save_word_dict(args.output)
 

@@ -13,7 +13,7 @@ class POSReader(TaggerReader):
     readable by the neural network for the POS tagging task.
     """
     
-    def __init__(self, sentences=None, filename=None):
+    def __init__(self, sentences=None, filename=None, load_dictionaries=True):
         """
         :param tagged_text: a sequence of tagged sentences. Each sentence must be a 
             sequence of (token, tag) tuples. If None, the sentences are read from the 
@@ -21,7 +21,7 @@ class POSReader(TaggerReader):
         """
         self.task = 'pos'
         self.rare_tag = None
-        super(POSReader, self).__init__()
+        super(POSReader, self).__init__(load_dictionaries)
         
         if sentences is not None:
             self.sentences = sentences
