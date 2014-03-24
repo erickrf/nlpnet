@@ -42,7 +42,7 @@ def parse_args():
                                          description=gen_tag_dict_help)
     gen_tag_dict.add_argument('corpus', help='Corpus file')
     gen_tag_dict.add_argument('output', help='File to save the dictionary')
-    gen_dict.set_defaults(func=generate_tag_dict)
+    gen_tag_dict.set_defaults(func=generate_tag_dict)
     
     args = parser.parse_args()
     return args

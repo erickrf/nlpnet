@@ -84,7 +84,7 @@ class TextReader(object):
         with open(filename, 'wb') as f:
             cPickle.dump(self.word_dict, f, 2)
             
-        logger.info("Dictionary saved in %s" % config.FILES['word_dict_dat'])
+        logger.info("Dictionary saved in %s" % filename)
     
     def codify_sentences(self):
         """
