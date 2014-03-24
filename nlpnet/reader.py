@@ -69,11 +69,19 @@ class TextReader(object):
             
         logger.info("Done. Dictionary size is %d tokens" % self.word_dict.num_tokens)
     
-    def save_word_dict(self):
-        """Saves the reader's word dictionary in cPickle format."""
-        logger = logging.getLogger("Logger")
+    def save_word_dict(self, filename=None):
+        """
+        Saves the reader's word dictionary in cPickle format.
         
-        with open(config.FILES['word_dict_dat'], 'wb') as f:
+        :param filename: path to the file to save the dictionary. 
+            if not given, it will be saved in the default nlpnet
+            data directory.
+        """
+        logger = logging.getLogger("Logger")
+        if filename is None:
+            filename = config.FILES['word_dict_dat']
+        
+        with open(filename, 'wb') as f:
             cPickle.dump(self.word_dict, f, 2)
             
         logger.info("Dictionary saved in %s" % config.FILES['word_dict_dat'])
@@ -182,12 +190,19 @@ class TaggerReader(TextReader):
         c = Counter(tag for sent in self.sentences for _, tag in sent)
         return c
     
-    def save_tag_dict(self):
+    def save_tag_dict(self, filename=None):
         """
         Saves the tag dictionary to a file.
+        
+        :param filename: path to the file to save the dictionary. 
+            if not given, it will be saved in the default nlpnet
+            data directory.
         """
-        key = '%s_tag_dict' % self.task
-        with open(config.FILES[key], 'w') as f:
+        if filename is None:
+            key = '%s_tag_dict' % self.task
+            filename = config.FILES[key]
+        
+        with open(filename, 'wb') as f:
             cPickle.dump(self.tag_dict, f)
     
     def load_tag_dict(self, filename=None):
