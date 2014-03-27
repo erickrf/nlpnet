@@ -33,7 +33,7 @@ class POSReader(TaggerReader):
                     for line in f:
                         cleaned = utils.clean_text(unicode(line, 'utf-8'), False)
                         items = cleaned.split()
-                        self.sentences.append([item.split('_') for item in items])
+                        self.sentences.append([item.rsplit('_', 1) for item in items])
             
 
     def get_inverse_tag_dictionary(self):
