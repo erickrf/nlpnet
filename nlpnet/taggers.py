@@ -58,6 +58,9 @@ def load_network(md):
 def create_reader(md, gold_file=None):
     """
     Creates a TextReader object for the given task and loads its dictionary.
+    :param md: a metadata object describing the task
+    :param gold_file: path to a file with gold standard data, if
+        the reader will be used for testing.
     """
     logger = logging.getLogger('Logger')
     logger.info('Loading text reader...')
@@ -272,12 +275,12 @@ class POSTagger(Tagger):
         tokens = utils.tokenize(text, clean=False)
         result = []
         for sent in tokens:
-            tags = self.tag_tokens(sent)
-            result.append(zip(sent, tags))
+            tagged = self.tag_tokens(sent, return_tokens=True)
+            result.append(tagged)
         
         return result
     
-    def tag_tokens(self, tokens):
+    def tag_tokens(self, tokens, return_tokens=False):
         """
         Tags a given list of tokens. 
         
@@ -286,6 +289,8 @@ class POSTagger(Tagger):
         use POSTagger.tag(text).
         
         :param tokens: a list of strings
+        :param return_tokens: if True, includes the tokens in the return,
+            as a list of tuples (token, tag).
         :returns: a list of strings (the tags)
         """
         converter = self.reader.converter
@@ -293,5 +298,9 @@ class POSTagger(Tagger):
                                      for token in tokens])
         answer = self.nn.tag_sentence(converted_tokens)
         tags = [self.itd[tag] for tag in answer]
+        
+        if return_tokens:
+            return zip(tokens, tags)
+        
         return tags
 

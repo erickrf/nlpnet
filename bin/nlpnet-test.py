@@ -42,7 +42,6 @@ def evaluate_pos(gold_file=None, oov=None):
     logger.info('Starting test...')
     hits = 0
     total = 0
-    #pos_reader.codify_sentences()
     
     for sent in pos_reader.sentences:
         
@@ -51,7 +50,7 @@ def evaluate_pos(gold_file=None, oov=None):
         answer = nn.tag_sentence(sent_codified)
         if oov is not None:
             iter_sent = iter(tokens)
-        
+                
         for net_tag, gold_tag in zip(answer, tags):
             
             if oov is not None:
@@ -63,7 +62,7 @@ def evaluate_pos(gold_file=None, oov=None):
             if itd[net_tag] == gold_tag:
                 hits += 1
             
-            total += 1                
+            total += 1
         
     print '%d hits out of %d' % (hits, total)
     accuracy = float(hits) / total
@@ -501,7 +500,7 @@ if __name__ == '__main__':
                         help='Determines SRL predicates automatically using a POS tagger.')
     parser.add_argument('--gold', help='File with gold standard data', type=str, required=True)
     parser.add_argument('--data', help='Directory with trained models', type=str, required=True)
-    parser.add_argument('--oov', help='Analyze performance on OOV data', type=str)
+    parser.add_argument('--oov', help='Analyze performance on OOV data. Not fully functional with numbers.', type=str)
     args = parser.parse_args()
     
     if args.identify:

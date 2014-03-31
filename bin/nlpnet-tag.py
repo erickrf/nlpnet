@@ -13,13 +13,14 @@ from itertools import izip
 import nlpnet
 import nlpnet.utils as utils
 
-def interactive_running(task):
+def interactive_running(task, use_tokenizer=True):
     """
     This function provides an interactive environment for running the system.
     It receives text from the standard input, tokenizes it, and calls the function
     given as a parameter to produce an answer.
     
     :param task: either 'pos' or 'srl'
+    :param use_tokenizer: whether to use built-in tokenizer
     """
     task_lower = task.lower()
     if task_lower == 'pos':
@@ -40,7 +41,12 @@ def interactive_running(task):
         if type(text) is not unicode:
             text = unicode(text, 'utf-8')
         
-        result = tagger.tag(text)        
+        if use_tokenizer:
+            result = tagger.tag(text)
+        else:
+            tokens = text.split()
+            result = [tagger.tag_tokens(tokens, True)]
+        
         _print_tagged(result, task)
 
 def _print_tagged(tagged_sents, task):
@@ -81,6 +87,8 @@ if __name__ == '__main__':
                         type=str, choices=['srl', 'pos'])
     parser.add_argument('data', help='Directory containing trained models.', type=str)
     parser.add_argument('-v', help='Verbose mode', action='store_true', dest='verbose')
+    parser.add_argument('-t', action='store_true', dest='disable_tokenizer',
+                        help='Disable built-in tokenizer. Tokens are assumed to be separated by whitespace.')
     parser.add_argument('--no-repeat', dest='no_repeat', action='store_true',
                         help='Forces the classification step to avoid repeated argument labels (SRL only).')
     args = parser.parse_args()
@@ -90,5 +98,6 @@ if __name__ == '__main__':
     logger = logging.getLogger("Logger")
     nlpnet.set_data_dir(args.data)
     
-    interactive_running(args.task)
+    use_tokenizer = not args.disable_tokenizer
+    interactive_running(args.task, use_tokenizer)
     

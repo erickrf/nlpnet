@@ -99,8 +99,8 @@ def clean_text(text, correct=True):
     
     # replaces different kinds of quotation marks with "
     # take care not to remove apostrophes
-    text = re.sub(ur"(?u)(\W)[‘’′`']", r'\1"', text)
-    text = re.sub(ur"(?u)[‘’`′'](\W)", r'"\1', text)
+    text = re.sub(ur"(?u)(^|\W)[‘’′`']", r'\1"', text)
+    text = re.sub(ur"(?u)[‘’`′'](\W|$)", r'"\1', text)
     text = re.sub(ur'(?u)[«»“”]', '"', text)
     
     if correct:
