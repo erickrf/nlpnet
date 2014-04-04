@@ -44,13 +44,16 @@ class TextReader(object):
         self.sentences.extend(text)
     
     def load_dictionary(self):
-        """Reads a dictionary from a pickled file."""
+        """Read a file with a word list and create a dictionary."""
         logger = logging.getLogger("Logger")
-        logger.info("Loading provided dictionary...")
-        filename = config.FILES['word_dict_dat']
+        logger.info("Loading vocabulary")
+        filename = config.FILES['vocabulary']
+        
         with open(filename, 'rb') as f:
-            wd = cPickle.load(f)
-        wd.check()
+            text = unicode(f.read(), 'utf-8')
+        
+        words = text.split('\n')
+        wd = WordDictionary.init_from_wordlist(words)
         self.word_dict = wd
         logger.info("Done. Dictionary size is %d types" % wd.num_tokens)
     
@@ -191,21 +194,6 @@ class TaggerReader(TextReader):
         c = Counter(tag for sent in self.sentences for _, tag in sent)
         return c
     
-    def save_tag_dict(self, filename=None):
-        """
-        Saves the tag dictionary to a file.
-        
-        :param filename: path to the file to save the dictionary. 
-            if not given, it will be saved in the default nlpnet
-            data directory.
-        """
-        if filename is None:
-            key = '%s_tag_dict' % self.task
-            filename = config.FILES[key]
-        
-        with open(filename, 'wb') as f:
-            cPickle.dump(self.tag_dict, f)
-    
     def load_tag_dict(self, filename=None):
         """
         Loads the tag dictionary from the default file.
@@ -214,8 +202,11 @@ class TaggerReader(TextReader):
             key = '%s_tag_dict' % self.task
             filename = config.FILES[key]
             
+        self.tag_dict = {}
         with open(filename, 'rb') as f:
-            self.tag_dict = cPickle.load(f)
+            for code, tag in enumerate(f):
+                tag = unicode(tag, 'utf-8').strip()
+                self.tag_dict[tag] = code
     
     
     

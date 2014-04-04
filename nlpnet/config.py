@@ -18,7 +18,8 @@ def set_data_dir(directory):
 
     FILES = {
          # cross-task data
-         'word_dict_dat': os.path.join(data_dir, 'word-dict.pickle'),
+         'vocabulary': os.path.join(data_dir, 'vocabulary.txt'),
+         'word_dict_dat': os.path.join(data_dir, 'vocabulary.txt'), # deprecated
          'type_features': os.path.join(data_dir, 'types-features.npy'),
          'termvectors': os.path.join(data_dir, 'termvectors.txt'),
          
@@ -31,7 +32,8 @@ def set_data_dir(directory):
          
          # POS
          'network_pos': os.path.join(data_dir, 'pos-network.npz'),
-         'pos_tag_dict': os.path.join(data_dir, 'pos-tag-dict.pickle'),
+         'pos_tags': os.path.join(data_dir, 'pos-tags.txt'),
+         'pos_tag_dict': os.path.join(data_dir, 'pos-tags.txt'),
          'suffixes': os.path.join(data_dir, 'suffixes.txt'),
          'metadata_pos': os.path.join(data_dir, 'metadata-pos.pickle'),
          'type_features_pos': os.path.join(data_dir, 'types-features-pos.npy'),
@@ -40,18 +42,21 @@ def set_data_dir(directory):
          
          # chunk
          'chunk_tag_dict': os.path.join(data_dir, 'chunk-tag-dict.pickle'),
+         'chunk_tags': os.path.join(data_dir, 'chunk-tags.txt'),
     
          # SRL
          'network_srl': os.path.join(data_dir, 'srl-network.npz'),
          'network_srl_boundary': os.path.join(data_dir, 'srl-id-network.npz'),
          'network_srl_classify': os.path.join(data_dir, 'srl-class-network.npz'),
          'network_srl_predicates': os.path.join(data_dir, 'srl-class-predicates.npz'),
-         'srl_sentences': os.path.join(data_dir, 'srl-sentences.pickle'),
-         'srl_tag_dict': os.path.join(data_dir, 'srl-iob-tag-dict.pickle'),
-         'srl_iob_tag_dict': os.path.join(data_dir, 'srl-iob-tag-dict.pickle'),
-         'srl_boundary_tag_dict': os.path.join(data_dir, 'srl-boundary-tag-dict.pickle'),
-         'srl_classify_tag_dict': os.path.join(data_dir, 'srl-classify-tag-dict.pickle'),
-         'srl_predicates_tag_dict': os.path.join(data_dir, 'srl-predicates-tag-dict.pickle'),
+         'srl_iob_tag_dict': os.path.join(data_dir, 'srl-iob-tags.txt'),
+         'srl_iob_tags': os.path.join(data_dir, 'srl-iob-tags.txt'),
+         'srl_boundary_tag_dict': os.path.join(data_dir, 'srl-boundary-tags.txt'),
+         'srl_boundary_tags': os.path.join(data_dir, 'srl-boundary-tags.txt'),
+         'srl_classify_tag_dict': os.path.join(data_dir, 'srl-classify-tags.txt'),
+         'srl_classify_tags': os.path.join(data_dir, 'srl-classify-tags.txt'),
+         'srl_predicates_tag_dict': os.path.join(data_dir, 'srl-predicates-tags.txt'),
+         'srl_predicates_tags': os.path.join(data_dir, 'srl-predicates-tags.txt'),
          'type_features_boundary': os.path.join(data_dir, 'types-features-id.npy'),
          'caps_features_boundary': os.path.join(data_dir, 'caps-features-id.npy'),
          'pos_features_boundary': os.path.join(data_dir, 'pos-features-id.npy'),
@@ -70,8 +75,7 @@ def set_data_dir(directory):
          'metadata_srl': os.path.join(data_dir, 'metadata-srl.pickle'),
          'metadata_srl_boundary': os.path.join(data_dir, 'metadata-srl-boundary.pickle'),
          'metadata_srl_classify': os.path.join(data_dir, 'metadata-srl-classify.pickle'),
-         'metadata_srl_predicates': os.path.join(data_dir, 'metadata-srl-predicates.pickle'),
-         'srl_gold': os.path.join(data_dir, 'srl-gold.txt')
+         'metadata_srl_predicates': os.path.join(data_dir, 'metadata-srl-predicates.pickle')
          }
 
 

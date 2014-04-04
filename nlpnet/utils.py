@@ -198,17 +198,20 @@ def generate_feature_vectors(num_vectors, num_features, min_value=-0.1, max_valu
     
     return table
 
+
 def count_pos_tags():
     """Counts and returns how many POS tags there are."""
-    with open(config.FILES['pos_tag_dict']) as f:
-        td = cPickle.load(f)
-    return len(td)
+    with open(config.FILES['pos_tags'], 'rb') as f:
+        text = f.read()
+    return len(text.split('\n'))
+
 
 def count_chunk_tags():
     """Counts and returns how many chunk tags there are."""
-    with open(config.FILES['chunk_tag_dict']) as f:
-        td = cPickle.load(f)
-    return len(td)
+    with open(config.FILES['chunk_tags']) as f:
+        text = f.read()
+    return len(text.split('\n'))
+
 
 #TODO: this function could be more organized with less repeated code
 def load_features(args, md, text_reader):

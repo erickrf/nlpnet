@@ -39,11 +39,9 @@ class WordDictionary(dict):
             
             words = [key for key, number in c.most_common() 
                      if number >= minimum_occurrences]
-        
         else:
-            # using supplied wordlist
-            words = list(wordlist) 
-            
+            words = wordlist
+        
         # verifies the maximum size
         if size is None:
             size = len(words)
@@ -51,26 +49,23 @@ class WordDictionary(dict):
             size = min(size, len(words))
             words = words[:size]
         
+        # faster containment check
+#         words = set(words)
+        
         # set all words in the dictionary
         for word, num in itertools.izip(words, xrange(size)):
             self[word] = num
         
-        # if the given words include the rare symbol, don't replace it
-        if WordDictionary.rare in words:
-            self.num_tokens = size - 1
-            
-            # using dict.get() instead of [] because we override the latter
-            key = WordDictionary.rare.lower()
-            self.index_rare = super(WordDictionary, self).get(key)
-        else:
-            self.num_tokens = size
-            self.index_rare = size
-            self[WordDictionary.rare] = self.index_rare
+        # if the given words include one of the the rare or padding symbols, don't replace it
+        special_symbols = [WordDictionary.rare, 
+                           WordDictionary.padding_left, 
+                           WordDictionary.padding_right]
+        for symbol in special_symbols:
+            if symbol not in words and symbol.lower() not in words:
+                self[symbol] = size
+                size += 1
         
-        self.index_padding_left = self.num_tokens + 1
-        self.index_padding_right = self.num_tokens + 2
-        self[WordDictionary.padding_left] = self.index_padding_left
-        self[WordDictionary.padding_right] = self.index_padding_right
+        self.check()
     
     @classmethod
     def init_from_wordlist(cls, wordlist):
@@ -174,9 +169,13 @@ class WordDictionary(dict):
         Checks the internal structure of the dictionary and makes necessary adjustments, 
         such as updating num_tokens.
         """
+        # since WordDictionary overrides __get__, we use the super call 
+        # (the WordDictionary __get__ fails when self.index_rare is not set)
+        key = WordDictionary.rare.lower()
+        self.index_rare = super(WordDictionary, self).get(key)
+        
         self.index_padding_left = self[WordDictionary.padding_left]
         self.index_padding_right = self[WordDictionary.padding_right]
-        self.index_rare = self[WordDictionary.rare]
         self.num_tokens = len(self) - 3
     
     def get_words(self, indices):
