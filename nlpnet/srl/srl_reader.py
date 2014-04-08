@@ -35,11 +35,12 @@ class SRLReader(TaggerReader):
         """
         if only_boundaries:
             self.task = 'srl_boundary'
-            self.generate_iobes_dictionary()
+            self._generate_iobes_dictionary()
         elif only_classify:
             self.task = 'srl_classify'
         elif only_predicates:
             self.task = 'srl_predicates'
+            self._generate_predicate_id_dictionary()
         else:
             self.task = 'srl'
         self.rare_tag = 'O'
@@ -119,11 +120,18 @@ class SRLReader(TaggerReader):
         if 'O' not in self.tag_dict:
             self.tag_dict['O'] = code
     
-    def generate_iobes_dictionary(self):
+    def _generate_iobes_dictionary(self):
         """
         Generate the reader's tag dictionary mapping the IOBES tags to numeric codes.
         """
         self.tag_dict = {tag: code for code, tag in enumerate('IOBES')}
+    
+    def _generate_predicate_id_dictionary(self):
+        """
+        Generate a tag dictionary for identifying predicates.
+        It has two tags: V for predicates and O for others.
+        """
+        self.tag_dict = {'O': 0, 'V': 1}
     
     def generate_dictionary(self, dict_size=None, minimum_occurrences=None):
         """
