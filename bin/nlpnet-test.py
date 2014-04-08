@@ -422,7 +422,7 @@ def evaluate_srl_identify(gold_file):
     srl_reader = taggers.create_reader(md, gold_file=gold_file)
     
     net_itd = srl_reader.get_inverse_tag_dictionary()
-    srl_reader.load_tag_dict(config.FILES['srl_iob_tag_dict'])
+    srl_reader.load_tag_dict(config.FILES['srl_tags'], iob=True)
     
     srl_reader.convert_tags('iob', update_tag_dict=False)
     gold_itd = srl_reader.get_inverse_tag_dictionary()

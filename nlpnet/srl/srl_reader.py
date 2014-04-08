@@ -45,8 +45,10 @@ class SRLReader(TaggerReader):
         self.rare_tag = 'O'
         
         self.load_dictionary()
-        if self.task == 'srl' or self.task == 'srl_classify':
-            self.load_tag_dict()
+        if self.task == 'srl':
+            self.load_tag_dict(iob=True)
+        elif self.task == 'srl_classify':
+            self.load_tag_dict(iob=False)
         
         if filename is not None:
         
@@ -81,6 +83,38 @@ class SRLReader(TaggerReader):
         """
         self.sentences.extend([(sent, tags) for sent, tags, _ in data])
         self.predicates.extend([np.array(preds) for _, _, preds in data])
+    
+    def load_tag_dict(self, filename=None, iob=False):
+        """
+        Loads the tag dictionary from the default file. The dictionary file should
+        have one tag per line. 
+        
+        :param iob: If True, this function will generate an entry for B-[tag] 
+            and one for I-[tag], except for the tag 'O'.
+        """
+        if not iob:
+            super(SRLReader, self).load_tag_dict(filename)
+            return
+        
+        if filename is None:
+            filename = config.FILES['srl_tags']
+            
+        self.tag_dict = {}
+        code = 0
+        with open(filename, 'rb') as f:
+            for tag in f:
+                tag = unicode(tag, 'utf-8').strip()
+                if tag == 'O':
+                    self.tag_dict[tag] = code
+                else:
+                    self.tag_dict['B-%s' % tag] = code
+                    code += 1
+                    self.tag_dict['I-%s' % tag] = code
+                
+                code += 1
+        
+        if 'O' not in self.tag_dict:
+            self.tag_dict['O'] = code
     
     def generate_iobes_dictionary(self):
         """
