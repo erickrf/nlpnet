@@ -51,9 +51,9 @@ def create_reader(args):
             # only identify arguments
             text_reader.convert_tags('iobes', only_boundaries=True)
             
-        elif not args.classify and not args.pred:
+        elif not args.classify and not args.predicates:
             # this is SRL as one step, we use IOB
-            text_reader.convert_tags('iob')
+            text_reader.convert_tags('iob', update_tag_dict=False)
     
     else:
         raise ValueError("Unknown task: %s" % args.task)

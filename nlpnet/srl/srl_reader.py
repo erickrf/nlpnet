@@ -104,6 +104,9 @@ class SRLReader(TaggerReader):
         with open(filename, 'rb') as f:
             for tag in f:
                 tag = unicode(tag, 'utf-8').strip()
+                if tag == '':
+                    continue
+                
                 if tag == 'O':
                     self.tag_dict[tag] = code
                 else:
