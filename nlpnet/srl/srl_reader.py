@@ -20,8 +20,7 @@ from ..reader import TaggerReader
 class SRLReader(TaggerReader):
     
     def __init__(self, filename=None, only_boundaries=False, 
-                 only_classify=False, only_predicates=False,
-                 load_dictionaries=True):
+                 only_classify=False, only_predicates=False):
         """
         The reader will read sentences from a given file. This file must
         be in the correct format (one token per line, columns indicating
@@ -36,6 +35,7 @@ class SRLReader(TaggerReader):
         """
         if only_boundaries:
             self.task = 'srl_boundary'
+            self.generate_iobes_dictionary()
         elif only_classify:
             self.task = 'srl_classify'
         elif only_predicates:
@@ -44,7 +44,9 @@ class SRLReader(TaggerReader):
             self.task = 'srl'
         self.rare_tag = 'O'
         
-        super(SRLReader, self).__init__(load_dictionaries)
+        self.load_dictionary()
+        if self.task == 'srl' or self.task == 'srl_classify':
+            self.load_tag_dict()
         
         if filename is not None:
         
@@ -79,6 +81,12 @@ class SRLReader(TaggerReader):
         """
         self.sentences.extend([(sent, tags) for sent, tags, _ in data])
         self.predicates.extend([np.array(preds) for _, _, preds in data])
+    
+    def generate_iobes_dictionary(self):
+        """
+        Generate the reader's tag dictionary mapping the IOBES tags to numeric codes.
+        """
+        self.tag_dict = {tag: code for code, tag in enumerate('IOBES')}
     
     def generate_dictionary(self, dict_size=None, minimum_occurrences=None):
         """

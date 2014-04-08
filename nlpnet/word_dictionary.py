@@ -49,9 +49,6 @@ class WordDictionary(dict):
             size = min(size, len(words))
             words = words[:size]
         
-        # faster containment check
-#         words = set(words)
-        
         # set all words in the dictionary
         for word, num in itertools.izip(words, xrange(size)):
             self[word] = num
@@ -60,8 +57,10 @@ class WordDictionary(dict):
         special_symbols = [WordDictionary.rare, 
                            WordDictionary.padding_left, 
                            WordDictionary.padding_right]
+        # faster containment check
+        set_words = set(words)
         for symbol in special_symbols:
-            if symbol not in words and symbol.lower() not in words:
+            if symbol not in set_words and symbol.lower() not in set_words:
                 self[symbol] = size
                 size += 1
         

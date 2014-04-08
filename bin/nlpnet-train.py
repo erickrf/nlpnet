@@ -48,6 +48,7 @@ def create_reader(args):
             text_reader.extend(data)    
     
         if args.identify:
+            # only identify arguments
             text_reader.convert_tags('iobes', only_boundaries=True)
             
         elif not args.classify and not args.pred:
