@@ -6,7 +6,6 @@ Utility functions
 
 import re
 import logging
-import cPickle
 import nltk
 import numpy as np
 

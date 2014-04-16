@@ -2,8 +2,6 @@
 
 import logging
 import numpy as np
-import re
-from collections import Counter
 
 import config
 from word_dictionary import WordDictionary as WD
