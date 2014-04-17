@@ -5,6 +5,7 @@ import numpy as np
 
 import config
 from word_dictionary import WordDictionary as WD
+from collections import defaultdict
 
 class Caps(object):
     """Dummy class for storing numeric values for capitalization."""
@@ -36,8 +37,9 @@ class Token(object):
 
 class Suffix(object):
     """Dummy class for manipulating suffixes and their related codes."""
+    # codes maps integers (suffix sizes) to dicts. each dict maps a suffix of the given 
+    # size to its code
     codes = {}
-    suffixes_by_size = []
     other = 0
     
     # initially, there is only the "other" (rare) suffix
@@ -49,23 +51,30 @@ class Suffix(object):
         loads the listed suffixes from the suffix file.
         """
         Suffix.codes = {}
-        code = Suffix.other + 1
         logger = logging.getLogger("Logger")
+        
+        # intermediate storage
+        suffixes_by_size = defaultdict(list)
+        
         try:
             with open(config.FILES['suffixes'], 'rb') as f:
                 for line in f:
                     suffix = unicode(line.strip(), 'utf-8')
-                    Suffix.codes[suffix] = code
-                    code += 1
+                    size = len(suffix)
+                    suffixes_by_size[size].append(suffix)
         except IOError:
-            logger.warning('Suffix list doesn\'t exist.')
+            logger.error('Suffix list doesn\'t exist.')
             raise
         
-        Suffix.num_suffixes = code
-        Suffix.suffixes_by_size = sorted(Suffix.codes,
-                                         key=len,
-                                         reverse=True)
-    
+        for size in suffixes_by_size:
+            # for each size, each suffix has a code starting from 1
+            # 0 is reserved for unknown suffixes
+            Suffix.codes[size] = {suffix: code 
+                                  for code, suffix in enumerate(suffixes_by_size[size], 1)}
+        
+        Suffix.num_sizes = len(suffixes_by_size)
+        Suffix.num_suffixes_per_size = {size: len(Suffix.codes[size]) 
+                                        for size in Suffix.codes}    
     
     @classmethod
     def get_suffix(cls, word):
