@@ -42,9 +42,6 @@ class Suffix(object):
     codes = {}
     other = 0
     
-    # initially, there is only the "other" (rare) suffix
-    num_suffixes = 1
-    
     @classmethod
     def load_suffixes(cls):
         """
@@ -77,20 +74,17 @@ class Suffix(object):
                                         for size in Suffix.codes}    
     
     @classmethod
-    def get_suffix(cls, word):
+    def get_suffix(cls, word, size):
         """
-        Returns the suffix code for the given word.
-        
-        This implementation is not the most efficient (it checks every 
-        suffix separately, instead of using a tree structure), but 
-        it is intended to be called only once per word.
+        Return the suffix code for the given word. Consider a suffix
+        of the given size.
         """
-        # check longer suffixes first
-        for suffix in Suffix.suffixes_by_size:
-            if word.endswith(suffix) and len(word) > len(suffix):
-                return Suffix.codes[suffix]
+        if len(word) <= size:
+            return Suffix.other
         
-        return Suffix.other
+        suffix = word[-size:]
+        code = Suffix.codes[size].get(suffix, Suffix.other)
+        return code
 
 
 class TokenConverter(object):

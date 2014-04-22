@@ -110,9 +110,12 @@ class TextReader(object):
         self.converter.add_extractor(self.word_dict.get)
         if metadata.use_caps:
             self.converter.add_extractor(get_capitalization)
+        
         if metadata.use_suffix:
             attributes.Suffix.load_suffixes()
-            self.converter.add_extractor(attributes.Suffix.get_suffix)
+            for size in attributes.Suffix.codes:
+                f = lambda word: attributes.Suffix.get_suffix(word, size)
+                self.converter.add_extractor(f)
     
 
 class TaggerReader(TextReader):
