@@ -270,12 +270,21 @@ def load_features(args, md, text_reader):
     if md.use_suffix:
         if args.load_network:
             logger.info("Loading suffix features...")
-            suffix_table = load_features_from_file(config.FILES[md.suffix_features])
+            suffix_tensor = load_features_from_file(config.FILES[md.suffix_features])
         else:
             logger.info("Generating suffix features...")
-            suffix_table = generate_feature_vectors(attributes.Suffix.num_suffixes,
-                                                    args.suffix)
-        feature_tables.append(suffix_table)
+            suffix_tensor = []
+            for size in range(1, attributes.Suffix.num_sizes + 1):
+                
+                # use num_suffixes_per_size because it accounts for special suffix codes
+                num_suffixes = attributes.Suffix.num_suffixes_per_size[size]
+                table = generate_feature_vectors(num_suffixes, args.suffix)
+                suffix_tensor.append(table)
+        
+        # suffix attribute actually has a 3-dim tensor
+        # (concatenation of 2d tables, one for each suffix size)
+        for table in suffix_tensor:
+            feature_tables.append(table)
     
     # POS tags
     if md.use_pos:

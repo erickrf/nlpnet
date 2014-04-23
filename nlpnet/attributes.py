@@ -70,8 +70,8 @@ class Suffix(object):
                                   for code, suffix in enumerate(suffixes_by_size[size], 1)}
         
         Suffix.num_sizes = len(suffixes_by_size)
-        Suffix.num_suffixes_per_size = {size: len(Suffix.codes[size]) 
-                                        for size in Suffix.codes}    
+        Suffix.num_suffixes_per_size = {size: len(Suffix.codes[size]) + 1
+                                        for size in Suffix.codes}
     
     @classmethod
     def get_suffix(cls, word, size):

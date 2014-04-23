@@ -113,8 +113,16 @@ class TextReader(object):
         
         if metadata.use_suffix:
             attributes.Suffix.load_suffixes()
-            for size in attributes.Suffix.codes:
-                f = lambda word: attributes.Suffix.get_suffix(word, size)
+            
+            # deal with gaps between sizes (i.e., if there are sizes 2, 3, and 5)
+            sizes = sorted(attributes.Suffix.codes)
+            for size in sizes:
+                
+                # size=size because if we don't use it, lambda sticks to the last value of 
+                # the loop iterator size
+                def f(word, size=size):
+                    return attributes.Suffix.get_suffix(word, size)
+                
                 self.converter.add_extractor(f)
     
 
