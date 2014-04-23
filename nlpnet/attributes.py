@@ -41,6 +41,8 @@ class Suffix(object):
     # size to its code
     codes = {}
     other = 0
+    num_sizes = 0
+    num_suffixes_per_size = {}
     
     @classmethod
     def load_suffixes(cls):
