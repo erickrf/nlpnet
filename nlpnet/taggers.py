@@ -41,7 +41,9 @@ def load_network(md):
         tables.append(caps_features)
     if md.use_suffix:
         suffix_features = utils.load_features_from_file(config.FILES[md.suffix_features])
-        tables.append(suffix_features)
+        for table in suffix_features:
+            # one table for each size
+            tables.append(table)
     if md.use_pos:
         pos_features = utils.load_features_from_file(config.FILES[md.pos_features])
         tables.append(pos_features)
