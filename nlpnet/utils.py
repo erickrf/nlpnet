@@ -274,7 +274,7 @@ def load_features(args, md, text_reader):
         else:
             logger.info("Generating suffix features...")
             suffix_tensor = []
-            for size in range(1, attributes.Suffix.num_sizes + 1):
+            for size in attributes.Suffix.codes:
                 
                 # use num_suffixes_per_size because it accounts for special suffix codes
                 num_suffixes = attributes.Suffix.num_suffixes_per_size[size]

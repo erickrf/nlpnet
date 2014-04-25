@@ -10,12 +10,68 @@ import numpy as np
 cimport numpy as np
 cimport cython
 from cpython cimport bool
-import math
+
 from itertools import izip
+import logging
 
 ctypedef np.float_t FLOAT_t
 ctypedef np.int_t INT_t
-ctypedef Py_ssize_t INDEX_t
+#ctypedef np.longdouble_t DOUBLE_t
+ctypedef np.double_t DOUBLE_t
+
+# ----------------------------------------------------------------------
+# Math functions
+
+cdef logsumexp(np.ndarray a, axis=None):
+    """Compute the log of the sum of exponentials of input elements.
+    like: scipy.misc.logsumexp
+
+    Parameters
+    ----------
+    a : array_like
+        Input array.
+    axis : int, optional
+        Axis over which the sum is taken. By default `axis` is None,
+        and all elements are summed.
+
+    Returns
+    -------
+    res : ndarray
+        The result, ``np.log(np.sum(np.exp(a)))`` calculated in a numerically
+        more stable way.
+    """
+    if axis is None:
+        a = a.ravel()
+    else:
+        a = np.rollaxis(a, axis)
+    a_max = a.max(axis=0)
+    return np.log(np.sum(np.exp(a - a_max), axis=0)) + a_max
+
+cdef hardtanh(np.ndarray[FLOAT_t, ndim=1] weights):
+    """Hard hyperbolic tangent."""
+    cdef np.ndarray out = np.empty_like(weights)
+    cdef int i
+    cdef float w
+    for i, w in enumerate(weights):
+        if w < -1:
+            out[i] = -1
+        elif w > 1:
+            out[i] = 1
+        else:
+            out[i] = w
+    return out
+
+cdef hardtanhd(np.ndarray[FLOAT_t, ndim=2] weights):
+    """derivative of hardtanh"""
+    cdef np.ndarray out = np.zeros_like(weights)
+    cdef int i
+    cdef float w
+    for i, w in enumerate(weights.flat):
+        if -1.0 <= w <= 1.0:
+            out.flat[i] = 1.0
+    return out
+
+# ----------------------------------------------------------------------
 
 cdef class Network:
     
@@ -25,14 +81,14 @@ cdef class Network:
     
     # padding stuff
     cdef np.ndarray padding_left, padding_right
-    cdef np.ndarray pre_padding, pos_padding
+    cdef public np.ndarray pre_padding, pos_padding
     
     # weights, biases, calculated values
     cdef readonly np.ndarray hidden_weights, output_weights
     cdef readonly np.ndarray hidden_bias, output_bias
-    cdef readonly np.ndarray input_values, hidden_values
+    cdef readonly np.ndarray input_values, hidden_values, layer2_values
     
-    # feature tables 
+    # feature tables
     cdef public list feature_tables
     
     # transitions
@@ -44,12 +100,15 @@ cdef class Network:
     
     # gradients
     cdef readonly np.ndarray net_gradients, trans_gradients
-    cdef readonly np.ndarray input_sent_values, hidden_sent_values
+    cdef readonly np.ndarray input_sent_values, hidden_sent_values, layer2_sent_values
     
     # data for statistics during training. 
-    cdef float error, accuracy
-    cdef int total_items, train_hits, skips, float_errors
+    cdef float error, accuracy, float_errors
+    cdef int train_items, skips
     
+    # function to save periodically
+    cdef public object saver
+
     @classmethod
     def create_new(cls, feature_tables, int word_window, int hidden_size, 
                  int output_size):
@@ -61,24 +120,44 @@ cdef class Network:
         input_size *= word_window
         
         # creates the weight matrices
-        # all weights are between -0.1 and +0.1
-        hidden_weights = 0.2 * np.random.random((hidden_size, input_size)) - 0.1
-        hidden_bias = 0.2 * np.random.random(hidden_size) - 0.1
-        output_weights = 0.2 * np.random.random((output_size, hidden_size)) - 0.1
-        output_bias = 0.2 * np.random.random(output_size) - 0.1
+
+        # set the seed for replicability
+        #np.random.seed(42)
+
+	# SENNA: centered uniform distribution with variance = 1/sqrt(fanin)
+	# variance = 1/12 interval ^ 2
+	# interval = 3.46 / fanin ^ 1/4
+        #high = 1.732 / np.power(input_size, 0.25) # SENNA: 0.416
+        high = 2.38 / np.sqrt(input_size) # [Bottou-88]
+        #high = 0.1              # Fonseca
+        hidden_weights = np.random.uniform(-high, high, (hidden_size, input_size))
+        hidden_bias = np.random.uniform(-high, high, (hidden_size))
+        #high = 1.732 / np.power(hidden_size, 0.25) # SENNA
+        high = 2.38 / np.sqrt(hidden_size) # [Bottou-88]
+        #high = 0.1              # Fonseca
+        output_weights = np.random.uniform(-high, high, (output_size, hidden_size))
+        output_bias = np.random.uniform(-high, high, (output_size))
         
+        high = 1.0
+        # +1 is due for the initial transition
+        transitions = np.random.uniform(-high, high, (output_size + 1, output_size))
+
         net = Network(word_window, input_size, hidden_size, output_size,
-                      hidden_weights, hidden_bias, output_weights, output_bias)
+                      hidden_weights, hidden_bias, output_weights, output_bias,
+                      transitions)
         net.feature_tables = feature_tables
         
         return net
         
     def __init__(self, word_window, input_size, hidden_size, output_size,
-                 hidden_weights, hidden_bias, output_weights, output_bias):
+                 hidden_weights, hidden_bias, output_weights, output_bias,
+                 transitions=None):
         """
         This function isn't expected to be directly called.
         Instead, use the classmethods load_from_file or 
         create_new.
+        :param transitions: transition weights. If None uses
+        Window Level Likelihood instead of Sentence Level Likelihood.
         """
         self.learning_rate = 0
         self.learning_rate_features = 0
@@ -88,12 +167,17 @@ cdef class Network:
         self.hidden_size = hidden_size
         self.output_size = output_size
         
-        self.transitions = np.zeros((self.output_size + 1, self.output_size))
-        
+        # A_i_j score for jumping from tag i to j
+        # A_0_i = transitions[-1]
+        self.transitions = transitions
+
         self.hidden_weights = hidden_weights
         self.hidden_bias = hidden_bias
         self.output_weights = output_weights
         self.output_bias = output_bias
+
+	# Attardi: saver fuction
+        self.saver = lambda nn: None
     
     def description(self):
         """
@@ -117,31 +201,26 @@ Output size: %d
         """
         Runs the network for a given input. 
         
-        :param indices: a 2-dim np array of indices to the feature tables.
-            Each element must have the indices to each feature table.
+        :param indices: a 2-dim np array of indices into the feature tables.
+            Each row represents a token through its indices into each feature table.
         """
         # find the actual input values concatenating the feature vectors
         # for each input token
         cdef np.ndarray input_data
-        input_data = np.concatenate(
-                                    [table[index] 
+        input_data = np.concatenate([table[index] 
                                      for token_indices in indices
-                                     for index, table in zip(token_indices, 
-                                                             self.feature_tables)
-                                     ]
-                                    )
-        
-        # store the output in self in order to use in the backprop
+                                     for index, table in izip(token_indices, 
+                                                              self.feature_tables)
+                                     ])
+
+        # store the output in self for use in backpropagation
         self.input_values = input_data
-        self.hidden_values = self.hidden_weights.dot(input_data)
-        self.hidden_values += self.hidden_bias
-        self.hidden_values = np.tanh(self.hidden_values)
-        
-        cdef np.ndarray output = self.output_weights.dot(self.hidden_values)
-        output += self.output_bias
-        
-        return output
-    
+        # (hidden_size, input_size) . input_size = hidden_size
+        self.layer2_values = self.hidden_weights.dot(input_data) + self.hidden_bias
+        self.hidden_values = hardtanh(self.layer2_values)
+
+        return self.output_weights.dot(self.hidden_values) + self.output_bias
+
     property padding_left:
         """
         The padding element filling the "void" before the beginning
@@ -166,18 +245,18 @@ Output size: %d
             self.padding_right = padding_right
             self.pos_padding = np.array((self.word_window_size / 2) * [padding_right])
     
-    def tag_sentence(self, np.ndarray sentence, logprob=False):
+    def tag_sentence(self, np.ndarray sentence):
         """
         Runs the network for each element in the sentence and returns 
         the sequence of tags.
         
         :param sentence: a 2-dim numpy array, where each item encodes a token.
-        :param logprob: a boolean indicating whether to return the log-probability for 
-            each answer or not.
         """
-        return self._tag_sentence(sentence, train=False, logprob=logprob)
-    
-    def _tag_sentence(self, np.ndarray sentence, bool train=False, tags=None, logprob=False):
+        scores = self._tag_sentence(sentence, train=False)
+        # computes full score, combining ftheta and A (if SLL)
+        return self._viterbi(scores)
+
+    def _tag_sentence(self, np.ndarray sentence, bool train=False, tags=None):
         """
         Runs the network for each element in the sentence and returns 
         the sequence of tags.
@@ -185,104 +264,86 @@ Output size: %d
         :param sentence: a 2-dim numpy array, where each item encodes a token.
         :param train: if True, perform weight and feature correction.
         :param tags: the correct tags (needed when training)
+        :return: a (len(sentence), output_size) array with the scores for all tokens
         """
         cdef np.ndarray answer
+        # scores[t, i] = ftheta_i,t = score for i-th tag, t-th word
         cdef np.ndarray scores = np.empty((len(sentence), self.output_size))
         
         if train:
             self.input_sent_values = np.empty((len(sentence), self.input_size))
+            # layer2_values at each token in the correct path
+            self.layer2_sent_values = np.empty((len(sentence), self.hidden_size))
+            # hidden_values at each token in the correct path
             self.hidden_sent_values = np.empty((len(sentence), self.hidden_size))
         
         # add padding to the sentence
-        cdef np.ndarray padded_sentence = np.vstack((self.pre_padding,
-                                                     sentence,
-                                                     self.pos_padding))
+        cdef np.ndarray padded_sentence = np.concatenate((self.pre_padding,
+                                                          sentence,
+                                                          self.pos_padding))
 
-        # get the first window
-        cdef np.ndarray window = padded_sentence[:self.word_window_size]
-        cdef np.ndarray result = self.run(window)
-        scores[0] = result
-        if train:
-            self.input_sent_values[0] = self.input_values
-            self.hidden_sent_values[0] = self.hidden_values
-        
-        cdef object iter_tags
-        if train:
-            iter_tags = iter(tags)
-        
-        # run for the rest of the windows in the sentence
-        cdef np.ndarray element
-        for i, element in enumerate(padded_sentence[self.word_window_size:], 1):
-            window = np.vstack((window[1:], element))
-            result = self.run(window)
-            scores[i] = result
+        # run through all windows in the sentence
+        for i in xrange(len(sentence)):
+            window = padded_sentence[i: i+self.word_window_size]
+            scores[i] = self.run(window)
             if train:
                 self.input_sent_values[i] = self.input_values
-                self.hidden_sent_values[i] = self.hidden_values 
+                self.layer2_sent_values[i] = self.layer2_values
+                self.hidden_sent_values[i] = self.hidden_values
         
-        answer = self._viterbi(scores)
         if train:
-            self._evaluate(answer, tags)
-            if self._calculate_gradients_all_tokens(tags, scores):
+            if self._calculate_gradients_sll(tags, scores):
+#            if self._calculate_gradients_wll(tags, scores):
                 self._backpropagate(sentence)
-                if self.transitions is not None: self._adjust_transitions()
-         
-        if logprob:
-            if self.transitions is not None:
-                all_scores = self._calculate_all_scores(scores)
-                last_token = len(sentence) - 1
-                logadd = np.log(np.sum(np.exp(all_scores[last_token])))
-                confidence = self.answer_score - logadd
-            
-            else:
-                confidence = np.prod(scores.max(1))
-            
-            answer = (answer, confidence)
-         
-        return answer
+
+        return scores
     
-    def _evaluate(self, answer, tags):
-        """
-        Evaluates the network performance, updating its hits count.
-        """
-        for net_tag, gold_tag in zip(answer, tags):
-            if net_tag == gold_tag:
-                self.train_hits += 1
-        self.total_items += len(tags)
-    
-    def _calculate_all_scores(self, scores):
+    def _calculate_delta(self, scores):
         """
         Calculates a matrix with the scores for all possible paths at all given
         points (tokens).
-        In the returning matrix, all_scores[i][j] means the sum of all scores 
-        ending in token i with tag j
+        In the returned matrix, delta[i][j] means the sum of all scores 
+        ending in token i with tag j (delta_i(j) in eq. 14 in the paper)
         """
         # logadd for first token. the transition score of the starting tag must be used.
         # it turns out that logadd = log(exp(score)) = score
         # (use long double because taking exp's leads to very very big numbers)
-        scores = np.longdouble(scores)
-        scores[0] += self.transitions[-1]
+        # scores[t][k] = ftheta_k,t
+        # No longer needed, since we use logsumexp
+        #delta = np.longdouble(scores)
+        delta = scores
+        # transitions[len(sentence)] represents initial transition, A_0,i in paper (mispelled as A_i,0)
+        # delta_0(k) = ftheta_k,0 + A_0,i
+        delta[0] += self.transitions[-1]
         
-        # logadd for the following tokens
-        transitions = self.transitions[:-1].T
-        for token, _ in enumerate(scores[1:], 1):
-            logadd = np.log(np.sum(np.exp(scores[token - 1] + transitions), 1))
-            scores[token] += logadd
+        # logadd for the remaining tokens
+        # delta_t(k) = ftheta_k,t + logadd_i(delta_t-1(i) + A_i,k)
+        #            = ftheta_k,t + log(Sum_i(exp(delta_t-1(i) + A_i,k)))
+        transitions = self.transitions[:-1].T # A_k,i
+        for token in xrange(1, len(delta)):
+            # sum by rows
+            #logadd = np.log(np.sum(np.exp(delta[token - 1] + transitions), 1))
+            logadd = logsumexp(delta[token - 1] + transitions, 1)
+            delta[token] += logadd
             
-        return scores
-    
-    def _calculate_gradients_all_tokens(self, tags, scores):
+        return delta
+
+    @cython.boundscheck(False)
+    def _calculate_gradients_sll(self, tags, scores):
         """
-        Calculates the output and transition deltas for each token.
+        Calculates the output and transition deltas for each token, using Sentence Level Likelihood.
         The aim is to minimize the cost:
-        logadd(score for all possible paths) - score(correct path)
+        C(theta,A) = logadd(scores for all possible paths) - score(correct path)
         
         :returns: if True, normal gradient calculation was performed.
             If False, the error was too low and weight correction should be
             skipped.
         """
-        cdef np.ndarray all_scores 
+        cdef np.ndarray[DOUBLE_t, ndim=2] delta # (len(sentence), output_size)
+        cdef np.ndarray[DOUBLE_t, ndim=2] delta_softmax # (output_size, output_size)
         
+        # ftheta_i,t = network output for i-th tag, at t-th word
+        # s = Sum_i(A_tags[i-1],tags[i] + ftheta_i,i), i < len(sentence)   (12)
         correct_path_score = 0
         last_tag = self.output_size
         for tag, net_scores in izip(tags, scores):
@@ -290,8 +351,13 @@ Output size: %d
             correct_path_score += trans + net_scores[tag]
             last_tag = tag 
         
-        all_scores = self._calculate_all_scores(scores)
-        error = np.log(np.sum(np.exp(all_scores[-1]))) - correct_path_score
+        # delta[t] = delta_t in equation (14)
+        delta = self._calculate_delta(scores)
+        # logadd_i(delta_T(i)) = log(Sum_i(exp(delta_T(i))))
+        # Sentence-level Log-Likelihood (SLL)
+        # C(ftheta,A) = logadd_j(s(x, j, theta, A)) - score(correct path)
+        #error = np.log(np.sum(np.exp(delta[-1]))) - correct_path_score
+        error = logsumexp(delta[-1]) - correct_path_score
         self.error += error
         
         # if the error is too low, don't bother training (saves time and avoids
@@ -305,42 +371,60 @@ Output size: %d
             return False
         
         # initialize gradients
-        self.net_gradients = np.zeros_like(scores, np.float)
+        # dC / dftheta
+        self.net_gradients = np.zeros((len(tags), self.output_size))
+        # dC / dA
         self.trans_gradients = np.zeros_like(self.transitions, np.float)
         
         # things get nasty from here
         # refer to the papers to understand what exactly is going on
         
         # compute the gradients for the last token
-        exponentials = np.exp(all_scores[-1])
-        exp_sum = np.sum(exponentials)
-        self.net_gradients[-1] = -exponentials / exp_sum
-        
+        # dC_logadd / ddelta_T(i) = e(delta_T(i))/Sum_k(e(delta_T(k)))
+        # Compute it using the log:
+        # log(e(delta_T(i))/Sum_k(e(delta_T(k)))) =
+        # log(e(delta_T(i))) - log(Sum_k(e(delta_T(k)))) =
+        # delta_T(i) - logsumexp(delta_T(k))
+        # dC_logadd / ddelta_T(i) = e(delta_T(i) - logsumexp(delta_T(k)))
+        sumlogadd = logsumexp(delta[-1])
+        # negative gradients
+        self.net_gradients[-1] = -np.exp(delta[-1] - sumlogadd)
+
         transitions_t = 0 if self.transitions is None else self.transitions[:-1].T
         
+        # delta[i][j]: sum of scores of all path that assign tag j to ith-token
+
         # now compute the gradients for the other tokens, from last to first
-        for token in range(len(scores) - 2, -1, -1):
+        for t in range(len(scores) - 2, -1, -1):
             
-            # matrix with the exponentials which will be used to find the gradients
-            # sum the scores for all paths ending with each tag in token "token"
-            # with the transitions from this tag to the next
-            exp_matrix = np.exp(all_scores[token] + transitions_t).T
-            
-            # the sums of exps, used to calculate the softmax
-            # sum the exponentials by column
-            denominators = exp_matrix.sum(0)
+            # sum the scores for all paths ending with each tag i at token t
+            # with the transitions from tag i to the next tag j
+            # Obtained by transposing twice
+            # [delta_t-1(i)+A_j,i]T
+            path_scores = (delta[t] + transitions_t).T
+
+            # normalize over all possible tag paths using a softmax,
+            # computed using log.
+            # the log of the sums of exps, summed by column
+            log_sum_scores = logsumexp(path_scores, 0)
             
             # softmax is the division of an exponential by the sum of all exponentials
             # (yields a probability)
-            softmax = exp_matrix / denominators
-            
+            # e(delta_t-1(i)+A_i,j) / Sum_k e(delta_t-1(k)+A_k,j)
+            delta_softmax = np.exp(path_scores - log_sum_scores)
+
             # multiply each value in the softmax by the gradient at the next tag
-            grad_times_softmax = self.net_gradients[token + 1] * softmax
-            self.trans_gradients[:-1, :]  += grad_times_softmax
+            # dC_logadd / ddelta_t(i) * delta_softmax
+            # Attardi: negative since net_gradients[t + 1] already negative
+            grad_times_softmax = self.net_gradients[t + 1] * delta_softmax
+            # dC / dA_i,j
+            self.trans_gradients[:-1, :] += grad_times_softmax
             
-            # sum all transition gradients by line to find the network gradients
-            self.net_gradients[token] = np.sum(grad_times_softmax, 1)
-        
+            # sum all transition gradients by row to find the network gradients
+            # Sum_j(dC_logadd / ddelta_t(j) * delta_softmax)
+            # Attardi: negative since grad_times_softmax already negative
+            self.net_gradients[t] = np.sum(grad_times_softmax, 1)
+
         # find the gradients for the starting transition
         # there is only one possibility to come from, which is the sentence start
         self.trans_gradients[-1] = self.net_gradients[0]
@@ -348,19 +432,51 @@ Output size: %d
         # now, add +1 to the correct path
         last_tag = self.output_size
         for token, tag in enumerate(tags):
-            self.net_gradients[token][tag] += 1
+            self.net_gradients[token][tag] += 1 # negative gradient
             if self.transitions is not None:
-                self.trans_gradients[last_tag][tag] += 1
+                self.trans_gradients[last_tag][tag] += 1 # negative gradient
             last_tag = tag
         
         return True
-        
-    def _adjust_transitions(self):
-        """Adjusts the transition scores table with the calculated gradients."""
-        self.transitions += self.trans_gradients * self.learning_rate_trans
-    
+
     @cython.boundscheck(False)
-    def _viterbi(self, np.ndarray[FLOAT_t, ndim=2] scores, bool allow_repeats=True):
+    def _calculate_gradients_wll(self, tags, scores):
+        """
+        Calculates the output for each token, using Word Level Likelihood.
+        The aim is to minimize the word-level log-likelihood:
+        C(ftheta) = logadd_j(ftheta_j) - ftheta_y,
+        where y is the sequence of correct tags
+        
+        :returns: if True, normal gradient calculation was performed.
+            If False, the error was too low and weight correction should be
+            skipped.
+        """
+        # compute the negative gradient with respect to ftheta
+        # dC / dftheta_i = e(ftheta_i)/Sum_k(e(ftheta_k))
+        exponentials = np.exp(scores)
+        # FIXME: use logsumexp
+        # ((len(sentence), self.output_size))
+        self.net_gradients = -(exponentials.T / exponentials.sum(1)).T
+
+        # correct path and its gradient
+        correct_path_score = 0
+        token = 0
+        for tag, net_scores in izip(tags, scores):
+            self.net_gradients[token][tag] += 1 # negative gradient
+            token += 1
+            correct_path_score += net_scores[tag]
+
+        # C(ftheta) = logadd_j(ftheta_j) - score(correct path)
+        #error = np.log(np.sum(np.exp(scores))) - correct_path_score
+        error = logsumexp(scores) - correct_path_score
+        # approximate
+        #error = np.max(scores) - correct_path_score
+        self.error += error
+
+        return True
+
+    @cython.boundscheck(False)
+    def _viterbi(self, np.ndarray[FLOAT_t, ndim=2] scores):
         """
         Performs a Viterbi search over the scores for each tag using
         the transitions matrix. If a matrix wasn't supplied, 
@@ -378,15 +494,19 @@ Output size: %d
         # the last row of the transitions table has the scores for the first tag
         path_scores[0] = scores[0] + self.transitions[-1]
         
-        for i, token in enumerate(scores[1:], 1):
+        output_range = np.arange(self.output_size) # outside loop. Attardi
+        transitions = self.transitions[:-1]        # idem
+
+        cdef int i
+        for i in xrange(1, len(scores)):
             
             # each line contains the score until each tag t plus the transition to each other tag t'
-            prev_score_and_trans = (path_scores[i - 1] + self.transitions[:-1].T).T
+            prev_score_and_trans = (path_scores[i - 1] + transitions.T).T
             
             # find the previous tag that yielded the max score
             path_backtrack[i] = prev_score_and_trans.argmax(0)
             path_scores[i] = prev_score_and_trans[path_backtrack[i], 
-                                                  np.arange(self.output_size)] + scores[i]
+                                                  output_range] + scores[i]
             
         # now find the maximum score for the last token and follow the backtrack
         answer = np.empty(len(scores), dtype=np.int)
@@ -418,16 +538,27 @@ Output size: %d
         :param desired_accuracy: training stops if the desired accuracy
             is reached. Ignored if 0.
         """
-        print "Training for up to %d epochs" % epochs
+        logger = logging.getLogger("Logger")
+        logger.info("Training for up to %d epochs" % epochs)
+        top_accuracy = 0
         last_accuracy = 0
+        min_error = np.Infinity 
         last_error = np.Infinity 
         
         np.seterr(all='raise')
 
-        for i in range(epochs):
+        for i in xrange(epochs):
             self._train_epoch(sentences, tags)
             
-            self.accuracy = float(self.train_hits) / self.total_items
+            # normalize error
+            self.error = self.error / self.train_items if self.train_items else np.Infinity
+            # Attardi: save model
+            if self.error < min_error:
+                min_error = self.error
+                self.saver(self)
+
+            if self.accuracy > top_accuracy:
+                top_accuracy = self.accuracy
             
             if (epochs_between_reports > 0 and i % epochs_between_reports == 0) \
                 or self.accuracy >= desired_accuracy > 0 \
@@ -435,45 +566,35 @@ Output size: %d
                 
                 self._print_epoch_report(i + 1)
                 
-                if self.accuracy >= desired_accuracy > 0:
+                if self.accuracy >= desired_accuracy > 0 \
+                        or (self.error > last_error and self.accuracy < last_accuracy):
                     break
                 
-                if self.accuracy < last_accuracy and self.error > last_error:
-                    # accuracy is falling, the network is probably diverging
-                    break
-            
             last_accuracy = self.accuracy
             last_error = self.error
-        
-        self.error = 0
-        self.float_errors = 0
-        self.skips = 0
-        self.train_hits = 0
-        self.total_items = 0
             
     def _print_epoch_report(self, int num):
         """
         Reports the status of the network in the given training
         epoch, including error and accuracy.
         """
-        cdef float error = self.error / self.total_items
-        print "%d epochs   Error: %f   Accuracy: %f   " \
-            "%d corrections could be skipped   " \
+        logger = logging.getLogger("Logger")
+        logger.info("%d epochs   Error: %f   Accuracy: %f   " \
+            "%d corrections skipped   " \
             "%d floating point errors" % (num,
-                                          error,
+                                          self.error,
                                           self.accuracy,
                                           self.skips,
-                                          self.float_errors)
+                                          self.float_errors))
     
     def _train_epoch(self, list sentences, list tags):
         """
         Trains for one epoch with all examples.
         """
-        self.train_hits = 0
         self.error = 0
-        self.total_items = 0
         self.skips = 0
         self.float_errors = 0
+        self.train_items = 0
         
         # shuffle data
         # get the random number generator state in order to shuffle
@@ -483,81 +604,137 @@ Output size: %d
         np.random.set_state(random_state)
         np.random.shuffle(tags)
         
+        # keep last 2% for validation
+        validation = int(len(sentences) * 0.98)
+
+        i = 0
         for sent, sent_tags in izip(sentences, tags):
             try:
                 self._tag_sentence(sent, True, sent_tags)
+                self.train_items += len(sent)
             except FloatingPointError:
                 # just ignore the sentence in case of an overflow
                 self.float_errors += 1
-                continue
-    
+            i += 1
+            if i == validation:
+                break
+
+        self._validate(sentences, tags, validation)
+
+    def _validate(self, sentences, tags, idx):
+        """Perform validation on held out data and estimate accuracy"""
+        tokens = 0
+        hits = 0
+        for i in xrange(idx, len(sentences)):
+            sent = sentences[i]
+            gold_tags = tags[i]
+            scores = self._tag_sentence(sent, False)
+            answer = self._viterbi(scores)
+            for pred_tag, gold_tag in izip(answer, gold_tags):
+                if pred_tag == gold_tag:
+                    hits += 1
+                tokens += 1
+        self.accuracy = float(hits) / tokens
+
     def _backpropagate(self, sentence):
-        """Backpropagate the error gradient."""
-        # find the hidden gradients by backpropagating the output
-        # gradients and multiplying the derivative
-        cdef np.ndarray[FLOAT_t, ndim=2] hidden_gradients = self.net_gradients.dot(self.output_weights)
-        
-        # the derivative of tanh(x) is 1 - tanh^2(x)
-        cdef np.ndarray derivatives = 1 - self.hidden_sent_values ** 2
-        hidden_gradients *= derivatives
-        
-        # backpropagate to input layer (in order to adjust features)
-        # since no function is applied to the feature values, no derivative is needed
-        # (or you can see it as f(x) = x --> f'(x) = 1)
-        cdef np.ndarray[FLOAT_t, ndim=2] input_gradients = hidden_gradients.dot(self.hidden_weights)
-        
         """
-        Adjust the weights of the neural network.
+        Backpropagate the gradients of the cost.
         """
-        # tensor[i, j, k] means the gradient for tag i at token j to be multiplied
-        # by the value from the k-th hidden neuron (note that the tensor was transposed)
-        cdef np.ndarray[FLOAT_t, ndim=3] grad_tensor
-        
-        # adjust weights from input to hidden layer
-        grad_tensor = np.tile(hidden_gradients, [self.input_size, 1, 1]).T
-        grad_tensor *= self.input_sent_values
-        deltas = grad_tensor.sum(1) * self.learning_rate
-        self.hidden_weights += deltas
-        self.hidden_bias += hidden_gradients.sum(0) * self.learning_rate
-        
-        # adjust weights from hidden to output layer
-        grad_tensor = np.tile(self.net_gradients, [self.hidden_size, 1, 1]).T
-        grad_tensor *= self.hidden_sent_values
-        deltas = grad_tensor.sum(1) * self.learning_rate
-        self.output_weights += deltas
-        self.output_bias += self.net_gradients.sum(0) * self.learning_rate
-        
+        # f_1 = input_sent_values
+        # f_2 = M_1 f_1 + b_2 = layer2_values
+        # f_3 = hardTanh(f_2) = hidden_values
+        # f_4 = M_2 f_3 + b_4
+
+        # For l = 4..1 do:
+        # dC / dtheta_l = df_l / dtheta_l dC / df_l		(19)
+        # dC / df_l-1 = df_l / df_l-1 dC / df_l			(20)
+
+        """
+        Compute the gradients of the cost for each layer
+        """
+        # layer 4: output layer
+        # dC / dW_4 = dC / df_4 f_3.T				(22)
+        # (len, output_size).T (len, hidden_size) = (output_size, hidden_size)
+        cdef np.ndarray[FLOAT_t, ndim=2] output_gradients
+        output_gradients = self.net_gradients.T.dot(self.hidden_sent_values)
+
+        # dC / db_4 = dC / df_4					(22)
+        # (output_size) += ((len(sentence), output_size))
+        # sum by column, i.e. all changes through the sentence
+        output_bias_gradients = self.net_gradients.sum(0)
+
+        # dC / df_3 = M_2.T dC / df_4				(23)
+        #  (len, output_size) (output_size, hidden_size) = (len, hidden_size)
+        dCdf_3 = self.net_gradients.dot(self.output_weights)
+
+        # layer 3: HardTanh layer
+        # no weights to adjust
+
+        # dC / df_2 = hardtanhd(f_2) * dC / df_3
+        # (len, hidden_size) (len, hidden_size)
+        # FIXME: this goes quickly to 0.
+        dCdf_2 = hardtanhd(self.layer2_sent_values) * dCdf_3
+
+        # df_2 / df_1 = M_1
+
+        # layer 2: linear layer
+        # dC / dW_2 = dC / df_2 f_1.T				(22)
+        cdef np.ndarray[FLOAT_t, ndim=2] hidden_gradients
+        # (len, hidden_size).T (len, input_size) = (hidden_size, input_size)
+        hidden_gradients = dCdf_2.T.dot(self.input_sent_values)
+
+        # dC / db_2 = dC / df_2					(22)
+        # sum by column contribution by each token
+        hidden_bias_gradients = dCdf_2.sum(0)
+
+        # dC / df_1 = M_1.T dC / df_2
+        cdef np.ndarray[FLOAT_t, ndim=2] input_gradients
+        # (len, hidden_size) (hidden_size, input_size) = (len, input_size)
+        input_gradients = dCdf_2.dot(self.hidden_weights)
+
+        """
+        Adjust the weights
+        """
+        self.output_weights += output_gradients * self.learning_rate
+        self.output_bias += output_bias_gradients * self.learning_rate
+        self.hidden_weights += hidden_gradients * self.learning_rate
+        self.hidden_bias += hidden_bias_gradients * self.learning_rate
+
         """
         Adjust the features indexed by the input window.
         """
-        # the deltas that will be applied to feature tables
-        # they are in the same sequence as the network receives them, i.e.,
+        # the deltas that will be applied to the feature tables
+        # they are in the same sequence as the network receives them, i.e.
         # [token1-table1][token1-table2][token2-table1][token2-table2] (...)
-        input_deltas = input_gradients * self.input_sent_values * self.learning_rate_features
-        
-        # this tracks where the deltas for the next table begins
-        # (used for efficiency reasons)
-        cdef int start_from = 0
-        cdef np.ndarray[FLOAT_t, ndim=2] table
-        cdef np.ndarray[INT_t, ndim=1] token
-        cdef num_features
-        cdef int i, j
+        # input_size = num features * window (e.g. 60 * 5). Attardi
+        cdef np.ndarray[FLOAT_t, ndim=2] input_deltas
+        # (len, input_size)
+        input_deltas = input_gradients * self.learning_rate_features
         
         padded_sentence = np.concatenate((self.pre_padding,
                                           sentence,
                                           self.pos_padding))
         
-        for i in range(self.word_window_size):
-            for j, table in enumerate(self.feature_tables):
-                # this is the column for the i-th position in the window
-                # regarding features from the j-th table
-                table_deltas = input_deltas[:, start_from:start_from + table.shape[1]]
-                start_from += table.shape[1]
-                
-                for token, deltas in zip(padded_sentence[i:], table_deltas):
-                    table[token[j]] += deltas
-        
-    
+        cdef np.ndarray[INT_t, ndim=1] features
+        cdef np.ndarray[FLOAT_t, ndim=2] table
+        cdef int start, end, t
+        cdef int i, j
+
+        for i, w_deltas in enumerate(input_deltas):
+            # for each window (w_deltas: 300, features: 5)
+            # this tracks where the deltas for the next table begins
+            start = 0
+            for features in padded_sentence[i:i+self.word_window_size]:
+                # select the columns for each feature_tables (t: 3)
+                for t, table in enumerate(self.feature_tables):
+                    end = start + table.shape[1]
+                    table[features[t]] += w_deltas[start:end]
+                    start = end
+
+        # Adjusts the transition scores table with the calculated gradients.
+        if self.transitions is not None:
+            self.transitions += self.trans_gradients * self.learning_rate_trans
+
     def save(self, filename):
         """
         Saves the neural network to a file.
@@ -592,19 +769,19 @@ Output size: %d
         input_size = data['input_size']
         hidden_size = data['hidden_size']
         output_size = data['output_size']
-        
+        if 'transitions' in data:
+            transitions = data['transitions']
+        else:
+            transitions = None
+
         nn = Network(word_window_size, input_size, hidden_size, output_size,
-                     hidden_weights, hidden_bias, output_weights, output_bias)
+                     hidden_weights, hidden_bias, output_weights, output_bias,
+                     transitions)
         
         nn.padding_left = data['padding_left']
         nn.padding_right = data['padding_right']
         nn.pre_padding = np.array((nn.word_window_size / 2) * [nn.padding_left])
         nn.pos_padding = np.array((nn.word_window_size / 2) * [nn.padding_right])
-        
-        if 'transitions' in data:
-            transitions = data['transitions']
-            if transitions.shape != ():
-                nn.transitions = transitions 
         
         return nn
         
