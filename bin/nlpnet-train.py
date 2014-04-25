@@ -19,6 +19,7 @@ import nlpnet.srl as srl
 import nlpnet.pos as pos
 import nlpnet.arguments as arguments
 import nlpnet.reader as reader
+import nlpnet.attributes as attributes
 from nlpnet.network import Network, ConvolutionalNetwork, LanguageModel
 
 
@@ -132,7 +133,14 @@ def save_features(nn, md):
     # other features - the order is important!
     iter_tables = iter(nn.feature_tables[1:])
     if md.use_caps: utils.save_features_to_file(iter_tables.next(), config.FILES[md.caps_features])
-    if md.use_suffix: utils.save_features_to_file(iter_tables.next(), config.FILES[md.suffix_features])
+    if md.use_suffix:
+        # there can be an arbitrary number of suffix tables, one for each length
+        suffix_features = []
+        for _ in range(attributes.Suffix.num_sizes):
+            suffix_features.append(iter_tables.next())
+            
+        utils.save_features_to_file(suffix_features, config.FILES[md.suffix_features])
+        
     if md.use_pos: utils.save_features_to_file(iter_tables.next(), config.FILES[md.pos_features])
     if md.use_chunk: utils.save_features_to_file(iter_tables.next(), config.FILES[md.chunk_features])
     

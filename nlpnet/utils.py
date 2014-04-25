@@ -417,10 +417,7 @@ def load_features_from_file(features_file):
 
 def save_features_to_file(table, features_file):
     """Saves a feature table to a given file, writing binary data."""
-    logger = logging.getLogger("Logger")
     np.save(features_file, table)
-    logger.info('Saved %d vectors with %d features each to file %s' % 
-                (table.shape[0], table.shape[1], features_file))
     
 def convert_iobes_to_bracket(tag):
     """
