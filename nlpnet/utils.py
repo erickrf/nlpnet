@@ -212,10 +212,34 @@ def count_chunk_tags():
     return len(text.split('\n'))
 
 
-#TODO: this function could be more organized with less repeated code
-def load_features(args, md, text_reader):
+def _create_affix_tables(affix, table_list, num_features):
     """
-    Loads the features to be used by the network. The actual number of 
+    Internal helper function for loading suffix or prefix feature tables 
+    into the given list.
+    affix should be either 'suffix' or 'prefix'.
+    """
+    logger = logging.getLogger('Logger')
+    logger.info('Generating %s features...' % affix)
+    tensor = []
+    codes = getattr(attributes.Affix, '%s_codes' % affix)
+    num_affixes_per_size = getattr(attributes.Affix, 'num_%ses_per_size' % affix)
+    for size in codes:
+        
+        # use num_*_per_size because it accounts for special suffix codes
+        num_affixes = num_affixes_per_size[size]
+        table = generate_feature_vectors(num_affixes, num_features)
+        tensor.append(table)
+    
+    # affix attribute actually has a 3-dim tensor
+    # (concatenation of 2d tables, one for each suffix size)
+    for table in tensor:
+        table_list.append(table)
+
+def create_feature_tables(args, md, text_reader):
+    """
+    Create the feature tables to be used by the network. If the args object
+    contains the load_features option as true, the feature table for word types
+    is loaded instead of being created. The actual number of 
     feature tables will depend on the argument options.
     
     :param arguments: Parameters supplied to the program
@@ -254,60 +278,30 @@ def load_features(args, md, text_reader):
     
     # Capitalization
     if md.use_caps:
-        # features for word capitalization
-        # if the value is True, it means we should create new features. if the value is a 
-        # string, then it is the name of the feature file
-        if args.load_network:
-            logger.info("Loading capitalization features...")
-            caps_table = load_features_from_file(config.FILES[md.caps_features])
-        else:
-            logger.info("Generating capitalization features...")
-            caps_table = generate_feature_vectors(attributes.Caps.num_values, args.caps)
-        
+        logger.info("Generating capitalization features...")
+        caps_table = generate_feature_vectors(attributes.Caps.num_values, args.caps)
         feature_tables.append(caps_table)
+    
+    # Prefixes
+    if md.use_prefix:
+        _create_affix_tables('prefix', feature_tables, args.prefix)
     
     # Suffixes
     if md.use_suffix:
-        if args.load_network:
-            logger.info("Loading suffix features...")
-            suffix_tensor = load_features_from_file(config.FILES[md.suffix_features])
-        else:
-            logger.info("Generating suffix features...")
-            suffix_tensor = []
-            for size in attributes.Suffix.codes:
-                
-                # use num_suffixes_per_size because it accounts for special suffix codes
-                num_suffixes = attributes.Suffix.num_suffixes_per_size[size]
-                table = generate_feature_vectors(num_suffixes, args.suffix)
-                suffix_tensor.append(table)
-        
-        # suffix attribute actually has a 3-dim tensor
-        # (concatenation of 2d tables, one for each suffix size)
-        for table in suffix_tensor:
-            feature_tables.append(table)
+        _create_affix_tables('suffix', feature_tables, args.suffix)
     
     # POS tags
     if md.use_pos:
-        if args.load_network:
-            logger.info("Loading POS features...")
-            pos_table = load_features_from_file(config.FILES[md.pos_features])
-        else:
-            logger.info("Generating POS features...")
-            num_pos_tags = count_pos_tags()
-            pos_table = generate_feature_vectors(num_pos_tags, args.pos)
-    
+        logger.info("Generating POS features...")
+        num_pos_tags = count_pos_tags()
+        pos_table = generate_feature_vectors(num_pos_tags, args.pos)
         feature_tables.append(pos_table)
     
     # chunk tags
     if md.use_chunk:
-        if args.load_network:
-            logger.info("Loading chunk features...")
-            chunk_table = load_features_from_file(config.FILES[md.chunk_features])
-        else:
-            logger.info("Generating chunk features...")
-            num_chunk_tags = count_chunk_tags()
-            chunk_table = generate_feature_vectors(num_chunk_tags, args.chunk)
-        
+        logger.info("Generating chunk features...")
+        num_chunk_tags = count_chunk_tags()
+        chunk_table = generate_feature_vectors(num_chunk_tags, args.chunk)
         feature_tables.append(chunk_table)
     
     return feature_tables

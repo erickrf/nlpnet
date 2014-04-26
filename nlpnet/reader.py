@@ -106,25 +106,37 @@ class TextReader(object):
         Sets up the token converter, which is responsible for transforming tokens into their
         feature vector indices
         """
-        self.converter = attributes.TokenConverter()
-        self.converter.add_extractor(self.word_dict.get)
-        if metadata.use_caps:
-            self.converter.add_extractor(get_capitalization)
-        
-        if metadata.use_suffix:
-            attributes.Suffix.load_suffixes()
+        def add_affix_extractors(affix):
+            """
+            Helper function that works for both suffixes and prefixes.
+            The parameter affix should be 'suffix' or 'prefix'.
+            """
+            loader_function = getattr(attributes.Affix, 'load_%ses' % affix)
+            loader_function()
             
             # deal with gaps between sizes (i.e., if there are sizes 2, 3, and 5)
-            sizes = sorted(attributes.Suffix.codes)
+            codes = getattr(attributes.Affix, '%s_codes' % affix)
+            sizes = sorted(codes)
+            
+            getter = getattr(attributes.Affix, 'get_%s' % affix)
             for size in sizes:
                 
                 # size=size because if we don't use it, lambda sticks to the last value of 
                 # the loop iterator size
                 def f(word, size=size):
-                    return attributes.Suffix.get_suffix(word, size)
+                    return getter(word, size)
                 
                 self.converter.add_extractor(f)
-    
+        
+        self.converter = attributes.TokenConverter()
+        self.converter.add_extractor(self.word_dict.get)
+        if metadata.use_caps:
+            self.converter.add_extractor(get_capitalization)
+        if metadata.use_prefix:
+            add_affix_extractors('prefix')
+        if metadata.use_suffix:
+            add_affix_extractors('suffix')
+        
 
 class TaggerReader(TextReader):
     """

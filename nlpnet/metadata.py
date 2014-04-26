@@ -17,10 +17,12 @@ class Metadata(object):
     parameter files.
     """
     
-    def __init__(self, task, use_caps=True, use_suffix=False, use_pos=False, use_chunk=False, use_lemma=False):
+    def __init__(self, task, use_caps=True, use_suffix=False, use_prefix=False,
+                 use_pos=False, use_chunk=False, use_lemma=False):
         self.task = task
         self.use_caps = use_caps
         self.use_suffix = use_suffix
+        self.use_prefix = use_prefix
         self.use_pos = use_pos
         self.use_chunk = use_chunk
         self.use_lemma = use_lemma
@@ -69,6 +71,7 @@ class Metadata(object):
             self.pos_features = 'pos_features_%s' % task
             self.chunk_features = 'chunk_features_%s' % task
             self.suffix_features = 'suffix_features_%s' % task
+            self.prefix_features = 'prefix_features_%s' % task
     
     def __str__(self):
         """Shows the task at hand and which attributes are used."""
@@ -126,6 +129,7 @@ if __name__ == '__main__':
     parser.add_argument('--caps', help='Use capitalization as a feature',
                         action='store_true')
     parser.add_argument('--suf', help='Use suffix features', action='store_true', dest='suffix')
+    parser.add_argument('--pre', help='Use prefix features', action='store_true', dest='prefix')
     parser.add_argument('--id', help='Only argument identification (SRL only)',
                         action='store_true', dest='identify')
     parser.add_argument('--class', help='Only argument classification (SRL only)',
@@ -141,7 +145,7 @@ if __name__ == '__main__':
     elif args.predicates:
         args.task = 'srl_predicates'
     
-    m = Metadata(args.task, args.caps, args.suffix, args.pos, args.chunk, args.lemma)
+    m = Metadata(args.task, args.caps, args.suffix, args.prefix, args.pos, args.chunk, args.lemma)
     m.save_to_file()
     
     

@@ -32,13 +32,18 @@ def load_network(md):
         net_class = Network
     nn = net_class.load_from_file(config.FILES[md.network])
     
-    logger.info('Loading features')
+    logger.info('Loading features...')
     type_features = utils.load_features_from_file(config.FILES[md.type_features])
     tables = [type_features]
     
     if md.use_caps:
         caps_features = utils.load_features_from_file(config.FILES[md.caps_features])
         tables.append(caps_features)
+    if md.use_prefix:
+        prefix_features = utils.load_features_from_file(config.FILES[md.prefix_features])
+        for table in prefix_features:
+            # one table for each size
+            tables.append(table)
     if md.use_suffix:
         suffix_features = utils.load_features_from_file(config.FILES[md.suffix_features])
         for table in suffix_features:

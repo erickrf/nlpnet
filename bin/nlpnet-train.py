@@ -127,20 +127,32 @@ def save_features(nn, md):
     :param nn: the neural network
     :param md: a Metadata object describing the network
     """
+    def save_affix_features(affix, iter_tables):
+        """
+        Helper function for both suffixes and affixes.
+        affix should be either 'suffix' or 'affix'
+        """
+        # there can be an arbitrary number of tables, one for each length
+        affix_features = []
+        codes = getattr(attributes.Affix, '%s_codes' % affix)
+        num_sizes = len(codes)
+        for _ in range(num_sizes):
+            affix_features.append(iter_tables.next())
+        
+        filename_key = getattr(md, '%s_features' % affix)
+        filename = config.FILES[filename_key]
+        utils.save_features_to_file(affix_features, filename)
+        
     # type features
     utils.save_features_to_file(nn.feature_tables[0], config.FILES[md.type_features])
     
     # other features - the order is important!
     iter_tables = iter(nn.feature_tables[1:])
     if md.use_caps: utils.save_features_to_file(iter_tables.next(), config.FILES[md.caps_features])
+    if md.use_prefix:
+        save_affix_features('prefix', iter_tables)
     if md.use_suffix:
-        # there can be an arbitrary number of suffix tables, one for each length
-        suffix_features = []
-        for _ in range(attributes.Suffix.num_sizes):
-            suffix_features.append(iter_tables.next())
-            
-        utils.save_features_to_file(suffix_features, config.FILES[md.suffix_features])
-        
+        save_affix_features('suffix', iter_tables)
     if md.use_pos: utils.save_features_to_file(iter_tables.next(), config.FILES[md.pos_features])
     if md.use_chunk: utils.save_features_to_file(iter_tables.next(), config.FILES[md.chunk_features])
     
@@ -189,13 +201,15 @@ if __name__ == '__main__':
     
     use_caps = args.caps is not None
     use_suffix = args.suffix is not None
+    use_prefix = args.prefix is not None
     use_pos = args.pos is not None
     use_chunk = args.chunk is not None
     use_lemma = args.use_lemma
     
     if not args.load_network:
         # if we are about to create a new network, create the metadata too
-        md = metadata.Metadata(args.task, use_caps, use_suffix, use_pos, use_chunk, use_lemma)
+        md = metadata.Metadata(args.task, use_caps, use_suffix, use_prefix, 
+                               use_pos, use_chunk, use_lemma)
         md.save_to_file()
     else:
         md = metadata.Metadata.load_from_file(args.task)
@@ -203,17 +217,15 @@ if __name__ == '__main__':
     text_reader.create_converter(md)
     text_reader.codify_sentences()
     
-    feature_tables = utils.load_features(args, md, text_reader)
-    
     if args.load_network or args.semi:
         logger.info("Loading provided network...")
         nn = load_network_train(args, md)
     else:
         logger.info('Creating new network...')
+        feature_tables = utils.create_feature_tables(args, md, text_reader)
         nn = create_network(args, text_reader, feature_tables, md)
     
     logger.info("Starting training with %d sentences" % len(text_reader.sentences))
-    
     train(text_reader, args)
     
     logger.info("Saving trained models...")

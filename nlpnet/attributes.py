@@ -35,45 +35,64 @@ class Token(object):
         return self.word.__repr__()
 
 
-class Suffix(object):
+class Affix(object):
     """Dummy class for manipulating suffixes and their related codes."""
-    # codes maps integers (suffix sizes) to dicts. each dict maps a suffix of the given 
+    # codes maps integers (affix sizes) to dicts. each dict maps a suffix of the given 
     # size to its code
-    codes = {}
+    suffix_codes = {}
+    prefix_codes = {}
     other = 0
-    num_sizes = 0
     num_suffixes_per_size = {}
+    num_prefixes_per_size = {}
     
     @classmethod
     def load_suffixes(cls):
         """
-        loads the listed suffixes from the suffix file.
+        Loads suffixes from the suffix file.
         """
-        Suffix.codes = {}
+        cls.load_affixes(cls.suffix_codes, config.FILES['suffixes'])
+        
+        # +1 because of the unkown suffix code
+        cls.num_suffixes_per_size = {size: len(cls.suffix_codes[size]) + 1
+                                     for size in cls.suffix_codes}
+    
+    @classmethod
+    def load_prefixes(cls):
+        """
+        Loads prefixes from the prefix file.
+        """
+        cls.load_affixes(cls.prefix_codes, config.FILES['prefixes'])
+        
+        # +1 because of the unkown prefix code
+        cls.num_prefixes_per_size = {size: len(cls.prefix_codes[size]) + 1
+                                     for size in cls.prefix_codes}
+        
+    
+    @classmethod
+    def load_affixes(cls, codes, filename):
+        """
+        Parent function for loading prefixes and suffixes.
+        """
         logger = logging.getLogger("Logger")
         
         # intermediate storage
-        suffixes_by_size = defaultdict(list)
+        affixes_by_size = defaultdict(list)
         
         try:
-            with open(config.FILES['suffixes'], 'rb') as f:
+            with open(filename, 'rb') as f:
                 for line in f:
-                    suffix = unicode(line.strip(), 'utf-8')
-                    size = len(suffix)
-                    suffixes_by_size[size].append(suffix)
+                    affix = unicode(line.strip(), 'utf-8')
+                    size = len(affix)
+                    affixes_by_size[size].append(affix)
         except IOError:
-            logger.error('Suffix list doesn\'t exist.')
+            logger.error("File %s doesn't exist." % filename)
             raise
         
-        for size in suffixes_by_size:
-            # for each size, each suffix has a code starting from 1
-            # 0 is reserved for unknown suffixes
-            Suffix.codes[size] = {suffix: code 
-                                  for code, suffix in enumerate(suffixes_by_size[size], 1)}
-        
-        Suffix.num_sizes = len(suffixes_by_size)
-        Suffix.num_suffixes_per_size = {size: len(Suffix.codes[size]) + 1
-                                        for size in Suffix.codes}
+        for size in affixes_by_size:
+            # for each size, each affix has a code starting from 1
+            # 0 is reserved for unknown affixes
+            codes[size] = {affix: code 
+                           for code, affix in enumerate(affixes_by_size[size], 1)}
     
     @classmethod
     def get_suffix(cls, word, size):
@@ -82,10 +101,23 @@ class Suffix(object):
         of the given size.
         """
         if len(word) <= size:
-            return Suffix.other
+            return cls.other
         
         suffix = word[-size:]
-        code = Suffix.codes[size].get(suffix, Suffix.other)
+        code = cls.suffix_codes[size].get(suffix, cls.other)
+        return code
+    
+    @classmethod
+    def get_prefix(cls, word, size):
+        """
+        Return the suffix code for the given word. Consider a suffix
+        of the given size.
+        """
+        if len(word) <= size:
+            return cls.other
+        
+        prefix = word[:size]
+        code = cls.prefix_codes[size].get(prefix, cls.other)
         return code
 
 

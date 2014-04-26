@@ -26,7 +26,7 @@ def get_args():
                         load a dictionary file)", dest='load_types')
     parser.add_argument('-e', '--epochs', type=int,
                         help='Number of training epochs',
-                        default=100, dest='iterations')
+                        default=10, dest='iterations')
     parser.add_argument('-l', '--learning_rate', type=float,
                         help='Learning rate for network connections',
                         dest='learning_rate')
@@ -40,6 +40,8 @@ def get_args():
                         help='Include capitalization features. Optionally, supply the number of features (default 5)')
     parser.add_argument('--suffix', const=5, nargs='?', type=int, default=None,
                         help='Include suffix features. Optionally, supply the number of features (default 5)')
+    parser.add_argument('--prefix', const=5, nargs='?', type=int, default=None,
+                        help='Include prefix features. Optionally, supply the number of features (default 5)')
     parser.add_argument('--pos', const=5, nargs='?', type=int, default=None,
                         help='Include part-of-speech features (for SRL only). Optionally, supply the number of features (default 5)')
     parser.add_argument('--chunk', const=5, nargs='?', type=int, default=None,
@@ -49,7 +51,7 @@ def get_args():
     parser.add_argument('-a', '--accuracy', type=float,
                         help='Desired accuracy per tag.',
                         default=0, dest='accuracy')
-    parser.add_argument('-n', '--hidden', type=int, default=0,
+    parser.add_argument('-n', '--hidden', type=int, default=100,
                         help='Number of hidden neurons',
                         dest='hidden')
     parser.add_argument('-c', '--convolution', type=int, default=0,

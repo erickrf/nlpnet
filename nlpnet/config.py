@@ -29,16 +29,19 @@ def set_data_dir(directory):
          'type_features_lm': os.path.join(data_dir, 'types-features-lm.npy'),
          'caps_features_lm': os.path.join(data_dir, 'caps-features-lm.npy'),
          'suffix_features_lm': os.path.join(data_dir, 'suffix-features-lm.npy'),
+         'prefix_features_lm': os.path.join(data_dir, 'prefix-features-lm.npy'),
          
          # POS
          'network_pos': os.path.join(data_dir, 'pos-network.npz'),
          'pos_tags': os.path.join(data_dir, 'pos-tags.txt'),
          'pos_tag_dict': os.path.join(data_dir, 'pos-tags.txt'),
          'suffixes': os.path.join(data_dir, 'suffixes.txt'),
+         'prefixes': os.path.join(data_dir, 'prefixes.txt'),
          'metadata_pos': os.path.join(data_dir, 'metadata-pos.pickle'),
          'type_features_pos': os.path.join(data_dir, 'types-features-pos.npy'),
          'caps_features_pos': os.path.join(data_dir, 'caps-features-pos.npy'),
          'suffix_features_pos': os.path.join(data_dir, 'suffix-features-pos.npy'),
+         'prefix_features_pos': os.path.join(data_dir, 'prefix-features-pos.npy'),
          
          # chunk
          'chunk_tag_dict': os.path.join(data_dir, 'chunk-tag-dict.pickle'),
