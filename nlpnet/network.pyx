@@ -16,7 +16,6 @@ import logging
 
 ctypedef np.float_t FLOAT_t
 ctypedef np.int_t INT_t
-#ctypedef np.longdouble_t DOUBLE_t
 ctypedef np.double_t DOUBLE_t
 
 # ----------------------------------------------------------------------
@@ -124,9 +123,9 @@ cdef class Network:
         # set the seed for replicability
         #np.random.seed(42)
 
-	# SENNA: centered uniform distribution with variance = 1/sqrt(fanin)
-	# variance = 1/12 interval ^ 2
-	# interval = 3.46 / fanin ^ 1/4
+        # SENNA: centered uniform distribution with variance = 1/sqrt(fanin)
+        # variance = 1/12 interval ^ 2
+        # interval = 3.46 / fanin ^ 1/4
         #high = 1.732 / np.power(input_size, 0.25) # SENNA: 0.416
         high = 2.38 / np.sqrt(input_size) # [Bottou-88]
         #high = 0.1              # Fonseca
@@ -176,7 +175,7 @@ cdef class Network:
         self.output_weights = output_weights
         self.output_bias = output_bias
 
-	# Attardi: saver fuction
+        # Attardi: saver fuction
         self.saver = lambda nn: None
     
     def description(self):
