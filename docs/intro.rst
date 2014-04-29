@@ -14,7 +14,17 @@ Installation
     pip install nlpnet
 
 See the `Dependencies`_ section below for additional installation requirements.
-    
+
+If you want to get the latest development version before it is uploaded to the package index, you can clone the repository from github_. After downloading the code, type the following command in the code directory:
+
+.. code-block:: bash
+
+    python setup.py install
+
+And it's done.
+
+.. _github: https://github.com/erickrf/nlpnet
+
 **Important:** in order to use the trained models for Portuguese NLP, you will need to download the data from http://nilc.icmc.usp.br/nilc/download/nlpnet-data.zip and unzip it into some directory.
 
 Dependencies
