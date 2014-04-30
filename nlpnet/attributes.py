@@ -103,7 +103,7 @@ class Affix(object):
         if len(word) <= size:
             return cls.other
         
-        suffix = word[-size:]
+        suffix = word[-size:].lower()
         code = cls.suffix_codes[size].get(suffix, cls.other)
         return code
     
@@ -116,7 +116,7 @@ class Affix(object):
         if len(word) <= size:
             return cls.other
         
-        prefix = word[:size]
+        prefix = word[:size].lower()
         code = cls.prefix_codes[size].get(prefix, cls.other)
         return code
 
