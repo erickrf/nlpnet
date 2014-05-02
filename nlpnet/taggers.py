@@ -157,10 +157,10 @@ class Tagger(object):
     Base class for taggers. It should not be instantiated.
     """
     
-    def __init__(self, tokenizer=None):
+    def __init__(self):
         """Creates a tagger and loads data preemptively"""
         asrt_msg = "nlpnet data directory is not set. \
-If you don't have the trained models, download them from http://nilc.icmc.usp.br/nilc/download/nlpnet-data.zip"
+If you don't have the trained models, download them from http://nilc.icmc.usp.br/nlpnet/models.html"
         assert config.data_dir is not None, asrt_msg
         
         self._load_data()
@@ -208,7 +208,7 @@ class SRLTagger(Tagger):
         answer = np.array(self.pred_nn.tag_sentence(sent_codified))
         return answer.nonzero()[0]
 
-    def tag(self, text, no_repeats=False):
+    def tag(self, text):
         """
         Runs the SRL process on the given text.
         

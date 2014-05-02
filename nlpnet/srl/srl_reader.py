@@ -93,12 +93,12 @@ class SRLReader(TaggerReader):
         :param iob: If True, this function will generate an entry for B-[tag] 
             and one for I-[tag], except for the tag 'O'.
         """
+        if filename is None:
+            filename = config.FILES['srl_tags']
+        
         if not iob:
             super(SRLReader, self).load_tag_dict(filename)
             return
-        
-        if filename is None:
-            filename = config.FILES['srl_tags']
             
         self.tag_dict = {}
         code = 0

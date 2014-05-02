@@ -71,12 +71,13 @@ def _print_tagged_pos(tagged_sents):
 
 def _print_tagged_srl(tagged_sents):
     for sent in tagged_sents:
-        print ' '.join(sent.tokens)
+        print ' '.join(sent.tokens).encode('utf-8')
         for predicate, arg_structure in sent.arg_structures:
-            print predicate
+            print predicate.encode('utf-8')
             for label in arg_structure:
                 argument = ' '.join(arg_structure[label])
-                print '\t%s: %s' % (label, argument)
+                line = '\t%s: %s' % (label, argument)
+                print line.encode('utf-8')
         print
 
 
