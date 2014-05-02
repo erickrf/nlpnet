@@ -30,6 +30,7 @@ Contents
     :maxdepth: 2
 
     intro
+    models
     scripts
     utils
     network

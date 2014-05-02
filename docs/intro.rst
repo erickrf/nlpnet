@@ -25,7 +25,7 @@ And it's done.
 
 .. _github: https://github.com/erickrf/nlpnet
 
-**Important:** in order to use the trained models for Portuguese NLP, you will need to download the data from http://nilc.icmc.usp.br/nilc/download/nlpnet-data.zip and unzip it into some directory.
+**Important:** in order to use the trained models for Portuguese NLP, you will need to download the data from :doc:`models`.
 
 Dependencies
 ~~~~~~~~~~~~
