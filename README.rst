@@ -15,13 +15,13 @@ SRL):
 
 * Fonseca, E. R. and Rosa, J.L.G. *A Two-Step Convolutional Neural Network Approach for Semantic
   Role Labeling*. Proceedings of the 2013 International Joint Conference on Neural Networks, 2013.
-  p. 2955-2961.
+  p. 2955-2961 [`PDF <http://ieeexplore.ieee.org/xpls/abs_all.jsp?arnumber=6707118>`_]
 
 * Fonseca, E. R. and Rosa, J.L.G. *Mac-Morpho Revisited: Towards Robust Part-of-Speech Tagging*. 
   Proceedings of the 9th Brazilian Symposium in Information and Human Language Technology, 2013. p.  
   98-107 [`PDF <http://aclweb.org/anthology//W/W13/W13-4811.pdf>`_]
 
-**Important:** in order to use the trained models for Portuguese NLP, you will need to download the data from http://nilc.icmc.usp.br/nilc/download/nlpnet-data.zip and unzip it into some directory.
+**Important:** in order to use the trained models for Portuguese NLP, you will need to download the data from http://nilc.icmc.usp.br/nlpnet/models.html.
 
 Dependencies
 ------------
