@@ -31,9 +31,15 @@ class POSReader(TaggerReader):
             if filename is not None:
                 with open(filename, 'rb') as f:
                     for line in f:
-                        cleaned = utils.clean_text(unicode(line, 'utf-8'), False)
-                        items = cleaned.split()
-                        self.sentences.append([item.rsplit('_', 1) for item in items])
+                        line = unicode(line, 'utf-8')
+                        items = line.split()
+                        sentence = []
+                        for item in items:
+                            token, tag = item.rsplit('_', 1)
+                            token = utils.clean_text(token, False)
+                            sentence.append((token, tag))
+                            
+                        self.sentences.append(sentence)
             
 
     def get_inverse_tag_dictionary(self):
