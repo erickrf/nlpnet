@@ -26,7 +26,7 @@ class WordDictionary(dict):
         :param minimum_occurrences: The minimum number of occurrences a token must 
             have in order to be included.
         :param wordlist: Use this list of words to build the dictionary. Overrides tokens
-            if not None.
+            if not None and ignores maximum size.
         """
         if wordlist is None:
             # work with the supplied tokens. extract frequencies.
@@ -39,28 +39,29 @@ class WordDictionary(dict):
             
             words = [key for key, number in c.most_common() 
                      if number >= minimum_occurrences]
+            
+            if size is not None and size < len(words):
+                words = words[:size]
+            
+            words = set(words)
         else:
-            words = wordlist
+            words = set(word.lower() for word in wordlist)
         
         # verifies the maximum size
         if size is None:
             size = len(words)
-        else:
-            size = min(size, len(words))
-            words = words[:size]
         
         # set all words in the dictionary
         for word, num in itertools.izip(words, xrange(size)):
             self[word] = num
         
         # if the given words include one of the the rare or padding symbols, don't replace it
-        special_symbols = [WordDictionary.rare, 
-                           WordDictionary.padding_left, 
-                           WordDictionary.padding_right]
-        # faster containment check
-        set_words = set(words)
+        special_symbols = [WordDictionary.rare.lower(), 
+                           WordDictionary.padding_left.lower(), 
+                           WordDictionary.padding_right.lower()]
+        
         for symbol in special_symbols:
-            if symbol not in set_words and symbol.lower() not in set_words:
+            if symbol not in words:
                 self[symbol] = size
                 size += 1
         
