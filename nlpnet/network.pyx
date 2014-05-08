@@ -155,8 +155,9 @@ cdef class Network:
         This function isn't expected to be directly called.
         Instead, use the classmethods load_from_file or 
         create_new.
+        
         :param transitions: transition weights. If None uses
-        Window Level Likelihood instead of Sentence Level Likelihood.
+            Window Level Likelihood instead of Sentence Level Likelihood.
         """
         self.learning_rate = 0
         self.learning_rate_features = 0

@@ -41,37 +41,42 @@ cdef class ConvolutionalNetwork(Network):
     cdef np.ndarray hidden_gradients, hidden2_gradients
     cdef np.ndarray input_deltas
     
+    # keeping statistics
+    cdef int train_hits, total_items
+    
     @classmethod
     def create_new(cls, feature_tables, target_dist_table, pred_dist_table, 
                    int word_window, int hidden1_size, int hidden2_size, int output_size):
         """Creates a new convolutional neural network."""
         # sum the number of features in all tables 
         cdef int input_size = sum(table.shape[1] for table in feature_tables)
-        # distance tables's input is treated differently
-        #input_size += target_dist_table.shape[1] + pred_dist_table.shape[1]
         input_size *= word_window
         
         # creates the weight matrices
-        # all weights are between -0.1 and +0.1
-        hidden_weights = 0.2 * np.random.random((hidden1_size, input_size)) - 0.1
-        hidden_bias = 0.2 * np.random.random(hidden1_size) - 0.1
+        high = 2.38 / np.sqrt(input_size) # [Bottou-88]
+        hidden_weights = np.random.uniform(-high, high, (hidden1_size, input_size))
+        high = 2.38 / np.sqrt(hidden1_size)
+        hidden_bias = np.random.uniform(-high, high, hidden1_size)
         
         num_dist_features = word_window * target_dist_table.shape[1]
-        target_dist_weights = 0.2 * np.random.random((num_dist_features, hidden1_size)) - 0.1
+        target_dist_weights = np.random.uniform(-high, high, (num_dist_features, hidden1_size))
         num_dist_features = word_window * pred_dist_table.shape[1]
-        pred_dist_weights = 0.2 * np.random.random((num_dist_features, hidden1_size)) - 0.1
+        pred_dist_weights = np.random.uniform(-high, high, (num_dist_features, hidden1_size))
         
         if hidden2_size > 0:
-            hidden2_weights = 0.2 * np.random.random((hidden2_size, hidden1_size)) - 0.1
-            hidden2_bias = 0.2 * np.random.random(hidden2_size) - 0.1          
+            hidden2_weights = np.random.uniform(-high, high, (hidden2_size, hidden1_size))
+            high = 2.38 / np.sqrt(hidden2_size)
+            hidden2_bias = np.random.uniform(-high, high, hidden2_size)
             output_dim = (output_size, hidden2_size)
         else:
             hidden2_weights = None
             hidden2_bias = None
             output_dim = (output_size, hidden1_size)
-
-        output_weights = 0.2 * np.random.random(output_dim) - 0.1
-        output_bias = 0.2 * np.random.random(output_size) - 0.1
+        
+        high = 2.38 / np.sqrt(output_dim[1])
+        output_weights = np.random.uniform(-high, high, output_dim)
+        high = 2.38 / np.sqrt(output_size)
+        output_bias = np.random.uniform(-high, high, output_size)
         
         net = ConvolutionalNetwork(word_window, input_size, hidden1_size, hidden2_size, 
                                    output_size, hidden_weights, hidden_bias, 
@@ -206,13 +211,24 @@ Output size: %d
         """
         self.only_classify = arguments is not None
         
-        print "Training for up to %d epochs" % epochs
+        logger = logging.getLogger("Logger")
+        logger.info("Training for up to %d epochs" % epochs)
+        top_accuracy = 0
         last_accuracy = 0
-        last_error = np.Infinity 
+        min_error = np.Infinity 
+        last_error = np.Infinity
         
-        for i in range(epochs):
+        for i in xrange(epochs):
             self._train_epoch(sentences, predicates, tags, arguments)
+            
+            self.error = self.error / self.train_items
             self.accuracy = float(self.train_hits) / self.total_items
+            
+            if self.accuracy > top_accuracy:
+                top_accuracy = self.accuracy
+            
+            if self.error < min_error:
+                min_error = self.error
             
             if (epochs_between_reports > 0 and i % epochs_between_reports == 0) \
                 or self.accuracy >= desired_accuracy > 0 \
@@ -240,6 +256,7 @@ Output size: %d
         self.error = 0
         self.total_items = 0
         self.skips = 0
+        self.float_errors = 0
         
         # shuffle data
         # get the random number generator state in order to shuffle
@@ -257,9 +274,19 @@ Output size: %d
         else:
             sent_args = None
         
+        # keep last 2% for validation
+        validation = int(len(sentences) * 0.98)
+        
         for sent, sent_preds, sent_tags in izip(sentences, predicates, tags):
-            if arguments is not None: sent_args = i_args.next()
-            self._tag_sentence(sent, sent_preds, True, sent_tags, sent_args)
+            if arguments is not None:
+                sent_args = i_args.next()
+            
+            try:
+                self._tag_sentence(sent, sent_preds, True, sent_tags, sent_args)
+                self.train_items += 1
+            except FloatingPointError:
+                # just ignore the sentence in case of an overflow
+                self.float_errors += 1
     
     def tag_sentence(self, np.ndarray sentence, np.ndarray predicates, 
                      list arguments=None, bool logprob=False,
@@ -410,7 +437,6 @@ Output size: %d
                     self._calculate_input_deltas(sentence, predicate, pred_arguments)
                     self._adjust_weights(predicate, pred_arguments)
                     self._adjust_features(sentence, predicate)
-                    if not self.only_classify: self._adjust_transitions()
                 
             if logprob:
                 if self.only_classify:
@@ -426,12 +452,21 @@ Output size: %d
             
         return answer
     
+    def _evaluate(self, answer, tags):
+        """
+        Evaluates the network performance, updating its hits count.
+        """
+        for net_tag, gold_tag in zip(answer, tags):
+            if net_tag == gold_tag:
+                self.train_hits += 1
+        self.total_items += len(tags)
+    
     def _calculate_gradients(self, tags, scores):
         """Delegates the call to the appropriate function."""
         if self.only_classify:
             return self._calculate_gradients_classify(tags, scores)
         else:
-            return self._calculate_gradients_all_tokens(tags, scores)
+            return self._calculate_gradients_sll(tags, scores)
     
     def _calculate_gradients_classify(self, tags, scores):
         """
@@ -560,6 +595,10 @@ Output size: %d
             self.pred_dist_weights += (grad_matrix * dist_features).T
         
         self.hidden_bias += self.hidden_gradients.sum(0) * self.learning_rate
+        
+        # Adjusts the transition scores table with the calculated gradients.
+        if not self.only_classify and self.transitions is not None:
+            self.transitions += self.trans_gradients * self.learning_rate_trans
             
     @cython.boundscheck(False)
     @cython.wraparound(False)
