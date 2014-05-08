@@ -1,4 +1,4 @@
- # -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 
 """
 This file contains functions for reading input (training) data.
@@ -9,8 +9,6 @@ and others for simpler formats.
 import re
 from itertools import izip
 
-import utils
-import logging
 from attributes import Token
 
 PRE_CONTRACTIONS = ['em', 'a', 'para', 'por', 'de', 'por', 'com', 'lhe']
@@ -267,6 +265,7 @@ def read_conll(iterable, read_srl=True):
             tree = Tree.parse(' '.join(tree_strings), brackets='[]')
             token_chunks = get_chunks(tree)
             for j, (token, (word, chunk)) in enumerate(izip(sentence, token_chunks)):
+                
                 assert token.word == word,  \
                 "Syntactic and semantic analyses got different words: %s and %s" % (token.word, word)
                 
