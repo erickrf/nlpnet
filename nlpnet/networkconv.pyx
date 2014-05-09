@@ -21,6 +21,7 @@ cdef class ConvolutionalNetwork(Network):
     cdef readonly int hidden2_size
     cdef readonly np.ndarray hidden2_weights, hidden2_bias
     cdef readonly np.ndarray hidden2_values
+    cdef readonly np.ndarray layer3_sent_values
     
     # in training, we need to store all the values calculated by each layer during 
     # the classification of a sentence. 
@@ -376,9 +377,14 @@ Output size: %d
             
             if train: 
                 pred_tags = iter_tags.next()
+                # layer 2: results after applying hidden weights, before tanh
+                # hidden sent values: results after tanh
+                self.layer2_sent_values = np.empty((self.num_targets, self.hidden_size))
                 self.hidden_sent_values = np.empty((self.num_targets, self.hidden_size))
                 self.max_indices = np.empty((self.num_targets, self.hidden_size), np.int)
                 if self.hidden2_weights is not None:
+                    # layer 3: analogous to layer 2
+                    self.layer3_sent_values = np.empty((self.num_targets, self.hidden2_size))
                     self.hidden2_sent_values = np.empty((self.num_targets, self.hidden2_size))
         
             # predicate distances are the same across all targets
@@ -410,19 +416,26 @@ Output size: %d
                 if train:
                     self.max_indices[target] = convolution_values.argmax(0)
                 
-                # apply the bias, the tanh function and proceed to the next layer
+                # apply the bias and proceed to the next layer
                 self.hidden_values = convolution_values.max(0) + self.hidden_bias
-                self.hidden_values = np.tanh(self.hidden_values)
                 if train:
                     self.hidden_sent_values[target] = self.hidden_values
                 
                 if self.hidden2_weights is not None:
                     self.hidden2_values = self.hidden2_weights.dot(self.hidden_values) + self.hidden2_bias
-                    self.hidden2_values = np.tanh(self.hidden2_values)
+                    if train:
+                        self.layer3_sent_values[target] = self.hidden2_values
+                    
+                    self.hidden2_values = hardtanh(self.hidden2_values)
                     if train:
                         self.hidden2_sent_values[target] = self.hidden2_values
                 else:
-                    self.hidden2_values = self.hidden_values
+                    # apply non-linearity here
+                    if train:
+                        self.layer2_sent_values = self.hidden_values
+                    self.hidden2_values = hardtanh(self.hidden_values)
+                    if train:
+                        self.hidden_sent_values = self.hidden2_values
                 
                 token_scores = self.output_weights.dot(self.hidden2_values)
                 token_scores += self.output_bias
@@ -506,24 +519,28 @@ Output size: %d
 
     def _backpropagate(self, sentence):
         """Backpropagates the error gradient."""
+        
+        # this function only determines the gradients at each layer, without 
+        # adjusting weights. This is done because the input features must 
+        # be adjusted with the first weight matrix unchanged. 
+        
         # gradient[i][j] has the gradient for token i at neuron j
         if self.hidden2_weights is not None:
-            self.hidden2_gradients = self.net_gradients.dot(self.output_weights)
             
+            # derivative with respect to the non-linearity layer (tanh)
+            dCd_tanh = self.net_gradients.dot(self.output_weights)
+            
+            # derivative with respect to the second hidden layer
             # the derivative of tanh(x) is 1 - tanh^2(x)
-            derivatives = 1 - (self.hidden2_sent_values ** 2)
-            try:
-                self.hidden2_gradients *= derivatives
-            except:
-                print sentence
-                raise
-            
+            dCd_hidden2 = dCd_tanh * hardtanhd(self.layer3_sent_values) 
+            self.hidden2_gradients = dCd_hidden2
+                        
             self.hidden_gradients = self.hidden2_gradients.dot(self.hidden2_weights)
         else:
+            # the non-linearity appears right after the convolution max
             self.hidden_gradients = self.net_gradients.dot(self.output_weights)
+            self.hidden_gradients *= hardtanhd(self.layer2_sent_values)
         
-        derivatives = 1 - (self.hidden_sent_values ** 2)
-        self.hidden_gradients *= derivatives
     
     @cython.boundscheck(False)
     @cython.wraparound(False)
@@ -532,25 +549,18 @@ Output size: %d
         cdef int last_size, i
         cdef np.ndarray[FLOAT_t, ndim=1] gradients_t
         cdef np.ndarray[FLOAT_t, ndim=2] last_values, deltas, grad_matrix, input_values
-        cdef np.ndarray[FLOAT_t, ndim=3] grad_tensor
         
         # we accumulate deltas in a 3-dim tensor, concerning all the tokens
         # in the sentence
         last_size = self.hidden2_size if self.hidden2_weights is not None else self.hidden_size
         last_values = self.hidden2_sent_values if self.hidden2_weights is not None else self.hidden_sent_values
         
-        # tensor[i, j, k] means the gradient for tag i at token j to be multiplied 
-        # by the value from the k-th hidden neuron (note that the tensor was transposed)
-        grad_tensor = np.tile(self.net_gradients, [last_size, 1, 1]).T
-        grad_tensor *= last_values
-        deltas = grad_tensor.sum(1) * self.learning_rate
+        deltas = self.net_gradients.T.dot(self.hidden2_sent_values) * self.learning_rate
         self.output_weights += deltas
         self.output_bias += self.net_gradients.sum(0) * self.learning_rate
         
         if self.hidden2_weights is not None:
-            grad_tensor = np.tile(self.hidden2_gradients, [self.hidden_size, 1, 1]).T
-            grad_tensor *= self.hidden_sent_values
-            deltas = grad_tensor.sum(1) * self.learning_rate
+            deltas = self.hidden2_gradients.T.dot(self.hidden_sent_values) * self.learning_rate
             self.hidden2_weights += deltas
             self.hidden2_bias += self.hidden2_gradients.sum(0) * self.learning_rate
         
