@@ -292,7 +292,7 @@ def read_conll(iterable, read_srl=True):
             expected_role = ['O'] * num_preds
         
         word = data[ConllPos.word]
-        lemma = data[ConllPos.lemma].lower()
+        lemma = data[ConllPos.lemma]
         pos = data[ConllPos.pos].lower()
         parse = data[ConllPos.parse]
         is_predicate = data[ConllPos.pred] != '-'
