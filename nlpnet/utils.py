@@ -328,9 +328,9 @@ def set_distance_features(max_dist=None,
 
 def make_contractions_srl(sentences, predicates):
     """
-    Makes preposition contractions in the input data for SRL. It will contract 
-    words likely to be contracted, but there's no way to be sure the contraction 
-    actually happened in the corpus. 
+    Makes preposition contractions in the input data for SRL with Portuguese text. 
+    It will contract words likely to be contracted, but there's no way to be 
+    sure the contraction actually happened in the corpus. 
     
     :param sentences: the sentences list used by SRLReader objects.
     :param predicates: the predicates list used by SRLReader objects.

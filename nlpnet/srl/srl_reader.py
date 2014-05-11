@@ -7,15 +7,29 @@ Class for dealing with SRL data.
 from collections import defaultdict
 import cPickle
 import logging
+import re
 import numpy as np
 from itertools import izip
 
 from .. import config
-from .. import read_data
 from .. import attributes
 from .. import utils
 from ..word_dictionary import WordDictionary
 from ..reader import TaggerReader
+
+class ConllPos(object):
+    """
+    Dummy class for storing the position of each field in a
+    CoNLL data file.
+    """
+    id = 0
+    word = 1
+    lemma = 2
+    pos = 3
+    morph = 4
+    parse = 7
+    pred = 8
+    semantic_role = 9
 
 class SRLReader(TaggerReader):
     
@@ -52,30 +66,118 @@ class SRLReader(TaggerReader):
             self.load_tag_dict(iob=False)
         
         if filename is not None:
-        
-            with open(filename) as f:
-                sent_data = read_data.read_conll(f)
-            
-            sents = []
-            tags = []
-            preds = []
-            for item in sent_data:
-                sents.append(item[0])
-                tags.append(item[1])
-                preds.append(item[2])
-            
-            self.sentences = zip(sents, tags)
-            
-            self.predicates = [np.array(x) for x in preds]
+            self._read_conll(filename)
             self._clean_text()
-            
-            # remove this line if working with languages other than Portuguese
-            # TODO: paramaterize this behavior
-            self.sentences, self.predicates = utils.make_contractions_srl(self.sentences, 
-                                                                          self.predicates)
         
         self.codified = False
     
+    def _read_conll(self, filename):
+        '''
+        Read a file in CoNLL format and extracts semantic role tags
+        for each token.
+        '''
+        with open(filename, 'rb') as f:
+            text = unicode(f.read(), 'utf-8')
+        
+        self.sentences = []
+        self.predicates = []
+        tokens = []
+        sent_predicates = []
+        sent_tags = []
+        token_number = 0
+        
+        lines = text.split('\n')
+        for line in lines:
+            line = line.strip()
+            
+            if line == '':
+                # blank line between sentences
+                if len(tokens) > 0:
+                    sentence = (tokens, sent_tags)
+                    self.sentences.append(sentence)
+                    self.predicates.append(np.array(sent_predicates))
+                    tokens = []
+                    sent_predicates = []
+                    sent_tags = []
+                    token_number = 0
+                
+                continue
+            
+            fields = line.split()
+            word = fields[ConllPos.word]
+            lemma = fields[ConllPos.lemma]
+            pos = fields[ConllPos.pos].lower()
+            is_predicate = fields[ConllPos.pred] != '-'
+            tags = fields[ConllPos.semantic_role:]
+            
+            # if this is the first token in the sentence, find out how many predicates
+            # are there. initialize a list for each of them.
+            if sent_tags == []:
+                expected_roles = []
+                for tag in tags:
+                    tag, expected_role = self._read_role(tag, 'O', True)
+                    sent_tags.append([tag])
+                    expected_roles.append(expected_role)
+            else:
+                for i, tag in enumerate(tags):
+                    expected_role = expected_roles[i]
+                    tag, expected_role = self._read_role(tag, expected_role, True)
+                    sent_tags[i].append(tag)
+                    expected_roles[i] = expected_role
+            
+            token = attributes.Token(word, lemma, pos)
+            tokens.append(token)
+            if is_predicate:
+                sent_predicates.append(token_number)
+            
+            token_number += 1
+        
+        if len(tokens) > 0:
+            # last sentence
+            sentence = (tokens, sent_tags)
+            self.sentences.append(sentence)
+            self.predicates.append(np.array(sent_predicates))
+    
+    @classmethod
+    def _read_role(cls, role, expected_role, remove_continuation):
+        """
+        Reads the next semantic role from a CoNLL-style file.
+        
+        :param role: what is read from the conll file (something like
+            *, (A0* or *)
+        :param role: the expected role if a * is found
+        :param remove_countinuation: removes the C- from non-continuous
+            arguments. C-A0 becomes A0.
+        :return a tuple (role, expected next role)
+        """
+        if role == '*':
+            # signals continuation of the last block
+            role = expected_role
+        elif role == '*)':
+            # finishes block
+            role = expected_role
+            expected_role = 'O'
+        else:
+            # verifies if it is a single argument
+            match = re.search('\(([-\w]+)\*\)', role)
+            if match:
+                role = match.group(1)
+                expected_role = 'O'
+            else:
+                # verifies if it opens an argument
+                match = re.search('\(([-\w]+)\*', role)
+                if match:
+                    role = match.group(1)
+                    expected_role = role
+                else:
+                    raise ValueError('Unexpected role data: %s' % role)
+        
+        if role.startswith('C-') and remove_continuation:
+            # removes C-
+            role = role[2:]
+            
+        return (role, expected_role)
+
     def extend(self, data):
         """
         Adds more data to the reader.
@@ -162,22 +264,6 @@ class SRLReader(TaggerReader):
                 token.lemma = new_lemma
                 sent[i] = token
 
-                    
-    def _find_predicates(self):
-        """
-        Finds the index of the predicate of each sentence.
-        """
-        self.predicates = []
-        for _, props in self.sentences:
-            sentence_preds = []
-            
-            for prop in props:
-                pred = [i for i, tag in enumerate(prop) if tag == 'V']
-                assert len(pred) == 1, 'Proposition with more than one predicate'
-                sentence_preds.append(pred[0])
-            
-            self.predicates.append(np.array(sentence_preds))
-    
     def create_converter(self, metadata):
         """
         This function overrides the TextReader's one in order to deal with Token
