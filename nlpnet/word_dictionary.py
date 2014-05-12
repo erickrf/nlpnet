@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import itertools
-from collections import Counter
+from collections import Counter, OrderedDict as OD
 
 class WordDictionary(dict):
     """
@@ -42,10 +42,12 @@ class WordDictionary(dict):
             
             if size is not None and size < len(words):
                 words = words[:size]
-            
-            words = set(words)
         else:
-            words = set(word.lower() for word in wordlist)
+            # using ordered dict as an ordered set
+            # (we need to keep the order and eliminate duplicates)
+            words = [word.lower() for word in wordlist]
+            values = [None] * len(words)
+            words = OD(zip(words, values)).keys()
         
         # verifies the maximum size
         if size is None:
