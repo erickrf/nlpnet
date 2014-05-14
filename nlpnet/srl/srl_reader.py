@@ -52,18 +52,16 @@ class SRLReader(TaggerReader):
             self._generate_iobes_dictionary()
         elif only_classify:
             self.task = 'srl_classify'
+            self.load_tag_dict(iob=False)
         elif only_predicates:
             self.task = 'srl_predicates'
             self._generate_predicate_id_dictionary()
         else:
             self.task = 'srl'
-        self.rare_tag = 'O'
-        
-        self.load_dictionary()
-        if self.task == 'srl':
             self.load_tag_dict(iob=True)
-        elif self.task == 'srl_classify':
-            self.load_tag_dict(iob=False)
+            
+        self.rare_tag = 'O'
+        self.load_dictionary()
         
         if filename is not None:
             self._read_conll(filename)
@@ -415,7 +413,7 @@ class SRLReader(TaggerReader):
         :param update_dict: whether to update or not the tag dictionary after
             converting the tags.
         :param only_boundaries: if True, only leaves the IOBES tags and remove
-            the actual tags.
+            the actual tags. Also, avoid updating the tag dict.
         """
         scheme = scheme.lower()
         if scheme not in ('iob', 'iobes'):
@@ -454,13 +452,12 @@ class SRLReader(TaggerReader):
             
         if only_boundaries:
             self._remove_tag_names()
-        
-        if update_tag_dict:
+        elif update_tag_dict:
             self.generate_tag_dict()
         else:
             # treat any tag not appearing in the tag dictionary as O
-            tagset = set(tag for _, props in self.sentences for prop in props for tag in prop)
-            for tag in tagset:
+            actual_tagset = {tag for _, props in self.sentences for prop in props for tag in prop}
+            for tag in actual_tagset:
                 if tag not in self.tag_dict:
-                    self.tag_dict[tag] = self.tag_dict['O']
+                    self.tag_dict[tag] = self.tag_dict[self.rare_tag]
     
