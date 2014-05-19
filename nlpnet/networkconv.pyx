@@ -432,10 +432,10 @@ Output size: %d
                 else:
                     # apply non-linearity here
                     if train:
-                        self.layer2_sent_values = self.hidden_values
+                        self.layer2_sent_values[target] = self.hidden_values
                     self.hidden2_values = hardtanh(self.hidden_values)
                     if train:
-                        self.hidden_sent_values = self.hidden2_values
+                        self.hidden_sent_values[target] = self.hidden2_values
                 
                 token_scores = self.output_weights.dot(self.hidden2_values)
                 token_scores += self.output_bias
@@ -525,11 +525,11 @@ Output size: %d
         # be adjusted with the first weight matrix unchanged. 
         
         # gradient[i][j] has the gradient for token i at neuron j
+        
+        # derivative with respect to the non-linearity layer (tanh)
+        dCd_tanh = self.net_gradients.dot(self.output_weights)
+        
         if self.hidden2_weights is not None:
-            
-            # derivative with respect to the non-linearity layer (tanh)
-            dCd_tanh = self.net_gradients.dot(self.output_weights)
-            
             # derivative with respect to the second hidden layer
             # the derivative of tanh(x) is 1 - tanh^2(x)
             dCd_hidden2 = dCd_tanh * hardtanhd(self.layer3_sent_values) 
@@ -538,24 +538,19 @@ Output size: %d
             self.hidden_gradients = self.hidden2_gradients.dot(self.hidden2_weights)
         else:
             # the non-linearity appears right after the convolution max
-            self.hidden_gradients = self.net_gradients.dot(self.output_weights)
-            self.hidden_gradients *= hardtanhd(self.layer2_sent_values)
-        
+            self.hidden_gradients = dCd_tanh * hardtanhd(self.layer2_sent_values)
     
     @cython.boundscheck(False)
     @cython.wraparound(False)
     def _adjust_weights(self, predicate, arguments=None):
         """Adjusts the network weights after gradients have been calculated."""
-        cdef int last_size, i
+        cdef int i
         cdef np.ndarray[FLOAT_t, ndim=1] gradients_t
         cdef np.ndarray[FLOAT_t, ndim=2] last_values, deltas, grad_matrix, input_values
         
-        # we accumulate deltas in a 3-dim tensor, concerning all the tokens
-        # in the sentence
-        last_size = self.hidden2_size if self.hidden2_weights is not None else self.hidden_size
         last_values = self.hidden2_sent_values if self.hidden2_weights is not None else self.hidden_sent_values
         
-        deltas = self.net_gradients.T.dot(self.hidden2_sent_values) * self.learning_rate
+        deltas = self.net_gradients.T.dot(last_values) * self.learning_rate
         self.output_weights += deltas
         self.output_bias += self.net_gradients.sum(0) * self.learning_rate
         
