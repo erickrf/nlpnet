@@ -49,10 +49,13 @@ class TextReader(object):
         logger.info("Loading vocabulary")
         filename = config.FILES['vocabulary']
         
+        words = []
         with open(filename, 'rb') as f:
-            text = unicode(f.read(), 'utf-8')
+            for word in f:
+                word = unicode(word, 'utf-8').strip()
+                if word:
+                    words.append(word)
         
-        words = text.split('\n')
         wd = WordDictionary.init_from_wordlist(words)
         self.word_dict = wd
         logger.info("Done. Dictionary size is %d types" % wd.num_tokens)
