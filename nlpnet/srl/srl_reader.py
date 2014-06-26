@@ -74,8 +74,11 @@ class SRLReader(TaggerReader):
         Read a file in CoNLL format and extracts semantic role tags
         for each token.
         '''
+        lines = []
         with open(filename, 'rb') as f:
-            text = unicode(f.read(), 'utf-8')
+            for line in f:
+                line = unicode(line, 'utf-8').strip()
+                lines.append(line)
         
         self.sentences = []
         self.predicates = []
@@ -84,7 +87,6 @@ class SRLReader(TaggerReader):
         sent_tags = []
         token_number = 0
         
-        lines = text.split('\n')
         for line in lines:
             line = line.strip()
             
