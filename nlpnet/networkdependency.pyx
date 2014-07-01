@@ -100,7 +100,7 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         """
         # each cell i, j has the score for token i having j as its head.
         
-        num_vertices = self.dependency_weights.shape[0]
+        num_vertices = self.dependency_weights.shape[1]
         outside = np.array([x for x in range(num_vertices) if x not in cycle])
         cycle = np.array(list(cycle))
         
@@ -160,7 +160,6 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         incoming_weights[max_incoming_inds,
                          np.arange(len(outside))] = max_incoming_weights
         self.dependency_weights[cycle_inds, outside] = incoming_weights
-        
     
     def _find_maximum_spanning_tree(self):
         """
