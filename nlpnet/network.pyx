@@ -107,6 +107,9 @@ cdef class Network:
     
     # function to save periodically
     cdef public object saver
+    
+    # whether the network is undergoing training
+    cdef bool training
 
     @classmethod
     def create_new(cls, feature_tables, int word_window, int hidden_size, 
@@ -175,6 +178,8 @@ cdef class Network:
         self.hidden_bias = hidden_bias
         self.output_weights = output_weights
         self.output_bias = output_bias
+        
+        self.training = False
 
         # Attardi: saver fuction
         self.saver = lambda nn: None
@@ -252,17 +257,16 @@ Output size: %d
         
         :param sentence: a 2-dim numpy array, where each item encodes a token.
         """
-        scores = self._tag_sentence(sentence, train=False)
+        scores = self._tag_sentence(sentence)
         # computes full score, combining ftheta and A (if SLL)
         return self._viterbi(scores)
 
-    def _tag_sentence(self, np.ndarray sentence, bool train=False, tags=None):
+    def _tag_sentence(self, np.ndarray sentence, tags=None):
         """
         Runs the network for each element in the sentence and returns 
         the sequence of tags.
         
         :param sentence: a 2-dim numpy array, where each item encodes a token.
-        :param train: if True, perform weight and feature correction.
         :param tags: the correct tags (needed when training)
         :return: a (len(sentence), output_size) array with the scores for all tokens
         """
@@ -270,7 +274,7 @@ Output size: %d
         # scores[t, i] = ftheta_i,t = score for i-th tag, t-th word
         cdef np.ndarray scores = np.empty((len(sentence), self.output_size))
         
-        if train:
+        if self.training:
             self.input_sent_values = np.empty((len(sentence), self.input_size))
             # layer2_values at each token in the correct path
             self.layer2_sent_values = np.empty((len(sentence), self.hidden_size))
@@ -286,14 +290,13 @@ Output size: %d
         for i in xrange(len(sentence)):
             window = padded_sentence[i: i+self.word_window_size]
             scores[i] = self.run(window)
-            if train:
+            if self.training:
                 self.input_sent_values[i] = self.input_values
                 self.layer2_sent_values[i] = self.layer2_values
                 self.hidden_sent_values[i] = self.hidden_values
         
-        if train:
+        if self.training:
             if self._calculate_gradients_sll(tags, scores):
-#            if self._calculate_gradients_wll(tags, scores):
                 self._backpropagate(sentence)
 
         return scores
@@ -544,6 +547,7 @@ Output size: %d
         last_accuracy = 0
         min_error = np.Infinity 
         last_error = np.Infinity 
+        self.training = True
         
         np.seterr(all='raise')
 
@@ -572,6 +576,8 @@ Output size: %d
                 
             last_accuracy = self.accuracy
             last_error = self.error
+        
+        self.training = False
             
     def _print_epoch_report(self, int num):
         """
@@ -610,7 +616,7 @@ Output size: %d
         i = 0
         for sent, sent_tags in izip(sentences, tags):
             try:
-                self._tag_sentence(sent, True, sent_tags)
+                self._tag_sentence(sent, sent_tags)
                 self.train_items += len(sent)
             except FloatingPointError:
                 # just ignore the sentence in case of an overflow
@@ -789,4 +795,5 @@ Output size: %d
 # this comes here after the Network class has already been defined
 include "networkconv.pyx"
 include "networklm.pyx"
+include "networkdependency.pyx"
 

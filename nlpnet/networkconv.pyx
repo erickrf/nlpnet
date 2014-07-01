@@ -23,6 +23,9 @@ cdef class ConvolutionalNetwork(Network):
     cdef readonly np.ndarray hidden2_values
     cdef readonly np.ndarray layer3_sent_values
     
+    # lookup of convolution values (the same for each sentence, used to save time)
+    cdef np.ndarray convolution_lookup
+    
     # in training, we need to store all the values calculated by each layer during 
     # the classification of a sentence. 
     cdef readonly np.ndarray hidden2_sent_values
@@ -218,6 +221,7 @@ Output size: %d
         last_accuracy = 0
         min_error = np.Infinity 
         last_error = np.Infinity
+        self.training = True
         
         for i in xrange(epochs):
             self._train_epoch(sentences, predicates, tags, arguments)
@@ -250,6 +254,7 @@ Output size: %d
         self.error = 0
         self.train_hits = 0
         self.total_items = 0
+        self.training = False
 
     def _train_epoch(self, sentences, predicates, tags, arguments):
         """Trains for one epoch with all examples."""
@@ -283,7 +288,7 @@ Output size: %d
                 sent_args = i_args.next()
             
             try:
-                self._tag_sentence(sent, sent_preds, True, sent_tags, sent_args)
+                self._tag_sentence(sent, sent_preds, sent_tags, sent_args)
                 self.train_items += 1
             except FloatingPointError:
                 # just ignore the sentence in case of an overflow
@@ -305,7 +310,7 @@ Output size: %d
             argument classes (only for separate argument classification).
         """
         self.only_classify = arguments is not None
-        return self._tag_sentence(sentence, predicates, train=False, arguments=arguments, 
+        return self._tag_sentence(sentence, predicates, argument_blocks=arguments, 
                                   logprob=logprob, allow_repeats=allow_repeats)
     
     cdef np.ndarray argument_distances(self, positions, argument):
@@ -327,11 +332,118 @@ Output size: %d
         
         return distances
     
+    
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    def _sentence_convolution(self, sentence, predicate, argument_blocks=None):
+        """
+        Perform the convolution for a given predicate.
+        
+        :param sentence: a sequence of tokens, each represented as an array of 
+            indices
+        :param predicate: the index of the predicate in the sentence
+        :param argument_blocks: (used only in SRL argument classification) the
+            starting and end positions of all delimited arguments
+        :return: the scores for all tokens with respect to the given predicate
+        """        
+        cdef np.ndarray[FLOAT_t, ndim=2] target_dist_features, pred_dist_features
+        
+        # store the values found by each convolution neuron here and then find the max
+        cdef np.ndarray[FLOAT_t, ndim=2] convolution_values
+        
+        # a priori scores for all tokens
+        cdef np.ndarray[FLOAT_t, ndim=2] scores
+        
+        self.num_targets = len(sentence) if argument_blocks is None else len(argument_blocks)
+        scores = np.empty((self.num_targets, self.output_size))
+        
+        if self.training: 
+            # layer 2: results after applying hidden weights, before tanh
+            # hidden sent values: results after tanh
+            self.layer2_sent_values = np.empty((self.num_targets, self.hidden_size))
+            self.hidden_sent_values = np.empty((self.num_targets, self.hidden_size))
+            self.max_indices = np.empty((self.num_targets, self.hidden_size), np.int)
+            if self.hidden2_weights is not None:
+                # layer 3: analogous to layer 2
+                self.layer3_sent_values = np.empty((self.num_targets, self.hidden2_size))
+                self.hidden2_sent_values = np.empty((self.num_targets, self.hidden2_size))
+    
+        # predicate distances are the same across all targets
+        pred_dist_indices = np.arange(len(sentence)) - predicate
+        pred_dist_features = self.pred_dist_lookup.take(pred_dist_indices + self.pred_dist_offset,
+                                                        0, mode='clip')
+        pred_dist_values = pred_dist_features.dot(self.pred_dist_weights)
+        
+        # add the weighted distance features to each token 
+        for target in range(self.num_targets):
+            
+            # distance features for each window
+            # if we are classifying all tokens, pick the distance to the target
+            # if we are classifying arguments, pick the distance to the closest boundary 
+            # of the argument (beginning or end)
+            if argument_blocks is None:
+                target_dist_indices = np.arange(len(sentence)) - target
+            else:
+                argument = argument_blocks[target]
+                target_dist_indices = self.argument_distances(np.arange(len(sentence)), argument)
+            
+            target_dist_features = self.target_dist_lookup.take(target_dist_indices + self.target_dist_offset,
+                                                                0, mode='clip')
+
+            convolution_values = target_dist_features.dot(self.target_dist_weights) \
+                                 + pred_dist_values + self.convolution_lookup
+            
+            # now, find the maximum values
+            if self.training:
+                self.max_indices[target] = convolution_values.argmax(0)
+            
+            # apply the bias and proceed to the next layer
+            self.hidden_values = convolution_values.max(0) + self.hidden_bias
+            if self.training:
+                self.hidden_sent_values[target] = self.hidden_values
+            
+            if self.hidden2_weights is not None:
+                self.hidden2_values = self.hidden2_weights.dot(self.hidden_values) + self.hidden2_bias
+                if self.training:
+                    self.layer3_sent_values[target] = self.hidden2_values
+                
+                self.hidden2_values = hardtanh(self.hidden2_values)
+                if self.training:
+                    self.hidden2_sent_values[target] = self.hidden2_values
+            else:
+                # apply non-linearity here
+                if self.training:
+                    self.layer2_sent_values[target] = self.hidden_values
+                self.hidden2_values = hardtanh(self.hidden_values)
+                if self.training:
+                    self.hidden_sent_values[target] = self.hidden2_values
+            
+            scores[target] = self.output_weights.dot(self.hidden2_values)
+            scores[target] += self.output_bias
+        
+        return scores
+    
+    def _pre_tagging_setup(self, np.ndarray sentence):
+        """
+        Perform some initialization actions before the actual tagging.
+        """
+        # store the convolution values to save time
+        self._create_convolution_lookup(sentence)
+        
+        if self.target_dist_lookup is None: self._create_target_lookup()
+        if self.pred_dist_lookup is None: self._create_pred_lookup()
+        
+        if self.training:
+            # this table will store the values of the neurons for each input token
+            # they will be needed during weight adjustments
+            self.input_sent_values = np.empty((len(sentence), self.input_size))
+        
+    
     @cython.boundscheck(False)
     @cython.wraparound(False)
     def _tag_sentence(self, np.ndarray sentence, np.ndarray predicates, 
-                      bool train=False, list tags=None, list arguments=None, 
-                      bool logprob=False, bool allow_repeats=True):
+                      list tags=None, list argument_blocks=None, 
+                      bool allow_repeats=True, bool logprob=False):
         """
         Runs the network for every predicate in the sentence.
         Refer to the Network class for more information.
@@ -339,132 +451,45 @@ Output size: %d
         :param tags: this is a list rather than a numpy array because in
             argument classification, each predicate may have a differente number
             of arguments.
+        :param argument_blocks: (used only in SRL argument classification) a list
+            with the starting and end positions of all delimited arguments (one for 
+            each predicate)
         :param predicates: a numpy array with the indices of the predicates in the sentence.
         """
-        cdef list answer = []
-        cdef np.ndarray[FLOAT_t, ndim=2] convolution_lookup
+        answer = []
+        self._pre_tagging_setup(sentence)
+        cdef np.ndarray[FLOAT_t, ndim=2] token_scores
         
-        if train:
-            # this table will store the values of the neurons for each input token
-            # they will be needed during weight adjustments
-            self.input_sent_values = np.empty((len(sentence), self.input_size))
+        for i, predicate in enumerate(predicates):
+            pred_arguments = None if not self.only_classify else argument_blocks[i]
             
-        # store the convolution values to save time
-        convolution_lookup = self._convolution_lookup(sentence, train)
-        cdef np.ndarray[FLOAT_t, ndim=2] target_dist_features, pred_dist_features
+            token_scores = self._sentence_convolution(sentence, predicate, pred_arguments)
+            pred_answer = self._viterbi(token_scores, allow_repeats)
         
-        # store the values found by each convolution neuron here and then find the max
-        cdef np.ndarray[FLOAT_t, ndim=2] convolution_values
-        
-        # store the a priori scores for each token
-        cdef np.ndarray[FLOAT_t, ndim=2] scores
-        cdef np.ndarray[FLOAT_t, ndim=1] token_scores
-        
-        if self.target_dist_lookup is None: self._create_target_lookup()
-        if self.pred_dist_lookup is None: self._create_pred_lookup()
-        if train: iter_tags = iter(tags)
-        if self.only_classify:
-            iter_args = iter(arguments)
-        else:
-            pred_arguments = None
-        
-        for predicate in predicates:
-            
-            if self.only_classify: pred_arguments = iter_args.next()
-            
-            self.num_targets = len(sentence) if arguments is None else len(pred_arguments)
-            scores = np.empty((self.num_targets, self.output_size))
-            
-            if train: 
-                pred_tags = iter_tags.next()
-                # layer 2: results after applying hidden weights, before tanh
-                # hidden sent values: results after tanh
-                self.layer2_sent_values = np.empty((self.num_targets, self.hidden_size))
-                self.hidden_sent_values = np.empty((self.num_targets, self.hidden_size))
-                self.max_indices = np.empty((self.num_targets, self.hidden_size), np.int)
-                if self.hidden2_weights is not None:
-                    # layer 3: analogous to layer 2
-                    self.layer3_sent_values = np.empty((self.num_targets, self.hidden2_size))
-                    self.hidden2_sent_values = np.empty((self.num_targets, self.hidden2_size))
-        
-            # predicate distances are the same across all targets
-            pred_dist_indices = np.arange(len(sentence)) - predicate
-            pred_dist_features = self.pred_dist_lookup.take(pred_dist_indices + self.pred_dist_offset,
-                                                            0, mode='clip')
-            pred_dist_values = pred_dist_features.dot(self.pred_dist_weights)
-            
-            # add the weighted distance features to each token 
-            for target in range(self.num_targets):
-                
-                # distance features for each window
-                # if we are classifying all tokens, pick the distance to the target
-                # if we are classifying arguments, pick the distance to the closest boundary 
-                # of the argument (beginning or end)
-                if arguments is None:
-                    target_dist_indices = np.arange(len(sentence)) - target
-                else:
-                    argument = pred_arguments[target]
-                    target_dist_indices = self.argument_distances(np.arange(len(sentence)), argument)
-                
-                target_dist_features = self.target_dist_lookup.take(target_dist_indices + self.target_dist_offset,
-                                                                    0, mode='clip')
-
-                convolution_values = target_dist_features.dot(self.target_dist_weights) \
-                                     + pred_dist_values + convolution_lookup
-                
-                # now, find the maximum values
-                if train:
-                    self.max_indices[target] = convolution_values.argmax(0)
-                
-                # apply the bias and proceed to the next layer
-                self.hidden_values = convolution_values.max(0) + self.hidden_bias
-                if train:
-                    self.hidden_sent_values[target] = self.hidden_values
-                
-                if self.hidden2_weights is not None:
-                    self.hidden2_values = self.hidden2_weights.dot(self.hidden_values) + self.hidden2_bias
-                    if train:
-                        self.layer3_sent_values[target] = self.hidden2_values
-                    
-                    self.hidden2_values = hardtanh(self.hidden2_values)
-                    if train:
-                        self.hidden2_sent_values[target] = self.hidden2_values
-                else:
-                    # apply non-linearity here
-                    if train:
-                        self.layer2_sent_values[target] = self.hidden_values
-                    self.hidden2_values = hardtanh(self.hidden_values)
-                    if train:
-                        self.hidden_sent_values[target] = self.hidden2_values
-                
-                token_scores = self.output_weights.dot(self.hidden2_values)
-                token_scores += self.output_bias
-                scores[target] = token_scores
-            
-            pred_answer = self._viterbi(scores, allow_repeats)
-            
-            if train:
+            if self.training:
+                pred_tags = None if not self.training else tags[i]
                 self._evaluate(pred_answer, pred_tags)
-                if self._calculate_gradients(pred_tags, scores):
+                
+                if self._calculate_gradients(pred_tags, token_scores):
                     self._backpropagate(sentence)
                     self._calculate_input_deltas(sentence, predicate, pred_arguments)
                     self._adjust_weights(predicate, pred_arguments)
                     self._adjust_features(sentence, predicate)
-                
+            
             if logprob:
                 if self.only_classify:
                     raise NotImplementedError('Confidence measure not implemented for argument classifying')
                 
-                all_scores = self._calculate_all_scores(scores)
+                all_scores = self._calculate_all_scores(token_scores)
                 last_token = len(sentence) - 1
                 logadd = np.log(np.sum(np.exp(all_scores[last_token])))
                 confidence = self.answer_score - logadd
                 pred_answer = (pred_answer, confidence)
             
             answer.append(pred_answer)
-            
+        
         return answer
-    
+            
     def _evaluate(self, answer, tags):
         """
         Evaluates the network performance, updating its hits count.
@@ -829,7 +854,7 @@ Output size: %d
             window_from = window_to
             window_to += self.pred_dist_table.shape[1] 
     
-    def _convolution_lookup(self, sentence, train):
+    def _create_convolution_lookup(self, sentence):
         """
         Creates a lookup table storing the values found by each
         convolutional neuron before summing distance features.
@@ -846,7 +871,7 @@ Output size: %d
         else:
             padded_sentence = sentence
         
-        cdef np.ndarray[FLOAT_t, ndim=2] lookup = np.empty((len(sentence), self.hidden_size))
+        self.convolution_lookup = np.empty((len(sentence), self.hidden_size))
         
         # first window
         cdef np.ndarray window = padded_sentence[:self.word_window_size]
@@ -859,8 +884,8 @@ Output size: %d
                                      ]
                                     )
         
-        lookup[0] = self.hidden_weights.dot(input_data)
-        if train:
+        self.convolution_lookup[0] = self.hidden_weights.dot(input_data)
+        if self.training:
             # store the values of each input -- needed when adjusting features
             self.input_sent_values[0] = input_data
         
@@ -873,8 +898,7 @@ Output size: %d
             input_data = np.concatenate((input_data[self.features_per_token:], 
                                          new_data))
             
-            lookup[i] = self.hidden_weights.dot(input_data)
-            if train:
+            self.convolution_lookup[i] = self.hidden_weights.dot(input_data)
+            if self.training:
                 self.input_sent_values[i] = input_data
         
-        return lookup
