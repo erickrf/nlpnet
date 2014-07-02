@@ -10,6 +10,10 @@ cimport numpy as np
 
 cdef class DependencyNetwork(ConvolutionalNetwork):
     
+    # counter of completely correct sentences
+    cdef int sentence_hits
+    cdef int num_sentences
+    
     # the weights of all possible dependency among tokens
     # public = TEST ONLY!
     cdef public np.ndarray dependency_weights
@@ -17,6 +21,148 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
     def __init__(self):
         # test only!
         pass
+    
+    def train(self, list sentences, list tags, int epochs, 
+              int epochs_between_reports=0, float desired_accuracy=0):
+        """
+        Trains the convolutional network. Refer to the basic Network
+        train method for detailed explanation. 
+        """
+        # the ConvolutionalNetwork class was written primarily for SRL
+        # in dependency parsing, every token in the sentence is a effectively 
+        # predicate, because other tokens are analyzed with respect to it
+        predicates = [np.arange(len(sentence)) for sentence in sentences]
+        
+        super(DependencyNetwork, self).train(sentences, predicates, 
+                                             tags, epochs, 
+                                             epochs_between_reports, 
+                                             desired_accuracy)
+        self.num_sentences = 0
+        self.sentence_hits = 0
+    
+    def _train_epoch(self, sentences, predicates, tags, arguments):
+        """
+        Same as the method from ConvolutionalNetwork, but resets the sentence
+        hits counter.
+        """
+        self.num_sentences = 0
+        self.sentence_hits = 0
+        super(DependencyNetwork, self)._train_epoch(sentences, predicates, 
+                                                    tags, arguments)
+    
+    def _tag_sentence(self, np.ndarray sentence, list tags=None):
+        """
+        Run the network for the dependency tagging task.
+        A graph with all weights for possible dependencies is built 
+        and the final answer is obtained applying the Chu-Liu-Edmond's
+        algorithm.
+        """
+        self._pre_tagging_setup(sentence)
+
+        num_tokens = len(sentence)
+        # dependency_weights [i, j] has the score for token i having j as a head
+        # the main diagonal has the values for edges from the root and is copied to 
+        # the last column for easier processing
+        self.dependency_weights = np.empty((num_tokens, num_tokens + 1))
+        
+        cdef np.ndarray[FLOAT_t, ndim=1] token_scores
+        
+        # in the SRL parlance, each token is treated as a predicate, because all
+        # sentence tokens are scored with respect to it (in order to determine the
+        # candidate dependency weight)
+        for token in range(num_tokens):
+            # _sentence_convolution returns a 2-dim array. in dep parsing, 
+            # we only have one dimension, so take the index 0
+            token_scores = self._sentence_convolution(sentence, token)[0]
+            self.dependency_weights[token, :-1] = token_scores
+            
+            if self.training:
+                head = tags[token]
+                if self._calculate_gradients(head, token_scores):
+                    self._backpropagate()
+                    self._calculate_input_deltas(sentence, token)
+                    self._adjust_weights(token)
+                    self._adjust_features(sentence, token)
+        
+        self.dependency_weights[np.arange(num_tokens), 
+                                -1] = self.dependency_weights.diagonal()
+        np.fill_diagonal(self.dependency_weights, -np.Infinity)
+        answer = self._find_maximum_spanning_tree
+        if self.training:
+            self._evaluate(answer, tags)
+        
+        return sentence
+    
+    def _calculate_gradients(self, gold_head, scores):
+        """
+        Calculate the gradients to be applied in the backpropagation. Gradients
+        are calculated after the network has output the scores for assigning 
+        each token as head of a given token. 
+        
+        We aim at maximizing the log probability of the right head:
+        log(p(head)) = score(head) - logadd(scores for all heads)
+        
+        :param gold_head: the index of the token that should have the highest 
+            score
+        :param scores: the scores output by the network
+        :returns: if True, normal gradient calculation was performed.
+            If False, the error was too low and weight correction should be
+            skipped. 
+        """
+        # first, set the gradient at each token to 
+        # -exp(score(token)) / sum_j exp(score(token_j))
+        # i.e., the negative of its probability
+        cdef np.ndarray[FLOAT_t, ndim=1] exp_scores = np.exp(scores)
+        exp_sum = np.sum(exp_scores)
+        self.net_gradients = -exp_scores / exp_sum
+        error = 1 + self.net_gradients[gold_head]
+        self.error += error
+        
+        # check if the error is too small - if so, not worth to continue
+        if error <= 0.01:
+            self.skips += 1
+            return False
+        
+        # and add 1 to the right head
+        self.net_gradients[gold_head] += 1
+        
+        # the ConvolutionalNetwork deals with multi dimensional gradients
+        # (because of more than one output neuron), so let's reshape
+        new_shape = (self.net_gradients.shape[0], 1)
+        self.net_gradients = self.net_gradients.reshape(new_shape)  
+        
+        return True
+    
+    def _evaluate(self, answer, tags):
+        """
+        Evaluate the network performance by token hit and whole sentence hit.
+        """
+        sentence_hit = True
+        for net_tag, gold_tag in zip(answer, tags):
+            if net_tag == gold_tag:
+                self.hits += 1
+            else:
+                setence_hit = False
+        
+        if sentence_hit:
+            self.sentence_hits += 1
+        self.total_items += len(tags)
+        self.num_sentences += 1
+    
+    def _print_epoch_report(self, int num):
+        """
+        Reports the status of the network in the given training
+        epoch, including error, token and sentence accuracy.
+        """
+        sentence_accuracy = float(self.sentence_hits) / self.num_sentences
+        logger = logging.getLogger("Logger")
+        logger.info("%d epochs   Error: %f   Token accuracy: %f   " \
+            "Sentence accuracy: %f    " \
+            "%d corrections skipped   "  % (num,
+                                            self.error,
+                                            self.accuracy,
+                                            sentence_accuracy,
+                                            self.skips))
     
     def _find_cycles(self, np.ndarray graph):
         """
@@ -178,40 +324,8 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         for cycle in cycles:
             # resolve each cycle c
             self._contract_cycle(heads, cycle)
-#             heads = self.dependency_weights.argmax(1)
         
         return heads
     
-    def _tag_sentence(self, np.ndarray sentence, list tags=None):
-        """
-        Run the network for the dependency tagging task.
-        A graph with all weights for possible dependencies is built 
-        and the final answer is obtained applying the Chu-Liu-Edmond's
-        algorithm.
-        """
-        answer = []
-        self._pre_tagging_setup(sentence)
 
-        num_tokens = len(sentence)
-        # dependency_weights [i, j] has the score for token i having j as a head
-        # the main diagonal has the values for edges from the root and is copied to 
-        # the last column for easier processing
-        self.dependency_weights = np.empty((num_tokens, num_tokens + 1))
-        
-        cdef np.ndarray[FLOAT_t, ndim=2] token_scores
-        
-        # in the SRL parlance, each token is treated as a predicate, because all
-        # sentence tokens are scored with respect to it (in order to determine the
-        # candidate dependency weight)
-        for token in range(num_tokens):
-            token_scores = self._sentence_convolution(sentence, token)
-            
-            # _sentence_convolution returns a 2-dim array. in dep parsing, 
-            # we only have one dimension, so take the index 0
-            self.dependency_weights[token, :-1] = token_scores[0]
-        
-        self.dependency_weights[np.arange(num_tokens), 
-                                -1] = self.dependency_weights.diagonal()
-        np.fill_diagonal(self.dependency_weights, -np.Infinity)
-    
         

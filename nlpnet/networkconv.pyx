@@ -467,11 +467,11 @@ Output size: %d
             pred_answer = self._viterbi(token_scores, allow_repeats)
         
             if self.training:
-                pred_tags = None if not self.training else tags[i]
+                pred_tags = tags[i]
                 self._evaluate(pred_answer, pred_tags)
                 
                 if self._calculate_gradients(pred_tags, token_scores):
-                    self._backpropagate(sentence)
+                    self._backpropagate()
                     self._calculate_input_deltas(sentence, predicate, pred_arguments)
                     self._adjust_weights(predicate, pred_arguments)
                     self._adjust_features(sentence, predicate)
@@ -542,7 +542,7 @@ Output size: %d
     
         return correction
 
-    def _backpropagate(self, sentence):
+    def _backpropagate(self):
         """Backpropagates the error gradient."""
         
         # this function only determines the gradients at each layer, without 
