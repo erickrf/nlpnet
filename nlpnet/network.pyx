@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 #cython: embedsignature=True
+#cython: profile=True
 
 """
 A neural network for NLP tagging tasks.

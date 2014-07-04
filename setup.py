@@ -17,7 +17,7 @@ def readme():
 setup(
       name = 'nlpnet',
       description = 'Neural networks for NLP tasks',
-      packages = ['nlpnet', 'nlpnet.pos', 'nlpnet.srl'],
+      packages = ['nlpnet', 'nlpnet.pos', 'nlpnet.srl', 'nlpnet.parse'],
       ext_modules = [Extension("nlpnet.network", 
                                ["nlpnet/network.c"],
                                include_dirs=['.', np.get_include()]

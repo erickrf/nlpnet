@@ -46,7 +46,15 @@ def set_data_dir(directory):
          # chunk
          'chunk_tag_dict': os.path.join(data_dir, 'chunk-tag-dict.pickle'),
          'chunk_tags': os.path.join(data_dir, 'chunk-tags.txt'),
-    
+         
+         # dependency parsing
+         'network_dependency': os.path.join(data_dir, 'dep-network.npz'),
+         'dependency_pos_tags': os.path.join(data_dir, 'dependency-pos-tags.txt'),
+         'type_features_dependency': os.path.join(data_dir, 'types-features-dep.npy'),
+         'caps_features_pos': os.path.join(data_dir, 'caps-features-dep.npy'),
+         'pos_features_dependency': os.path.join(data_dir, 'pos-features-dep.npy'),
+         'metadata_dependency': os.path.join(data_dir, 'metadata-dep.pickle'),
+         
          # SRL
          'network_srl': os.path.join(data_dir, 'srl-network.npz'),
          'network_srl_boundary': os.path.join(data_dir, 'srl-id-network.npz'),

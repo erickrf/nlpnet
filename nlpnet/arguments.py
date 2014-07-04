@@ -8,7 +8,7 @@ These arguments used by the training script.
 import argparse
 
 # Tasks performed: part-of-speech tagging and semantic role labeling
-TASKS = set(['pos', 'srl', 'lm'])
+TASKS = set(['pos', 'srl', 'lm', 'dependency'])
 
 def get_args():
     parser = argparse.ArgumentParser(description="Trains a neural\
@@ -34,7 +34,7 @@ def get_args():
                         help='Learning rate for features',
                         dest='learning_rate_features')
     parser.add_argument('--lt', type=float, default=0,
-                        help='Learning rate for transitions (SRL only)',
+                        help='Learning rate for transitions (SRL/POS only)',
                         dest='learning_rate_transitions')
     parser.add_argument('--caps', const=5, nargs='?', type=int, default=None,
                         help='Include capitalization features. Optionally, supply the number of features (default 5)')
@@ -49,7 +49,7 @@ def get_args():
     parser.add_argument('--use_lemma', action='store_true',
                         help='Use word lemmas instead of surface forms.', dest='use_lemma')
     parser.add_argument('-a', '--accuracy', type=float,
-                        help='Desired accuracy per tag.',
+                        help='Desired accuracy per tag (or per token in dependency parsing).',
                         default=0, dest='accuracy')
     parser.add_argument('-n', '--hidden', type=int, default=100,
                         help='Number of hidden neurons',
@@ -68,11 +68,11 @@ def get_args():
     parser.add_argument('--load_network', action='store_true',
                         help='Load previously saved network')
     parser.add_argument('--max_dist', type=int, default=10,
-                        help='Maximum distance to have a separate feature (SRL only)')
+                        help='Maximum distance to have a separate feature (SRL/Dep parsing only)')
     parser.add_argument('--target_features', type=int, default=5,
-                        help='Number of features for distance to target word (SRL only)')
+                        help='Number of features for distance to target word (SRL/Dep parsing only)')
     parser.add_argument('--pred_features', type=int, default=5,
-                        help='Number of features for distance to predicate (SRL only)')
+                        help='Number of features for distance to predicate (SRL/Dep parsing only)')
     parser.add_argument('--task', help='Task for which the network should be used.',
                         type=str, choices=TASKS, required=True)
     parser.add_argument('--semi', help='Perform semi-supervised training. Supply the name of the file with automatically tagged data.',

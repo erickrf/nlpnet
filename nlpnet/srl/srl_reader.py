@@ -67,7 +67,6 @@ class SRLReader(TaggerReader):
             self._read_conll(filename)
             self._clean_text()
         
-        self.codified = False
     
     def _read_conll(self, filename):
         '''

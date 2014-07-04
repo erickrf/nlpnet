@@ -11,7 +11,7 @@ cimport numpy as np
 cdef class ConvolutionalNetwork(Network):
     
     # transition and distance feature tables
-    cdef readonly np.ndarray target_dist_table, pred_dist_table
+    cdef public np.ndarray target_dist_table, pred_dist_table
     cdef readonly np.ndarray target_dist_weights, pred_dist_weights
     cdef readonly int target_dist_offset, pred_dist_offset
     cdef readonly np.ndarray target_dist_lookup, pred_dist_lookup
@@ -82,11 +82,11 @@ cdef class ConvolutionalNetwork(Network):
         high = 2.38 / np.sqrt(output_size)
         output_bias = np.random.uniform(-high, high, output_size)
         
-        net = ConvolutionalNetwork(word_window, input_size, hidden1_size, hidden2_size, 
-                                   output_size, hidden_weights, hidden_bias, 
-                                   target_dist_weights, pred_dist_weights,
-                                   hidden2_weights, hidden2_bias, 
-                                   output_weights, output_bias)
+        net = cls(word_window, input_size, hidden1_size, hidden2_size, 
+                  output_size, hidden_weights, hidden_bias, 
+                  target_dist_weights, pred_dist_weights,
+                  hidden2_weights, hidden2_bias, 
+                  output_weights, output_bias)
         net.feature_tables = feature_tables
         net.target_dist_table = target_dist_table
         net.pred_dist_table = pred_dist_table
@@ -184,11 +184,11 @@ Output size: %d
         hidden2_size = data['hidden2_size']
         output_size = data['output_size']
         
-        nn = ConvolutionalNetwork(word_window, input_size, hidden_size, hidden2_size, 
-                                  output_size, hidden_weights, hidden_bias, 
-                                  data['target_dist_weights'], data['pred_dist_weights'],
-                                  hidden2_weights, hidden2_bias, 
-                                  output_weights, output_bias)
+        nn = cls(word_window, input_size, hidden_size, hidden2_size, 
+                 output_size, hidden_weights, hidden_bias, 
+                 data['target_dist_weights'], data['pred_dist_weights'],
+                 hidden2_weights, hidden2_bias, 
+                 output_weights, output_bias)
         
         nn.target_dist_table = data['target_dist_table']
         nn.pred_dist_table = data['pred_dist_table']
@@ -255,16 +255,22 @@ Output size: %d
         self.train_hits = 0
         self.total_items = 0
         self.training = False
-
-    def _train_epoch(self, sentences, predicates, tags, arguments):
-        """Trains for one epoch with all examples."""
+    
+    def _reset_counters(self):
+        """
+        Reset the performance statistics counters. They are updated during
+        each epoch. 
+        """
         self.train_hits = 0
         self.error = 0
         self.total_items = 0
         self.skips = 0
         self.float_errors = 0
-        
-        # shuffle data
+    
+    def _shuffle_data(self, sentences, predicates, tags, arguments=None):
+        """
+        Shuffle the given training data in place.
+        """
         # get the random number generator state in order to shuffle
         # sentences and their tags in the same order
         random_state = np.random.get_state()
@@ -276,12 +282,16 @@ Output size: %d
         if arguments is not None:
             np.random.set_state(random_state)
             np.random.shuffle(arguments)
+    
+    def _train_epoch(self, sentences, predicates, tags, arguments):
+        """Trains for one epoch with all examples."""
+        
+        self._reset_counters()
+        self._shuffle_data(sentences, predicates, tags, arguments)
+        if arguments is not None:
             i_args = iter(arguments)
         else:
             sent_args = None
-        
-        # keep last 2% for validation
-        validation = int(len(sentences) * 0.98)
         
         for sent, sent_preds, sent_tags in izip(sentences, predicates, tags):
             if arguments is not None:
@@ -427,16 +437,16 @@ Output size: %d
         """
         Perform some initialization actions before the actual tagging.
         """
+        if self.training:
+            # this table will store the values of the neurons for each input token
+            # they will be needed during weight adjustments
+            self.input_sent_values = np.empty((len(sentence), self.input_size))
+        
         # store the convolution values to save time
         self._create_convolution_lookup(sentence)
         
         if self.target_dist_lookup is None: self._create_target_lookup()
         if self.pred_dist_lookup is None: self._create_pred_lookup()
-        
-        if self.training:
-            # this table will store the values of the neurons for each input token
-            # they will be needed during weight adjustments
-            self.input_sent_values = np.empty((len(sentence), self.input_size))
         
     
     @cython.boundscheck(False)

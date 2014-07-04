@@ -14,7 +14,8 @@ import attributes
 from metadata import Metadata
 from pos.pos_reader import POSReader
 from srl.srl_reader import SRLReader
-from network import Network, ConvolutionalNetwork, LanguageModel
+from parse.parse_reader import DependencyReader
+from network import Network, ConvolutionalNetwork, LanguageModel, DependencyNetwork
 
 def load_network(md):
     """
@@ -26,6 +27,8 @@ def load_network(md):
     logger.info('Loading network')
     if is_srl:
         net_class = ConvolutionalNetwork
+    elif md.task == 'dependency':
+        net_class = DependencyNetwork
     elif md.task == 'lm':
         net_class = LanguageModel
     else:
@@ -74,6 +77,9 @@ def create_reader(md, gold_file=None):
     
     if md.task == 'pos':
         tr = POSReader(filename=gold_file)
+    
+    elif md.task == 'dependency':
+        tr = DependencyReader(filename=gold_file)
         
     elif md.task.startswith('srl'):
         tr = SRLReader(filename=gold_file, only_boundaries= (md.task == 'srl_boundary'),

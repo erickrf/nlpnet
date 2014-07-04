@@ -15,14 +15,22 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
     cdef int num_sentences
     
     # the weights of all possible dependency among tokens
-    # public = TEST ONLY!
-    cdef public np.ndarray dependency_weights
+    cdef readonly np.ndarray dependency_weights
     
-    def __init__(self):
-        # test only!
-        pass
+    @classmethod
+    def create_new(cls, feature_tables, target_dist_table, pred_dist_table, 
+                   int word_window, int hidden1_size, int hidden2_size):
+        """
+        Creates a new convolutional neural network for dependency parsing.
+        
+        Same as the ConvolutionalNetwork creator function, except for the output
+        layer which always has size 1.
+        """
+        return super(DependencyNetwork, cls).create_new(feature_tables, target_dist_table, 
+                                                        pred_dist_table, word_window, 
+                                                        hidden1_size, hidden2_size, 1)
     
-    def train(self, list sentences, list tags, int epochs, 
+    def train(self, list sentences, list heads, int epochs, 
               int epochs_between_reports=0, float desired_accuracy=0):
         """
         Trains the convolutional network. Refer to the basic Network
@@ -34,23 +42,30 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         predicates = [np.arange(len(sentence)) for sentence in sentences]
         
         super(DependencyNetwork, self).train(sentences, predicates, 
-                                             tags, epochs, 
+                                             heads, epochs, 
                                              epochs_between_reports, 
                                              desired_accuracy)
         self.num_sentences = 0
         self.sentence_hits = 0
     
-    def _train_epoch(self, sentences, predicates, tags, arguments):
+    def _reset_counters(self):
         """
-        Same as the method from ConvolutionalNetwork, but resets the sentence
-        hits counter.
+        Reset the same counters as the ConvolutionalNetwork class, and additionally
+        those related to sentences.
         """
+        super(DependencyNetwork, self)._reset_counters()
         self.num_sentences = 0
         self.sentence_hits = 0
-        super(DependencyNetwork, self)._train_epoch(sentences, predicates, 
-                                                    tags, arguments)
     
-    def _tag_sentence(self, np.ndarray sentence, list tags=None):
+    def _tag_sentence(self, np.ndarray sentence, np.ndarray predicates=None, 
+                      np.ndarray tags=None, list argument_blocks=None):
+        """
+        This function is just an interface to the _tag_sentence signature
+        defined in ConvolutionalNetwork.
+        """
+        self._tag_sentence_dependency(sentence, tags)
+    
+    def _tag_sentence_dependency(self, np.ndarray sentence, np.ndarray tags=None):
         """
         Run the network for the dependency tagging task.
         A graph with all weights for possible dependencies is built 
@@ -72,8 +87,8 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         # candidate dependency weight)
         for token in range(num_tokens):
             # _sentence_convolution returns a 2-dim array. in dep parsing, 
-            # we only have one dimension, so take the index 0
-            token_scores = self._sentence_convolution(sentence, token)[0]
+            # we only have one dimension, so reshape it
+            token_scores = self._sentence_convolution(sentence, token).reshape(num_tokens)
             self.dependency_weights[token, :-1] = token_scores
             
             if self.training:
@@ -87,7 +102,7 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         self.dependency_weights[np.arange(num_tokens), 
                                 -1] = self.dependency_weights.diagonal()
         np.fill_diagonal(self.dependency_weights, -np.Infinity)
-        answer = self._find_maximum_spanning_tree
+        answer = self._find_maximum_spanning_tree()
         if self.training:
             self._evaluate(answer, tags)
         
@@ -126,7 +141,7 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         # and add 1 to the right head
         self.net_gradients[gold_head] += 1
         
-        # the ConvolutionalNetwork deals with multi dimensional gradients
+        # the ConvolutionalNetwork class deals with multi dimensional gradients
         # (because of more than one output neuron), so let's reshape
         new_shape = (self.net_gradients.shape[0], 1)
         self.net_gradients = self.net_gradients.reshape(new_shape)  
@@ -140,10 +155,10 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         sentence_hit = True
         for net_tag, gold_tag in zip(answer, tags):
             if net_tag == gold_tag:
-                self.hits += 1
+                self.train_hits += 1
             else:
-                setence_hit = False
-        
+                sentence_hit = False
+            
         if sentence_hit:
             self.sentence_hits += 1
         self.total_items += len(tags)
@@ -154,7 +169,7 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         Reports the status of the network in the given training
         epoch, including error, token and sentence accuracy.
         """
-        sentence_accuracy = float(self.sentence_hits) / self.num_sentences
+        sentence_accuracy = float(self.sentence_hits) / self.num_sentences        
         logger = logging.getLogger("Logger")
         logger.info("%d epochs   Error: %f   Token accuracy: %f   " \
             "Sentence accuracy: %f    " \

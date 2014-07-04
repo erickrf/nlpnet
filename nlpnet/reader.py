@@ -155,6 +155,8 @@ class TaggerReader(TextReader):
         if load_dictionaries:
             self.load_dictionary()
             self.load_tag_dict()
+        
+        self.codified = False
     
     def generate_dictionary(self, dict_size=None, minimum_occurrences=None):
         """
@@ -219,6 +221,26 @@ class TaggerReader(TextReader):
         """
         c = Counter(tag for sent in self.sentences for _, tag in sent)
         return c
+    
+    def save_tag_dict(self, tag_dict=None, filename=None):
+        """
+        Saves a tag dictionary to a file as a list of tags.
+        
+        :param tag_dict: the dictionary to save. If None, the default
+            tag_dict for the class will be saved.
+        :param filename: the file where the dictionary should be saved.
+            If None, the class default tag_dict filename will be used.
+        """
+        if tag_dict is None:
+            tag_dict = self.tag_dict
+        if filename is None:
+            key = '%s_tag_dict' % self.task
+            filename = config.FILES[key]
+        
+        ordered_keys = sorted(tag_dict, key=tag_dict.get)
+        text = '\n'.join(ordered_keys)
+        with open(filename, 'wb') as f:
+            f.write(text.encode('utf-8'))
     
     def load_tag_dict(self, filename=None):
         """

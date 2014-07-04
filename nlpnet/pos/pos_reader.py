@@ -42,15 +42,5 @@ class POSReader(TaggerReader):
                         self.sentences.append(sentence)
             
 
-    def get_inverse_tag_dictionary(self):
-        """
-        Returns a version of the tag dictionary useful for consulting
-        the meaning of the network's output.
-        """
-        tuples = [(x[1], x[0]) for x in self.tag_dict.iteritems()]
-        ret = dict(tuples)
-        
-        return ret
-
 # backwards compatibility
 MacMorphoReader = POSReader

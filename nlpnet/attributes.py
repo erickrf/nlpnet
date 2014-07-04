@@ -7,6 +7,9 @@ import config
 from word_dictionary import WordDictionary as WD
 from collections import defaultdict
 
+# dummy value to be used when POS is an additional attribute
+PADDING_POS = 'PADDING'
+
 class Caps(object):
     """Dummy class for storing numeric values for capitalization."""
     num_values = 4
@@ -148,7 +151,7 @@ class TokenConverter(object):
         if tokens_as_string:
             pad = WD.padding_left
         else:
-            pad = Token(WD.padding_left)
+            pad = Token(WD.padding_left, pos=PADDING_POS)
         return self.convert(pad)
     
     def get_padding_right(self, tokens_as_string=True):
@@ -161,7 +164,7 @@ class TokenConverter(object):
         if tokens_as_string:
             pad = WD.padding_right
         else:
-            pad = Token(WD.padding_right)
+            pad = Token(WD.padding_right, pos=PADDING_POS)
         return self.convert(pad)
     
     def convert(self, token):
@@ -171,7 +174,7 @@ class TokenConverter(object):
         indices = np.array([function(token) for function in self.extractors])
         return indices
 
-# capitalization
+
 def get_capitalization(word):
     """
     Returns a code describing the capitalization of the word:
