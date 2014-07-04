@@ -12,7 +12,6 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
     
     # counter of completely correct sentences
     cdef int sentence_hits
-    cdef int num_sentences
     
     # the weights of all possible dependency among tokens
     cdef readonly np.ndarray dependency_weights
@@ -54,7 +53,6 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         those related to sentences.
         """
         super(DependencyNetwork, self)._reset_counters()
-        self.num_sentences = 0
         self.sentence_hits = 0
     
     def _tag_sentence(self, np.ndarray sentence, np.ndarray predicates=None, 
@@ -161,8 +159,14 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
             
         if sentence_hit:
             self.sentence_hits += 1
-        self.total_items += len(tags)
+        self.num_tokens += len(tags)
         self.num_sentences += 1
+    
+    def _average_error(self):
+        """
+        Average the network error over tokens.
+        """
+        self.error = self.error / self.num_tokens
     
     def _print_epoch_report(self, int num):
         """

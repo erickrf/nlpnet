@@ -104,7 +104,7 @@ cdef class Network:
     
     # data for statistics during training. 
     cdef float error, accuracy, float_errors
-    cdef int train_items, skips
+    cdef int num_tokens, skips
     
     # function to save periodically
     cdef public object saver
@@ -556,7 +556,7 @@ Output size: %d
             self._train_epoch(sentences, tags)
             
             # normalize error
-            self.error = self.error / self.train_items if self.train_items else np.Infinity
+            self.error = self.error / self.num_tokens if self.num_tokens else np.Infinity
             # Attardi: save model
             if self.error < min_error:
                 min_error = self.error
@@ -601,7 +601,7 @@ Output size: %d
         self.error = 0
         self.skips = 0
         self.float_errors = 0
-        self.train_items = 0
+        self.num_tokens = 0
         
         # shuffle data
         # get the random number generator state in order to shuffle
@@ -618,7 +618,7 @@ Output size: %d
         for sent, sent_tags in izip(sentences, tags):
             try:
                 self._tag_sentence(sent, sent_tags)
-                self.train_items += len(sent)
+                self.num_tokens += len(sent)
             except FloatingPointError:
                 # just ignore the sentence in case of an overflow
                 self.float_errors += 1

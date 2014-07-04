@@ -46,7 +46,7 @@ cdef class ConvolutionalNetwork(Network):
     cdef np.ndarray input_deltas
     
     # keeping statistics
-    cdef int train_hits, total_items
+    cdef int train_hits, num_sentences
     
     @classmethod
     def create_new(cls, feature_tables, target_dist_table, pred_dist_table, 
@@ -201,6 +201,13 @@ Output size: %d
         
         return nn
     
+    def _average_error(self):
+        """
+        Update the error atribute with an average over sentences.
+        Subclasses may implement different averages, e.g., over tokens.
+        """
+        self.error = self.error / self.num_sentences
+    
     def train(self, list sentences, list predicates, list tags,  
               int epochs, int epochs_between_reports=0,
               float desired_accuracy=0, list arguments=None):
@@ -226,8 +233,8 @@ Output size: %d
         for i in xrange(epochs):
             self._train_epoch(sentences, predicates, tags, arguments)
             
-            self.error = self.error / self.train_items
-            self.accuracy = float(self.train_hits) / self.total_items
+            self._average_error()
+            self.accuracy = float(self.train_hits) / self.num_tokens
             
             if self.accuracy > top_accuracy:
                 top_accuracy = self.accuracy
@@ -251,9 +258,7 @@ Output size: %d
             last_accuracy = self.accuracy
             last_error = self.error
         
-        self.error = 0
-        self.train_hits = 0
-        self.total_items = 0
+        self._reset_counters()
         self.training = False
     
     def _reset_counters(self):
@@ -263,7 +268,8 @@ Output size: %d
         """
         self.train_hits = 0
         self.error = 0
-        self.total_items = 0
+        self.num_tokens = 0
+        self.num_sentences = 0
         self.skips = 0
         self.float_errors = 0
     
@@ -299,7 +305,7 @@ Output size: %d
             
             try:
                 self._tag_sentence(sent, sent_preds, sent_tags, sent_args)
-                self.train_items += 1
+                self.num_sentences += 1
             except FloatingPointError:
                 # just ignore the sentence in case of an overflow
                 self.float_errors += 1
@@ -507,7 +513,7 @@ Output size: %d
         for net_tag, gold_tag in zip(answer, tags):
             if net_tag == gold_tag:
                 self.train_hits += 1
-        self.total_items += len(tags)
+        self.num_tokens += len(tags)
     
     def _calculate_gradients(self, tags, scores):
         """Delegates the call to the appropriate function."""
