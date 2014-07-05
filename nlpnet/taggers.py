@@ -15,7 +15,7 @@ from metadata import Metadata
 from pos.pos_reader import POSReader
 from srl.srl_reader import SRLReader
 from parse.parse_reader import DependencyReader
-from network import Network, ConvolutionalNetwork, LanguageModel, DependencyNetwork
+from network import Network, ConvolutionalNetwork, DependencyNetwork
 
 def load_network(md):
     """
@@ -29,8 +29,6 @@ def load_network(md):
         net_class = ConvolutionalNetwork
     elif md.task == 'dependency':
         net_class = DependencyNetwork
-    elif md.task == 'lm':
-        net_class = LanguageModel
     else:
         net_class = Network
     nn = net_class.load_from_file(config.FILES[md.network])

@@ -28,11 +28,7 @@ class Metadata(object):
         self.use_lemma = use_lemma
         self.metadata = 'metadata_%s' % task
         self.network = 'network_%s' % task
-        
-        if task != 'lm':
-            self.tag_dict = '%s_tag_dict' % task
-        else:
-            self.tag_dict = None
+        self.tag_dict = '%s_tag_dict' % task
         
         if task == 'srl_boundary':
             self.pred_dist_table = 'pred_dist_table_boundary'

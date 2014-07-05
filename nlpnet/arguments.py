@@ -8,12 +8,12 @@ These arguments used by the training script.
 import argparse
 
 # Tasks performed: part-of-speech tagging and semantic role labeling
-TASKS = set(['pos', 'srl', 'lm', 'dependency'])
+TASKS = set(['pos', 'srl', 'dependency'])
 
 def get_args():
-    parser = argparse.ArgumentParser(description="Trains a neural\
-        network for the language modeling task.\
-        It saves a dictionary file as word_dict.dat")
+    parser = argparse.ArgumentParser(description="NLPNet performs NLP taks like "\
+                                     "POS tagging, semantic role labeling and dependency "\
+                                     "parsing. Refer to the documentation for more information.")
     
     parser.add_argument('-w', '--window', type=int,
                         help='Size of the word window',
