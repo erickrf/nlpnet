@@ -10,7 +10,7 @@ import numpy as np
 
 from .. import attributes
 from .. import config
-from ..reader import TaggerReader
+from .. import reader
 
 class ConllPos(object):
     '''
@@ -28,7 +28,7 @@ class ConllPos(object):
     dep_rel = 7 # dependency relation
 
 
-class DependencyReader(TaggerReader):
+class DependencyReader(reader.TaggerReader):
 
     def __init__(self, filename=None):
         '''
@@ -95,11 +95,10 @@ class DependencyReader(TaggerReader):
         Examine all POS tags in the sentences and create a dictionary based on them.
         """
         logger = logging.getLogger("Logger")
-        logger.info('Creating new POS tag dictionary (for dependency parsing only)')
+        logger.info('Creating new POS tag dictionary (for dependency parsing)')
         tags = {token.pos for sent in self.sentences
                 for token in sent}
         pos_dict = {tag: code for code, tag in enumerate(tags)}
-        pos_dict[attributes.PADDING_POS] = max(pos_dict.values()) + 1
         
         return pos_dict
     
@@ -109,17 +108,8 @@ class DependencyReader(TaggerReader):
         from its default location.
         """
         logger = logging.getLogger("Logger")
-        logger.info('Loading POS tag dictionary (for dependency parsing)')
-
-        pos_dict = {}
-        with open(config.FILES['dependency_pos_tags'], 'rb') as f:
-            for code, tag in enumerate(f):
-                tag = unicode(tag, 'utf-8').strip()
-                pos_dict[tag] = code
-        
-        if attributes.PADDING_POS not in pos_dict:
-            pos_dict[attributes.PADDING_POS] = code + 1
-        
+        logger.debug('Loading POS tag dictionary (for dependency parsing)')
+        pos_dict = reader.load_tag_dict(config.FILES['pos_tags'])
         return pos_dict
     
     def codify_sentences(self):
@@ -141,7 +131,7 @@ class DependencyReader(TaggerReader):
         self.sentences = new_sentences
         self.codified = True
     
-    def _load_or_create_pos_dict(self):
+    def load_or_create_pos_dict(self):
         """
         Try to load the pos tag dictionary to be used with this reader (when
         using POS tags as additional features). If there isn't a file in the 
@@ -151,11 +141,18 @@ class DependencyReader(TaggerReader):
         if self.pos_dict is not None:
             return
         
-        if os.path.isfile(config.FILES['dependency_pos_tags']):
+        if os.path.isfile(config.FILES['pos_tags']):
             self.pos_dict = self.load_pos_dict()
         else:
             self.pos_dict = self._create_pos_dict()
-            self.save_tag_dict(self.pos_dict, config.FILES['dependency_pos_tags'])
+            self.save_tag_dict(self.pos_dict, config.FILES['pos_tags'])
+        
+        # adding the padding pos key must come after saving the dictionary
+        # because that key shouldn't be used in a POS tagger that shares the 
+        # pos dict
+        if attributes.PADDING_POS not in self.pos_dict:
+            code = max(self.pos_dict.values()) + 1
+            self.pos_dict[attributes.PADDING_POS] = code
     
     def get_num_pos_tags(self):
         """

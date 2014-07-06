@@ -15,6 +15,30 @@ import attributes
 from word_dictionary import WordDictionary
 from attributes import get_capitalization
 
+def load_tag_dict(filename):
+    """
+    Load a tag dictionary from a file containing one tag
+    per line.
+    """
+    tag_dict = {}
+    with open(filename, 'rb') as f:
+        for code, tag in enumerate(f):
+            tag = unicode(tag, 'utf-8').strip()
+            tag_dict[tag] = code
+    
+    return tag_dict
+
+def save_tag_dict(tag_dict, filename):
+    """
+    Save the given tag dictionary to the given file. Dictionary
+    is saved with one tag per line, in the order of their codes.
+    """
+    ordered_keys = sorted(tag_dict, key=tag_dict.get)
+    text = '\n'.join(ordered_keys)
+    with open(filename, 'wb') as f:
+        f.write(text.encode('utf-8'))
+    
+
 class TextReader(object):
     
     def __init__(self, sentences=None, filename=None):
@@ -237,24 +261,18 @@ class TaggerReader(TextReader):
             key = '%s_tag_dict' % self.task
             filename = config.FILES[key]
         
-        ordered_keys = sorted(tag_dict, key=tag_dict.get)
-        text = '\n'.join(ordered_keys)
-        with open(filename, 'wb') as f:
-            f.write(text.encode('utf-8'))
+        save_tag_dict(tag_dict, filename)
     
     def load_tag_dict(self, filename=None):
         """
-        Loads the tag dictionary from the default file.
+        Load the tag dictionary from the default file and assign
+        it to the tag_dict attribute. 
         """
         if filename is None:
             key = '%s_tag_dict' % self.task
             filename = config.FILES[key]
             
-        self.tag_dict = {}
-        with open(filename, 'rb') as f:
-            for code, tag in enumerate(f):
-                tag = unicode(tag, 'utf-8').strip()
-                self.tag_dict[tag] = code
+        self.tag_dict = load_tag_dict(filename)
     
     
     
