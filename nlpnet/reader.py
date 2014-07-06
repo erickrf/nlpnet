@@ -34,7 +34,7 @@ class TextReader(object):
                     self.sentences.append(sentence)
                     
         self.converter = None
-        self.task = 'lm'
+        self.task = 'None'
     
     def add_text(self, text):
         """

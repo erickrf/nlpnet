@@ -20,7 +20,7 @@ import nlpnet.pos as pos
 import nlpnet.arguments as arguments
 import nlpnet.reader as reader
 import nlpnet.attributes as attributes
-from nlpnet.network import Network, ConvolutionalNetwork, LanguageModel
+from nlpnet.network import Network, ConvolutionalNetwork
 
 
 ############################
@@ -35,9 +35,6 @@ def create_reader(args):
     if args.task == 'pos':
         text_reader = pos.pos_reader.POSReader(filename=args.gold)
     
-    elif args.task == 'lm':
-        text_reader = reader.TextReader(filename=args.gold)
-
     elif args.task.startswith('srl'):
         text_reader = srl.srl_reader.SRLReader(filename=args.gold, only_boundaries=args.identify, 
                                                only_classify=args.classify,
@@ -86,11 +83,6 @@ def create_network(args, text_reader, feature_tables, md=None):
             transitions = srl.train_srl.init_transitions(text_reader.tag_dict, 'iob')
             nn.transitions = transitions
             nn.learning_rate_trans = args.learning_rate_transitions
-    
-    elif args.task == 'lm':
-        nn = LanguageModel.create_new(feature_tables, args.window, args.hidden)
-        padding_left = text_reader.converter.get_padding_left(tokens_as_string=True)
-        padding_right = text_reader.converter.get_padding_right(tokens_as_string=True)
         
     else:
         num_tags = len(text_reader.tag_dict)
@@ -108,9 +100,7 @@ def create_network(args, text_reader, feature_tables, md=None):
     nn.learning_rate = args.learning_rate
     nn.learning_rate_features = args.learning_rate_features
     
-    if args.task == 'lm':
-        layer_sizes = (nn.input_size, nn.hidden_size, 1)
-    elif args.convolution > 0 and args.hidden > 0:
+    if args.convolution > 0 and args.hidden > 0:
         layer_sizes = (nn.input_size, nn.hidden_size, nn.hidden2_size, nn.output_size)
     else:
         layer_sizes = (nn.input_size, nn.hidden_size, nn.output_size)
@@ -165,8 +155,6 @@ def load_network_train(args, md):
     
     nn.learning_rate = args.learning_rate
     nn.learning_rate_features = args.learning_rate_features
-    if md.task != 'lm':
-        nn.learning_rate_trans = args.learning_rate_transitions
     
     return nn
 
@@ -180,8 +168,6 @@ def train(reader, args):
         
         nn.train(text_reader.sentences, text_reader.predicates, text_reader.tags, 
                  args.iterations, intervals, args.accuracy, arg_limits)
-    elif args.task == 'lm':
-        nn.train(text_reader.sentences, args.iterations, intervals)
     else:
         nn.train(text_reader.sentences, text_reader.tags, 
                  args.iterations, intervals, args.accuracy)

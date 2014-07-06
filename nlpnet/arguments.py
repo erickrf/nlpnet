@@ -8,7 +8,7 @@ These arguments used by the training script.
 import argparse
 
 # Tasks performed: part-of-speech tagging and semantic role labeling
-TASKS = set(['pos', 'srl', 'lm'])
+TASKS = set(['pos', 'srl'])
 
 def get_args():
     parser = argparse.ArgumentParser(description="Trains a neural\

@@ -23,14 +23,6 @@ def set_data_dir(directory):
          'type_features': os.path.join(data_dir, 'types-features.npy'),
          'termvectors': os.path.join(data_dir, 'termvectors.txt'),
          
-         # Language Model
-         'network_lm': os.path.join(data_dir, 'lm-network.npz'),
-         'metadata_lm': os.path.join(data_dir, 'metadata-lm.pickle'),
-         'type_features_lm': os.path.join(data_dir, 'types-features-lm.npy'),
-         'caps_features_lm': os.path.join(data_dir, 'caps-features-lm.npy'),
-         'suffix_features_lm': os.path.join(data_dir, 'suffix-features-lm.npy'),
-         'prefix_features_lm': os.path.join(data_dir, 'prefix-features-lm.npy'),
-         
          # POS
          'network_pos': os.path.join(data_dir, 'pos-network.npz'),
          'pos_tags': os.path.join(data_dir, 'pos-tags.txt'),

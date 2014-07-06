@@ -14,7 +14,7 @@ import attributes
 from metadata import Metadata
 from pos.pos_reader import POSReader
 from srl.srl_reader import SRLReader
-from network import Network, ConvolutionalNetwork, LanguageModel
+from network import Network, ConvolutionalNetwork
 
 def load_network(md):
     """
@@ -26,8 +26,6 @@ def load_network(md):
     logger.info('Loading network')
     if is_srl:
         net_class = ConvolutionalNetwork
-    elif md.task == 'lm':
-        net_class = LanguageModel
     else:
         net_class = Network
     nn = net_class.load_from_file(config.FILES[md.network])
