@@ -27,6 +27,8 @@ def interactive_running(task, use_tokenizer=True):
         tagger = nlpnet.taggers.POSTagger()
     elif task_lower == 'srl':
         tagger = nlpnet.taggers.SRLTagger()
+    elif task_lower == 'dependency':
+        tagger = nlpnet.taggers.DependencyParser()
     else:
         raise ValueError('Unknown task: %s' % task)
     
@@ -54,15 +56,26 @@ def _print_tagged(tagged_sents, task):
     Prints the tagged text to stdout.
     
     :param tagged_sents: sentences tagged according to any of nlpnet taggers.
-    :param task: the tagging task (either 'pos' or 'srl')
+    :param task: the tagging task (either 'pos', 'srl' or 'dependency')
     """
     if task == 'pos':
         _print_tagged_pos(tagged_sents)
     elif task == 'srl':
         _print_tagged_srl(tagged_sents)
+    elif task == 'dependency':
+        _print_parsed_dependency(tagged_sents)
     else:
         raise ValueError('Unknown task: %s' % task)
-    
+
+def _print_parsed_dependency(parsed_sents):
+    """Prints one token per line and its head"""
+    for sent in parsed_sents:
+        for i, (token, head) in enumerate(sent):
+            line = u'%2d %s\t\t%s' % (i, token, head)
+            print line.encode('utf-8') 
+        
+        print
+
 def _print_tagged_pos(tagged_sents):
     """Prints one sentence per line as token_tag"""
     for sent in tagged_sents:
@@ -85,7 +98,7 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
     parser.add_argument('task', help='Task for which the network should be used.', 
-                        type=str, choices=['srl', 'pos'])
+                        type=str, choices=['srl', 'pos', 'dependency'])
     parser.add_argument('data', help='Directory containing trained models.', type=str)
     parser.add_argument('-v', help='Verbose mode', action='store_true', dest='verbose')
     parser.add_argument('-t', action='store_true', dest='disable_tokenizer',

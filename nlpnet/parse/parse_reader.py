@@ -30,11 +30,12 @@ class ConllPos(object):
 
 class DependencyReader(TaggerReader):
 
-    def __init__(self, filename):
+    def __init__(self, filename=None):
         '''
         Constructor
         '''
-        self._read_conll(filename)
+        if filename is not None:
+            self._read_conll(filename)
         
         self.task = 'dependency'
         self.load_dictionary()

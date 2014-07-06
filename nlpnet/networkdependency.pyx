@@ -104,7 +104,7 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         if self.training:
             self._evaluate(answer, tags)
         
-        return sentence
+        return answer
     
     def _calculate_gradients(self, gold_head, scores):
         """
@@ -182,6 +182,13 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
                                             self.accuracy,
                                             sentence_accuracy,
                                             self.skips))
+    
+    def tag_sentence(self, np.ndarray sentence):
+        """
+        Run the network for each token in the sentence and compute the 
+        dependency tree. It returns a list with the head of each token.
+        """
+        return self._tag_sentence_dependency(sentence)
     
     def _find_cycles(self, np.ndarray graph):
         """
@@ -269,25 +276,28 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         outside = np.array([x for x in range(num_vertices) if x not in cycle])
         cycle = np.array(list(cycle))
         
+        cdef np.ndarray[FLOAT_t, ndim=2] outgoing_weights
+        
         # adjustments will be made on incoming and outgoing edges
         # pick the part of the weight matrix that contain them
         
-        # weird index array we need in order to properly use fancy indexing
-        # -1 because we can't take the root now
-        outside_inds = np.array([[i] for i in outside[:-1]])
-        cdef np.ndarray[FLOAT_t, ndim=2] outside_weights
-        outside_weights = self.dependency_weights[outside_inds, cycle]
-        
-        # the cycle should have only one outgoing edge for each vertex outside it
-        # so, search the maximum outgoing edge of each outside vertex
-        max_outgoing_inds = outside_weights.argmax(1)
-        max_outgoing_weights = outside_weights.max(1)
-        
-        # set every outgoing weight to -inf and then restore the highest ones
-        outside_weights[:] = -np.Infinity
-        outside_weights[np.arange(len(outside_inds)), 
-                        max_outgoing_inds] = max_outgoing_weights
-        self.dependency_weights[outside_inds, cycle] = outside_weights
+        # if len(outside) == 1, it means all vertices except for the loop are in a cycle
+        if len(outside) > 1:
+            # weird index array we need in order to properly use fancy indexing
+            # -1 because we can't take the root now
+            outside_inds = np.array([[i] for i in outside[:-1]])
+            outgoing_weights = self.dependency_weights[outside_inds, cycle]
+            
+            # the cycle should have only one outgoing edge for each vertex outside it
+            # so, search the maximum outgoing edge of each outside vertex
+            max_outgoing_inds = outgoing_weights.argmax(1)
+            max_outgoing_weights = outgoing_weights.max(1)
+            
+            # set every outgoing weight to -inf and then restore the highest ones
+            outgoing_weights[:] = -np.Infinity
+            outgoing_weights[np.arange(len(outside_inds)), 
+                             max_outgoing_inds] = max_outgoing_weights
+            self.dependency_weights[outside_inds, cycle] = outgoing_weights
         
         # now, adjust incoming edges. the incoming edge from each vertex v 
         # (outside the cycle) to v' (inside) is reweighted as: 

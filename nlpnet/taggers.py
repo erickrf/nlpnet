@@ -173,6 +173,7 @@ If you don't have the trained models, download them from http://nilc.icmc.usp.br
         """Implemented by subclasses"""
         pass
 
+
 class SRLTagger(Tagger):
     """
     An SRLTagger loads the models and performs SRL on text.
@@ -263,6 +264,74 @@ class SRLTagger(Tagger):
         
         structures = _group_arguments(tokens, pred_positions, boundaries, arguments)
         return SRLAnnotatedSentence(tokens, structures)
+        
+
+class DependencyParser(Tagger):
+    """A Dependency Parser based on a neural network tagger."""
+    
+    def _load_data(self):
+        """Loads data for Dependency Parsing"""
+        md = Metadata.load_from_file('dependency')
+        self.nn = load_network(md)
+        self.reader = create_reader(md)
+        if md.use_pos:
+            self.reader.load_pos_dict()
+    
+    def parse(self, text):
+        """
+        Split the given text into sentences and determines their 
+        dependency trees. If you want to provide your own tokenized
+        text, use `parse_sentence` instead.
+                
+        :param text: a string
+        :returns: a list of ParsedSentence's
+        """
+        sentences = utils.tokenize(text, False)
+        result = []
+        for sent in sentences:
+            parsed = self.parse_sentence(sent)
+            result.append(parsed)
+        
+        return result
+    
+    def tag_tokens(self, tokens, return_tokens=False):
+        """
+        Parse the given sentence. This function is just an alias for
+        `parse_sentence`.
+        """
+        return self.parse_sentence(tokens, return_tokens)
+    
+    def parse_sentence(self, tokens, return_tokens=False):
+        """
+        Parse the given sentence. It must be already tokenized; if you
+        want nlpnet to tokenize the text, use the method `parse` instead.
+        
+        :param tokens: a list of strings
+        :param return_tokens: if True, returns tuples (token, head). If False,
+            only return the heads.
+        """
+        converter = self.reader.converter
+        tokens_obj = []
+        for token in tokens:
+            word, pos = token.split('_')
+            word = utils.clean_text(word, False)
+            tokens_obj.append(attributes.Token(word, pos=pos))
+        
+        converted_tokens = np.array([converter.convert(token) 
+                                     for token in tokens_obj])
+        answer = self.nn.tag_sentence(converted_tokens)
+        
+        if return_tokens:
+            return zip(tokens, answer)
+        
+        return answer
+    
+    def tag(self, text):
+        """
+        Parse the given text. This is just an alias for the 
+        `parse` method.
+        """
+        return self.parse(text)
         
 
 class POSTagger(Tagger):
