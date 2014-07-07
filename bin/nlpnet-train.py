@@ -56,6 +56,8 @@ def create_reader(args):
     else:
         raise ValueError("Unknown task: %s" % args.task)
     
+    text_reader.load_or_create_dictionary()
+    text_reader.load_or_create_tag_dict()
     return text_reader
     
 

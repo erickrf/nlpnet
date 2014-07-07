@@ -8,6 +8,7 @@ from collections import defaultdict
 import cPickle
 import logging
 import re
+import os
 import numpy as np
 from itertools import izip
 
@@ -15,7 +16,7 @@ from .. import config
 from .. import attributes
 from .. import utils
 from ..word_dictionary import WordDictionary
-from ..reader import TaggerReader
+from .. import reader
 
 class ConllPos(object):
     """
@@ -31,7 +32,7 @@ class ConllPos(object):
     pred = 8
     semantic_role = 9
 
-class SRLReader(TaggerReader):
+class SRLReader(reader.TaggerReader):
     
     def __init__(self, filename=None, only_boundaries=False, 
                  only_classify=False, only_predicates=False):
@@ -52,16 +53,13 @@ class SRLReader(TaggerReader):
             self._generate_iobes_dictionary()
         elif only_classify:
             self.task = 'srl_classify'
-            self.load_tag_dict(iob=False)
         elif only_predicates:
             self.task = 'srl_predicates'
             self._generate_predicate_id_dictionary()
         else:
             self.task = 'srl'
-            self.load_tag_dict(iob=True)
             
         self.rare_tag = 'O'
-        self.load_dictionary()
         
         if filename is not None:
             self._read_conll(filename)
@@ -187,6 +185,62 @@ class SRLReader(TaggerReader):
         self.sentences.extend([(sent, tags) for sent, tags, _ in data])
         self.predicates.extend([np.array(preds) for _, _, preds in data])
     
+    def load_or_create_tag_dict(self):
+        """
+        In the case of SRL argument classification or one step SRL, try to 
+        load the tag dictionary. If the file with the tags is not present,
+        a new one is created from the available sentences. 
+        
+        In the case of argument detection or predicate detection, 
+        this function does nothing.
+        """
+        if self.task == 'srl_predicates' or self.task == 'srl_boundary':
+            return
+        
+        # only SRL as one step uses IOB tags
+        iob = self.task == 'srl'
+        if os.path.isfile(config.FILES['srl_tags']):
+            self.load_tag_dict(iob=iob)
+            return
+        
+        self._create_tag_dict(iob)
+    
+    def _create_tag_dict(self, iob=False):
+        """
+        Examine the available sentences and create a tag dictionary.
+        
+        :param iob: If True, this function will generate an entry for B-[tag] 
+            and one for I-[tag], except for the tag 'O'.
+        """
+        logger = logging.getLogger("Logger")
+        tags = {tag
+                for _, tag_groups in self.sentences
+                for tags in tag_groups
+                for tag in tags}
+        
+        # create a dictionary now even if uses IOB, in order to save it in 
+        # a deterministic order
+        self.tag_dict = {tag: code for code, tag in enumerate(tags)}
+        reader.save_tag_dict(self.tag_dict, config.FILES['srl_tags'])
+        logger.debug("Saved SRL tag dictionary.")
+        if not iob:
+            return
+        
+        # insert I- and B- preserving the ordering
+        new_dict = {}
+        code = 0
+        for tag in sorted(self.tag_dict, key=self.tag_dict.get):
+            if tag == 'O':
+                new_dict[tag] = code
+            else:
+                new_dict['B-%s' % tag] = code
+                code += 1
+                new_dict['I-%s' % tag] = code
+                
+            code += 1
+        
+        self.tag_dict = new_dict
+    
     def load_tag_dict(self, filename=None, iob=False):
         """
         Loads the tag dictionary from the default file. The dictionary file should
@@ -235,7 +289,7 @@ class SRLReader(TaggerReader):
         """
         self.tag_dict = {'O': 0, 'V': 1}
     
-    def generate_dictionary(self, dict_size=None, minimum_occurrences=None):
+    def generate_dictionary(self, dict_size=None, minimum_occurrences=2):
         """
         Generates a token dictionary based on the given sentences.
         
@@ -244,12 +298,11 @@ class SRLReader(TaggerReader):
             appear in the text in order to be included in the dictionary.
         """
         logger = logging.getLogger("Logger")
-        logger.info("Creating dictionary...")
-        
-        all_tokens = [tokens for sent in self.sentences for tokens, _ in sent]
+        all_tokens = [token.word
+                      for tokens, _ in self.sentences
+                      for token in tokens]
         self.word_dict = WordDictionary(all_tokens, dict_size, minimum_occurrences)
-            
-        logger.info("Done. Dictionary size is %d tokens" % self.word_dict.num_tokens)
+        logger.info("Created dictionary with %d tokens" % self.word_dict.num_tokens)
     
     def _clean_text(self):
         """
