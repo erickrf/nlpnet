@@ -249,6 +249,9 @@ class SRLReader(reader.TaggerReader):
         :param iob: If True, this function will generate an entry for B-[tag] 
             and one for I-[tag], except for the tag 'O'.
         """
+        if self.task == 'srl_predicates' or self.task == 'srl_boundary':
+            return
+        
         if filename is None:
             filename = config.FILES['srl_tags']
         

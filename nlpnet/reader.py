@@ -23,7 +23,7 @@ def load_tag_dict(filename):
     tag_dict = {}
     with open(filename, 'rb') as f:
         code = 0
-        for tag in enumerate(f):
+        for tag in f:
             tag = unicode(tag, 'utf-8').strip()
             if tag:
                 tag_dict[tag] = code
