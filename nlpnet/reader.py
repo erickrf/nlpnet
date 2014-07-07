@@ -31,7 +31,7 @@ def load_tag_dict(filename):
     
     return tag_dict
 
-def save_tag_dict(tag_dict, filename):
+def save_tag_dict(filename, tag_dict):
     """
     Save the given tag dictionary to the given file. Dictionary
     is saved with one tag per line, in the order of their codes.
@@ -273,7 +273,7 @@ class TaggerReader(TextReader):
         c = Counter(tag for sent in self.sentences for _, tag in sent)
         return c
     
-    def save_tag_dict(self, tag_dict=None, filename=None):
+    def save_tag_dict(self, filename=None, tag_dict=None):
         """
         Saves a tag dictionary to a file as a list of tags.
         
@@ -288,7 +288,7 @@ class TaggerReader(TextReader):
             key = '%s_tag_dict' % self.task
             filename = config.FILES[key]
         
-        save_tag_dict(tag_dict, filename)
+        save_tag_dict(filename, tag_dict)
     
     def load_tag_dict(self, filename=None):
         """

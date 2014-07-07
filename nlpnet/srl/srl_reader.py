@@ -221,7 +221,7 @@ class SRLReader(reader.TaggerReader):
         # create a dictionary now even if uses IOB, in order to save it in 
         # a deterministic order
         self.tag_dict = {tag: code for code, tag in enumerate(tags)}
-        reader.save_tag_dict(self.tag_dict, config.FILES['srl_tags'])
+        reader.save_tag_dict(config.FILES['srl_tags'], self.tag_dict)
         logger.debug("Saved SRL tag dictionary.")
         if not iob:
             return
