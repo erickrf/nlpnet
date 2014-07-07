@@ -114,11 +114,7 @@ class TextReader(object):
         if filename is None:
             filename = config.FILES['vocabulary']
         
-        with open(filename, 'wb') as f:
-            for word in self.word_dict:
-                line = '%s\n' % word
-                f.write(line.encode('utf-8'))
-            
+        self.word_dict.save(filename)
         logger.info("Dictionary saved in %s" % filename)
     
     def codify_sentences(self):
@@ -213,7 +209,7 @@ class TaggerReader(TextReader):
         
         tags = {tag for sent in self.sentences for _, tag in sent}
         self.tag_dict = {tag: code for code, tag in enumerate(tags)}
-        self.save_dictionary(filename)
+        self.save_tag_dict(filename)
     
     def generate_dictionary(self, dict_size=None, minimum_occurrences=2):
         """
