@@ -392,7 +392,8 @@ class SRLReader(reader.TaggerReader):
             
             if self.task == 'srl_predicates':    
                 sentence_tags = np.zeros(len(sent), np.int)
-                sentence_tags[preds] = 1
+                if len(preds) > 0:
+                    sentence_tags[preds] = 1
             else:
                 for prop in props:
                     # for classifying arguments, leave the names. they will be changed later
