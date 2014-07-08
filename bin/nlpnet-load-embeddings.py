@@ -107,7 +107,7 @@ def read_gensim_embeddings(filename):
     import gensim
     model = gensim.models.Word2Vec.load(filename)
     matrix = model.syn0
-    vocab_size, num_features = feature_table.shape
+    vocab_size, num_features = matrix.shape
 
     # create 2 vectors to represent the padding and one for rare words, 
     # if there isn't one already
@@ -116,9 +116,12 @@ def read_gensim_embeddings(filename):
     matrix = np.concatenate((matrix, extra_vectors))
     
     vocab = model.vocab
-    sorted_words = sorted(vocab, key=lambda x: vocab[x].index)
+    # gensim saves words in UTF-8. We convert to unicode here for consistency
+    # with the rest of the script
+    sorted_words = [unicode(word, 'utf-8') for word in sorted(vocab, key=lambda x: vocab[x].index)]
     
     return matrix, sorted_words
+
 
 if __name__ == '__main__':
     
