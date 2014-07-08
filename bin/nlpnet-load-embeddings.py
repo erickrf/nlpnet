@@ -71,6 +71,55 @@ def read_senna_vocabulary(filename):
     return words
 
 
+def read_w2e_vocabulary(filename):
+    """
+    Read the vocabulary used with word2embeddings. It is the same as a plain
+    text vocabulary, except the embeddings for the rare/unknown word correspond
+    to the first vocabulary item (before the word in the actual file).
+    """
+    words = read_plain_vocabulary(filename)
+    words.insert(0, nlpnet.word_dictionary.WordDictionary.rare)
+    return words
+
+
+def read_w2e_embeddings(filename):
+    """
+    Load the feature matrix used by word2embeddings.
+    """
+    import cPickle
+    
+    with open(filename, 'rb') as f:
+        model = cPickle.load(f)
+    matrix = model.get_word_embeddings()
+
+    # remove <s>, </s> and <padding>
+    matrix = np.append([matrix[0]], matrix[4:], axis=0)
+    new_vectors = nlpnet.utils.generate_feature_vectors(2,
+                                                        matrix.shape[1])
+    matrix = np.append(matrix, new_vectors, axis=0)
+    return matrix
+
+
+def read_gensim_embeddings(filename):
+    """
+    Load the feature matrix used by gensim.
+    """
+    import gensim
+    model = gensim.models.Word2Vec.load(filename)
+    matrix = model.syn0
+    vocab_size, num_features = feature_table.shape
+
+    # create 2 vectors to represent the padding and one for rare words, 
+    # if there isn't one already
+    num_extra_vectors = 2 if '*RARE*' in model else 3
+    extra_vectors = nlpnet.utils.generate_feature_vectors(num_extra_vectors, num_features)
+    matrix = np.concatenate((matrix, extra_vectors))
+    
+    vocab = model.vocab
+    sorted_words = sorted(vocab, key=lambda x: vocab[x].index)
+    
+    return matrix, sorted_words
+
 if __name__ == '__main__':
     
     epilog = '''
@@ -84,12 +133,18 @@ This script can deal with the following formats:
     senna - the one used by the SENNA system by Ronan Collobert.
         Same as plain, except it includes special words PADDING
         and UNKNOWN.
+    
+    gensim - a file format saved by the gensim library. It doesn't
+        have a separate vocabulary file.
+    
+    word2embeddings - format used by the neural language model from
+        word2embeddings (used in polyglot).
         '''
     
     parser = argparse.ArgumentParser(description=__doc__, epilog=epilog,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('type', help='Format of the embeddings. See the description below.', 
-                        choices=['senna', 'plain'])
+                        choices=['plain', 'senna', 'gensim', 'word2embeddings'])
     parser.add_argument('embeddings', help='File containing the actual embeddings')
     parser.add_argument('-v', help='Vocabulary file, if applicable. '\
                         'In SENNA, it is hash/words.lst', dest='vocabulary')
@@ -119,7 +174,11 @@ This script can deal with the following formats:
     elif args.type == 'plain':
         words = read_plain_vocabulary(args.vocabulary)
         matrix = read_plain_embeddings(args.embeddings)
-    
+    elif args.type == 'gensim':
+        matrix, words = read_gensim_embeddings(args.embeddings)
+    elif args.type == 'word2embeddings':
+        words = read_w2e_vocabulary(args.vocabulary)
+        matrix = read_w2e_embeddings(args.embeddings)
         
     wd = nlpnet.word_dictionary.WordDictionary.init_from_wordlist(words)
     
