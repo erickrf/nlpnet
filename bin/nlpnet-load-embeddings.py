@@ -55,6 +55,11 @@ def read_senna_vocabulary(filename):
     This function replaces these special words by the ones used in nlpnet.
     """
     words = read_plain_vocabulary(filename)
+    
+    # senna replaces all digits for 0, but nlpnet uses 9
+    for i, word in enumerate(words):
+        words[i] = word.replace('0', '9')
+    
     index_padding = words.index('PADDING')
     index_rare = words.index('UNKNOWN')
     
