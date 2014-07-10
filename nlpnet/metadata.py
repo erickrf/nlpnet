@@ -25,7 +25,7 @@ class Metadata(object):
         self.use_prefix = use_prefix
         self.use_pos = use_pos
         self.use_chunk = use_chunk
-        self.use_lemma = use_lemma
+        self.use_lemma =use_lemma
         self.metadata = 'metadata_%s' % task
         self.network = 'network_%s' % task
         self.tag_dict = '%s_tag_dict' % task

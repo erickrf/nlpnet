@@ -39,12 +39,6 @@ def create_reader(args):
         text_reader = srl.srl_reader.SRLReader(filename=args.gold, only_boundaries=args.identify, 
                                                only_classify=args.classify,
                                                only_predicates=args.predicates)
-    
-        if args.semi:
-            # load data for semi supervised learning
-            data = read_data.read_plain_srl(args.semi)
-            text_reader.extend(data)    
-    
         if args.identify:
             # only identify arguments
             text_reader.convert_tags('iobes', only_boundaries=True)
@@ -102,7 +96,7 @@ def create_network(args, text_reader, feature_tables, md=None):
     nn.learning_rate = args.learning_rate
     nn.learning_rate_features = args.learning_rate_features
     
-    if args.convolution > 0 and args.hidden > 0:
+    if 'convolution' in args and args.convolution > 0 and args.hidden > 0:
         layer_sizes = (nn.input_size, nn.hidden_size, nn.hidden2_size, nn.output_size)
     else:
         layer_sizes = (nn.input_size, nn.hidden_size, nn.output_size)
@@ -160,6 +154,18 @@ def load_network_train(args, md):
     
     return nn
 
+def create_metadata(args):
+    """Creates a Metadata object from the given arguments."""
+    # using getattr because the SRL args object doesn't have a "suffix" attribute
+    use_caps = getattr(args, 'caps', False)
+    use_suffix = getattr(args, 'suffix', False)
+    use_prefix = getattr(args, 'prefix', False)
+    use_pos = getattr(args, 'pos', False)
+    use_chunk = getattr(args, 'chunk', False)
+    
+    return metadata.Metadata(args.task, use_caps, use_suffix, use_prefix, 
+                             use_pos, use_chunk)
+
 def train(reader, args):
     """Trains a neural network for the selected task."""
     intervals = max(args.iterations / 200, 1)
@@ -178,7 +184,6 @@ def train(reader, args):
 
 if __name__ == '__main__':
     args = arguments.get_args()
-    args = arguments.check_arguments(args)
 
     logging_level = logging.DEBUG if args.verbose else logging.INFO
     utils.set_logger(logging_level)
@@ -187,17 +192,9 @@ if __name__ == '__main__':
     config.set_data_dir(args.data)
     text_reader = create_reader(args)
     
-    use_caps = args.caps is not None
-    use_suffix = args.suffix is not None
-    use_prefix = args.prefix is not None
-    use_pos = args.pos is not None
-    use_chunk = args.chunk is not None
-    use_lemma = args.use_lemma
-    
     if not args.load_network:
         # if we are about to create a new network, create the metadata too
-        md = metadata.Metadata(args.task, use_caps, use_suffix, use_prefix, 
-                               use_pos, use_chunk, use_lemma)
+        md = create_metadata(args)
         md.save_to_file()
     else:
         md = metadata.Metadata.load_from_file(args.task)
@@ -205,7 +202,7 @@ if __name__ == '__main__':
     text_reader.create_converter(md)
     text_reader.codify_sentences()
     
-    if args.load_network or args.semi:
+    if args.load_network:
         logger.info("Loading provided network...")
         nn = load_network_train(args, md)
     else:
@@ -214,6 +211,9 @@ if __name__ == '__main__':
         nn = create_network(args, text_reader, feature_tables, md)
     
     logger.info("Starting training with %d sentences" % len(text_reader.sentences))
+    logger.info("Network connection learning rate: %f" % nn.learning_rate)
+    logger.info("Feature vectors learning rate: %f" % nn.learning_rate_features)
+    logger.info("Tag transition matrix learning rate: %f" % nn.learning_rate_trans)
     train(text_reader, args)
     
     logger.info("Saving trained models...")
