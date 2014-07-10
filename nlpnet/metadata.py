@@ -17,9 +17,10 @@ class Metadata(object):
     parameter files.
     """
     
-    def __init__(self, task, use_caps=True, use_suffix=False, use_prefix=False,
+    def __init__(self, task, paths = None, use_caps=True, use_suffix=False, use_prefix=False,
                  use_pos=False, use_chunk=False, use_lemma=False):
         self.task = task
+        self.paths = paths if paths else config.FILES
         self.use_caps = use_caps
         self.use_suffix = use_suffix
         self.use_prefix = use_prefix
@@ -84,25 +85,23 @@ class Metadata(object):
         Save the contents of the metadata to a file. The filename is determined according
         to the task.
         """
-        filename = 'metadata-%s.pickle' % self.task.replace('_', '-')
-        filename = os.path.join(config.data_dir, filename)
-        with open(filename, 'wb') as f:
-            cPickle.dump(self.__dict__, f, 2)
+        save_data = self.__dict__.copy()
+        del(save_data['paths'])
+        with open(self.paths['metadata_%s' % self.task], 'wb') as f:
+            cPickle.dump(save_data, f, 2)
     
     @classmethod
-    def load_from_file(cls, task):
+    def load_from_file(cls, task, paths = None):
         """
         Reads the file containing the metadata for the given task and returns a 
         Metadata object.
         """
         # the actual content of the file is the __dict__ member variable, which contain all
         # the instance's data
-        filename = os.path.join(config.data_dir, 
-                                'metadata-%s.pickle' % task.replace('_', '-'))
-        md = Metadata(None)
-        with open(filename, 'rb') as f:
-            data = cPickle.load(f)
+        md = Metadata(None, paths if paths else config.FILES)
         
+        with open(paths['metadata_%s' % task], 'rb') as f:
+            data = cPickle.load(f)
         md.__dict__.update(data)
         
         return md

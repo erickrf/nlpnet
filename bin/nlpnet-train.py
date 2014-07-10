@@ -27,16 +27,16 @@ from nlpnet.network import Network, ConvolutionalNetwork
 ### FUNCTION DEFINITIONS ###
 ############################
 
-def create_reader(args):
+def create_reader(args, md):
     """
     Creates and returns a TextReader object according to the task at hand.
     """
     logger.info("Reading text...")
     if args.task == 'pos':
-        text_reader = pos.pos_reader.POSReader(filename=args.gold)
+        text_reader = pos.pos_reader.POSReader(md, filename=args.gold)
     
     elif args.task.startswith('srl'):
-        text_reader = srl.srl_reader.SRLReader(filename=args.gold, only_boundaries=args.identify, 
+        text_reader = srl.srl_reader.SRLReader(md, filename=args.gold, only_boundaries=args.identify, 
                                                only_classify=args.classify,
                                                only_predicates=args.predicates)
     
@@ -185,7 +185,6 @@ if __name__ == '__main__':
     logger = logging.getLogger("Logger")
 
     config.set_data_dir(args.data)
-    text_reader = create_reader(args)
     
     use_caps = args.caps is not None
     use_suffix = args.suffix is not None
@@ -196,13 +195,14 @@ if __name__ == '__main__':
     
     if not args.load_network:
         # if we are about to create a new network, create the metadata too
-        md = metadata.Metadata(args.task, use_caps, use_suffix, use_prefix, 
+        md = metadata.Metadata(args.task, None, use_caps, use_suffix, use_prefix, 
                                use_pos, use_chunk, use_lemma)
         md.save_to_file()
     else:
         md = metadata.Metadata.load_from_file(args.task)
-    
-    text_reader.create_converter(md)
+        
+    text_reader = create_reader(args, md)
+    text_reader.create_converter()
     text_reader.codify_sentences()
     
     if args.load_network or args.semi:

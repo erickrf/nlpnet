@@ -10,8 +10,9 @@ import logging
 import numpy as np
 from collections import Counter
 
-import config
 import attributes
+import metadata
+import config
 from word_dictionary import WordDictionary
 from attributes import get_capitalization
 
@@ -44,13 +45,14 @@ def save_tag_dict(filename, tag_dict):
 
 class TextReader(object):
     
-    def __init__(self, sentences=None, filename=None):
+    def __init__(self, md=None, sentences=None, filename=None):
         """
         :param sentences: A list of lists of tokens.
         :param filename: Alternatively, the name of the file from where sentences 
             can be read. The file should have one sentence per line, with tokens
             separated by white spaces.
         """
+        
         if sentences is not None:
             self.sentences = sentences
         else:
@@ -62,7 +64,15 @@ class TextReader(object):
                     
         self.converter = None
         self.task = 'lm'
+        self._set_metadata(md)
     
+    def _set_metadata(self, md):
+        if md is None:
+            #metadata not provided = using global data_dir for files
+            self.md = metadata.Metadata(self.task, config.FILES)
+        else:
+            self.md = md
+        
     def add_text(self, text):
         """
         Adds more text to the reader. The text must be a sequence of sequences of 
@@ -74,7 +84,7 @@ class TextReader(object):
         """Read a file with a word list and create a dictionary."""
         logger = logging.getLogger("Logger")
         logger.info("Loading vocabulary")
-        filename = config.FILES['vocabulary']
+        filename = self.md.paths['vocabulary']
         
         words = []
         with open(filename, 'rb') as f:
@@ -112,7 +122,7 @@ class TextReader(object):
         """
         logger = logging.getLogger("Logger")
         if filename is None:
-            filename = config.FILES['vocabulary']
+            filename = self.md.paths['vocabulary']
         
         self.word_dict.save(filename)
         logger.info("Dictionary saved in %s" % filename)
@@ -129,7 +139,7 @@ class TextReader(object):
         
         self.sentences = new_sentences
     
-    def create_converter(self, metadata):
+    def create_converter(self):
         """
         Sets up the token converter, which is responsible for transforming tokens into their
         feature vector indices
@@ -140,7 +150,7 @@ class TextReader(object):
             The parameter affix should be 'suffix' or 'prefix'.
             """
             loader_function = getattr(attributes.Affix, 'load_%ses' % affix)
-            loader_function()
+            loader_function(self.md)
             
             # deal with gaps between sizes (i.e., if there are sizes 2, 3, and 5)
             codes = getattr(attributes.Affix, '%s_codes' % affix)
@@ -158,11 +168,11 @@ class TextReader(object):
         
         self.converter = attributes.TokenConverter()
         self.converter.add_extractor(self.word_dict.get)
-        if metadata.use_caps:
+        if self.md.use_caps:
             self.converter.add_extractor(get_capitalization)
-        if metadata.use_prefix:
+        if self.md.use_prefix:
             add_affix_extractors('prefix')
-        if metadata.use_suffix:
+        if self.md.use_suffix:
             add_affix_extractors('suffix')
         
 
@@ -172,7 +182,7 @@ class TaggerReader(TextReader):
     for tagging tasks. 
     """
     
-    def __init__(self, load_dictionaries=True):
+    def __init__(self, md=None, load_dictionaries=True):
         '''
         This class shouldn't be used directly. The constructor only
         provides method calls for subclasses.
@@ -180,6 +190,9 @@ class TaggerReader(TextReader):
         if load_dictionaries:
             self.load_dictionary()
             self.load_tag_dict()
+        
+        self.task = None
+        self._set_metadata(md)
         
         self.codified = False
     
@@ -189,7 +202,7 @@ class TaggerReader(TextReader):
         file is not available, create a new one from the sentences available
         and save it.
         """
-        if os.path.isfile(config.FILES['vocabulary']):
+        if os.path.isfile(self.md.paths['vocabulary']):
             self.load_dictionary()
             return
         
@@ -202,7 +215,7 @@ class TaggerReader(TextReader):
         file is not available, scan the available sentences and create a new one. 
         """
         key = '%s_tag_dict' % self.task
-        filename = config.FILES[key]
+        filename = self.md.paths[key]
         if os.path.isfile(filename):
             self.load_tag_dict(filename)
             return
@@ -286,7 +299,7 @@ class TaggerReader(TextReader):
             tag_dict = self.tag_dict
         if filename is None:
             key = '%s_tag_dict' % self.task
-            filename = config.FILES[key]
+            filename = self.md.paths[key]
         
         save_tag_dict(filename, tag_dict)
     
@@ -297,7 +310,7 @@ class TaggerReader(TextReader):
         """
         if filename is None:
             key = '%s_tag_dict' % self.task
-            filename = config.FILES[key]
+            filename = self.md.paths[key]
             
         self.tag_dict = load_tag_dict(filename)
     
