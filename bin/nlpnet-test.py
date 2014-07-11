@@ -224,7 +224,7 @@ def evaluate_srl_classify(no_repeat=False, gold_file=None):
     md = Metadata.load_from_file('srl_classify')
     nn = taggers.load_network(md)
     r = taggers.create_reader(md, gold_file)
-    r.create_converter(md)
+    r.create_converter()
     
     r.codify_sentences()
     hits = 0
