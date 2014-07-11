@@ -30,13 +30,14 @@ class ConllPos(object):
 
 class DependencyReader(reader.TaggerReader):
 
-    def __init__(self, filename=None):
+    def __init__(self, md=None, filename=None):
         '''
         Constructor
         '''
         if filename is not None:
             self._read_conll(filename)
         
+        self._set_metadata(md)
         self.task = 'dependency'
         self.load_dictionary()
         self.rare_tag = None

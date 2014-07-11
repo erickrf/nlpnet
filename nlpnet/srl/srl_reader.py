@@ -12,7 +12,6 @@ import os
 import numpy as np
 from itertools import izip
 
-from .. import config
 from .. import attributes
 from .. import utils
 from ..word_dictionary import WordDictionary
@@ -34,7 +33,7 @@ class ConllPos(object):
 
 class SRLReader(reader.TaggerReader):
     
-    def __init__(self, filename=None, only_boundaries=False, 
+    def __init__(self, md=None, filename=None, only_boundaries=False, 
                  only_classify=False, only_predicates=False):
         """
         The reader will read sentences from a given file. This file must
@@ -48,6 +47,7 @@ class SRLReader(reader.TaggerReader):
         :param only_classify: train to classify pre-determined argument
         :param only_predicates: train to identify only predicates
         """
+        
         if only_boundaries:
             self.task = 'srl_boundary'
             self._generate_iobes_dictionary()
@@ -58,7 +58,9 @@ class SRLReader(reader.TaggerReader):
             self._generate_predicate_id_dictionary()
         else:
             self.task = 'srl'
-            
+        
+        self._set_metadata(md)
+        
         self.rare_tag = 'O'
         
         if filename is not None:
@@ -198,7 +200,7 @@ class SRLReader(reader.TaggerReader):
         
         # only SRL as one step uses IOB tags
         iob = self.task == 'srl'
-        if os.path.isfile(config.FILES['srl_tags']):
+        if os.path.isfile(self.md.paths['srl_tags']):
             self.load_tag_dict(iob=iob)
             return
         
@@ -220,7 +222,7 @@ class SRLReader(reader.TaggerReader):
         # create a dictionary now even if uses IOB, in order to save it in 
         # a deterministic order
         self.tag_dict = {tag: code for code, tag in enumerate(tags)}
-        reader.save_tag_dict(config.FILES['srl_tags'], self.tag_dict)
+        reader.save_tag_dict(self.md.paths['srl_tags'], self.tag_dict)
         logger.debug("Saved SRL tag dictionary.")
         if not iob:
             return
@@ -252,7 +254,7 @@ class SRLReader(reader.TaggerReader):
             return
         
         if filename is None:
-            filename = config.FILES['srl_tags']
+            filename = self.md.paths['srl_tags']
         
         if not iob:
             super(SRLReader, self).load_tag_dict(filename)
@@ -319,14 +321,14 @@ class SRLReader(reader.TaggerReader):
                 token.lemma = new_lemma
                 sent[i] = token
 
-    def create_converter(self, metadata):
+    def create_converter(self):
         """
         This function overrides the TextReader's one in order to deal with Token
         objects instead of raw strings.
         """
         self.converter = attributes.TokenConverter()
         
-        if metadata.use_lemma:
+        if self.md.use_lemma:
             # look up word lemmas 
             word_lookup = lambda t: self.word_dict.get(t.lemma)
         else:
@@ -335,12 +337,12 @@ class SRLReader(reader.TaggerReader):
              
         self.converter.add_extractor(word_lookup)
         
-        if metadata.use_caps:
+        if self.md.use_caps:
             caps_lookup = lambda t: attributes.get_capitalization(t.word)
             self.converter.add_extractor(caps_lookup)
         
-        if metadata.use_pos:
-            with open(config.FILES['pos_tag_dict']) as f:
+        if self.md.use_pos:
+            with open(self.md.paths['pos_tag_dict']) as f:
                 pos_dict = cPickle.load(f)
                 
             pos_def_dict = defaultdict(lambda: pos_dict['other'])
@@ -348,8 +350,8 @@ class SRLReader(reader.TaggerReader):
             pos_lookup = lambda t: pos_def_dict[t.pos]
             self.converter.add_extractor(pos_lookup)
         
-        if metadata.use_chunk:
-            with open(config.FILES['chunk_tag_dict']) as f:
+        if self.md.use_chunk:
+            with open(self.md.paths['chunk_tag_dict']) as f:
                 chunk_dict = cPickle.load(f)
             
             chunk_def_dict = defaultdict(lambda: chunk_dict['O'])

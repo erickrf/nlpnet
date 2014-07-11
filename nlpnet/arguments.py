@@ -135,7 +135,7 @@ Type %(prog)s [SUBTASK] -h to get subtask-specific help.'''
                                                description=desc)
     srl_subparsers.add_parser('pred', help='Predicate identification',
                               parents=[base_parser])
-    defaults['srl_predicates'] = dict(window=5, hidden=100, iterations=1, 
+    defaults['srl_predicates'] = dict(window=5, hidden=50, iterations=1, 
                                       learning_rate=0.01, learning_rate_features=0.01,
                                       learning_rate_transitions=0.01,
                                       predicates=True)

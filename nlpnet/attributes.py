@@ -3,7 +3,6 @@
 import logging
 import numpy as np
 
-import config
 from word_dictionary import WordDictionary as WD
 from collections import defaultdict
 
@@ -49,22 +48,22 @@ class Affix(object):
     num_prefixes_per_size = {}
     
     @classmethod
-    def load_suffixes(cls):
+    def load_suffixes(cls, md):
         """
         Loads suffixes from the suffix file.
         """
-        cls.load_affixes(cls.suffix_codes, config.FILES['suffixes'])
+        cls.load_affixes(cls.suffix_codes, md.paths['suffixes'])
         
         # +1 because of the unkown suffix code
         cls.num_suffixes_per_size = {size: len(cls.suffix_codes[size]) + 1
                                      for size in cls.suffix_codes}
     
     @classmethod
-    def load_prefixes(cls):
+    def load_prefixes(cls, md):
         """
         Loads prefixes from the prefix file.
         """
-        cls.load_affixes(cls.prefix_codes, config.FILES['prefixes'])
+        cls.load_affixes(cls.prefix_codes, md.paths['prefixes'])
         
         # +1 because of the unkown prefix code
         cls.num_prefixes_per_size = {size: len(cls.prefix_codes[size]) + 1
