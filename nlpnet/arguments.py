@@ -97,12 +97,18 @@ def get_args():
     # POS argument parser
     parser_pos = subparsers.add_parser('pos', help='POS tagging', 
                                        parents=[base_parser])
-    parser_pos.add_argument('--suffix', const=5, nargs='?', type=int, default=None,
+    parser_pos.add_argument('--suffix', const=2, nargs='?', type=int, default=None,
                             help='Include suffix features. Optionally, '\
-                            'supply the number of features (default 5)')
-    parser_pos.add_argument('--prefix', const=5, nargs='?', type=int, default=None,
+                            'supply the number of features (default 2)')
+    parser_pos.add_argument('--suffix_size', type=int, default=5,
+                            help='Use suffixes up to this size (in characters, default 5). '\
+                            'Only used if --suffix is supplied')
+    parser_pos.add_argument('--prefix', const=2, nargs='?', type=int, default=None,
                             help='Include prefix features. Optionally, '\
-                            'supply the number of features (default 5)')
+                            'supply the number of features (default 2)')
+    parser_pos.add_argument('--prefix_size', type=int, default=5,
+                            help='Use prefixes up to this size (in characters, default 5). '\
+                            'Only used if --suffix is supplied')
     defaults['pos'] = dict(window=5, hidden=100, iterations=15, 
                            learning_rate=0.001, learning_rate_features=0.001,
                            learning_rate_transitions=0.001)

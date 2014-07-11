@@ -15,7 +15,7 @@ POS
   **Performance:** 97.25% token accuracy, 93.56% out-of-vocabulary token accuracy (evaluated on the revised `Mac-Morpho`_ test section)
 
 `Non-caps POS tagger <http://nilc.icmc.usp.br/nlpnet/nlpnet-pos-nocaps.zip>`_
-  This model is usually better to tag text where capital letters are not used consistently. It performs a little worse than the above model, but its accuracy is still state-of-the-art as long as non-caps models are concerned.
+  This model is usually better to tag text where capital letters are not used consistently. It performs a little worse than the above model, but its accuracy is still state-of-the-art as far as non-caps models are concerned.
   
   **Performance:** 96.02% token accuracy, 88.88% out-of-vocabulary token accuracy (evaluated on the revised `Mac-Morpho`_ test section)
 

@@ -34,6 +34,10 @@ def create_reader(args):
     logger.info("Reading text...")
     if args.task == 'pos':
         text_reader = pos.pos_reader.POSReader(filename=args.gold)
+        if args.suffix:
+            text_reader.create_suffix_list(args.suffix_size, 5)
+        if args.prefix:
+            text_reader.create_prefix_list(args.prefix_size, 5)
     
     elif args.task.startswith('srl'):
         text_reader = srl.srl_reader.SRLReader(filename=args.gold, only_boundaries=args.identify, 

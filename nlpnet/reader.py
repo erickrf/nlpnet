@@ -129,6 +129,56 @@ class TextReader(object):
         
         self.sentences = new_sentences
     
+    def create_suffix_list(self, max_size, min_occurrences):
+        """
+        Check if there exists a suffix list in the data directory. If there isn't,
+        create a new one based on the training sentences.
+        """
+        if os.path.isfile(config.FILES['suffixes']):
+            return
+        
+        logger = logging.getLogger("Logger")
+        suffixes_all_lengths = []
+        # only get the suffix size n from words with length at least (n+1)
+        types = {token.lower() for sent in self.sentences for token, _ in sent}
+        for length in range(1, max_size + 1):
+            c = Counter(type_[-length:]
+                        for type_ in types
+                        if len(type_) > length)
+            suffixes_this_length = [suffix for suffix in c 
+                                    if c[suffix] >= min_occurrences]
+            suffixes_all_lengths.extend(suffixes_this_length)
+        
+        logger.info('Created a list of %d sufixes.' % len(suffixes_all_lengths))
+        text = '\n'.join(suffixes_all_lengths)
+        with open(config.FILES['suffixes'], 'wb') as f:
+            f.write(text.encode('utf-8'))
+    
+    def create_prefix_list(self, max_size, min_occurrences):
+        """
+        Check if there exists a prefix list in the data directory. If there isn't,
+        create a new one based on the training sentences.
+        """
+        if os.path.isfile(config.FILES['prefixes']):
+            return
+        
+        logger = logging.getLogger("Logger")
+        prefixes_all_lengths = []
+        # only get the prefix size n from words with length at least (n+1)
+        types = {token.lower() for sent in self.sentences for token, _ in sent}
+        for length in range(1, max_size + 1):
+            c = Counter(type_[:length]
+                        for type_ in types
+                        if len(type_) > length)
+            prefixes_this_length = [prefix for prefix in c 
+                                    if c[prefix] >= min_occurrences]
+            prefixes_all_lengths.extend(prefixes_this_length)
+        
+        logger.info('Created a list of %d prefixes.' % len(prefixes_all_lengths))
+        text = '\n'.join(prefixes_all_lengths)
+        with open(config.FILES['prefixes'], 'wb') as f:
+            f.write(text.encode('utf-8'))
+    
     def create_converter(self, metadata):
         """
         Sets up the token converter, which is responsible for transforming tokens into their
