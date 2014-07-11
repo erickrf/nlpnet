@@ -9,8 +9,11 @@ copied to the `scripts` subdirectory of your Python installation, which can be i
 in the system PATH variable. There are three such scripts:
 
 **nlpnet-train**
-  Script to train a new model or further train an existing one.
+  Script to train a new model or further train an existing one. See :ref:`training` for detailed information on how to use it.
 
+**nlpnet-load-embeddings**
+  Script to load word embeddings trained externally. It accepts different formats. See :ref:`embeddings` for detailed information on how to use it.
+  
 **nlpnet-test**
   Script to measure the performance of a model against a gold data set.
 
@@ -61,56 +64,6 @@ Or with semantic role labeling:
         V: roeu
 
 The first line was typed by the user, and the second one is the result of tokenization.
-
-
-
-nlpnet-train
-============
-
-There are a lot of training parameters that can be supplied to :mod:`nlpnet`. Some of them depend
-on the task that the network is being trained for, as the type of network can be a simple MLP
-for POS tagging and a convolutional network for SRL.
-
-General Options
----------------
-
-These options can be used in either POS or SRL training.
-
--w NUMBER  The size of the word window. For SRL, the supplied model used 3, and for POS, 5. It is important to have a reasonably large window in POS so the tagger can analyze the context.
--n NUMBER  Number of hidden neurons.
--f NUMBER  Generates feature vectors randomly with the given number of dimensions for words. Ignore it if you supply pre-initialized representations.
---load_features  Loads the features vectors representing words. The file containing the data must be set in config.py and be in the data/ directory. Nlpnet uses numpy files for storing representations as 2-dimensional arrays.
--e NUMBER  Number of epochs to train the network.
--l NUMBER  The learning rate for network weights.
---lf NUMBER  The learning rate for features (including extra features like the ones from ``--caps``).
---lt NUMBER  The learning rate for the tag transition scores.
---caps NUMBER  Include capitalization as a feature. If a number is given, determine the number of features (default 5).
---suffix NUMBER  Same as ``--caps``, but for suffixes. It will search a file named suffixes.txt in the data/ directory, and read each line as suffix.
--a NUMBER  Stop training when the network achieves this accuracy. Useful to avoid divergence when the learning rate is high.
--v  Verbose mode, it will output more information about what is happening internally.
---load_network  Loads a previously saved network. The file name must be set in config.py and be in the data/ directory. 
---task TASK  Task to train for. It must be either ``srl`` or ``pos``.
---data DIRECTORY  The directory containing the model files. If a new model is being trained, everything is saved to that dir.
---gold FILE  A file containing the gold data used for training.
-
-Data files must be in the format used by :mod:`nlpnet`. A POS file must have one sentence per line, each sentence containing tokens in the format ``token_tag`` and separated by whitespace. SRL files must be in the `CoNLL format`_.
-
-.. _`CoNLL format`: https://ufal.mff.cuni.cz/conll2009-st/task-description.html#Dataformat
-
-
-SRL
----
-
--c NUMBER  Number of neurons in the convolution layer.
---pos NUMBER  Uses POS as a feature. Currently, it must read the tags from the training data. Works same as --caps.
---chunk NUMBER  Uses syntactic chunks as a feature. Same as --pos.
---use_lemma  Reads word lemmas instead of surface forms. It needs to read them from the training data.
---id  Train for argument boundary identification only.
---class  Train for previously identified argument classification only. (if neither this or ``--id`` is supplied, trains a network that does both in a single step)
---pred  Train for predicate recognizing only.
---max_dist NUMBER  The maximum distance (to predicates and target words) to have an own feature vector. Any distance greater than this will be mapped to a single vector.
---target_features NUMBER  Number of features for vectors representing distance to the target word.
---pred_features NUMBER  Same as ``--target_features`` for the predicate.
 
 
 nlpnet-test

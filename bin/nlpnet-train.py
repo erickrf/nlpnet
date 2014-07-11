@@ -27,20 +27,20 @@ from nlpnet.network import Network, ConvolutionalNetwork
 ### FUNCTION DEFINITIONS ###
 ############################
 
-def create_reader(args):
+def create_reader(args, md):
     """
     Creates and returns a TextReader object according to the task at hand.
     """
     logger.info("Reading text...")
     if args.task == 'pos':
-        text_reader = pos.pos_reader.POSReader(filename=args.gold)
+        text_reader = pos.pos_reader.POSReader(md, filename=args.gold)
         if args.suffix:
             text_reader.create_suffix_list(args.suffix_size, 5)
         if args.prefix:
             text_reader.create_prefix_list(args.prefix_size, 5)
-    
+            
     elif args.task.startswith('srl'):
-        text_reader = srl.srl_reader.SRLReader(filename=args.gold, only_boundaries=args.identify, 
+        text_reader = srl.srl_reader.SRLReader(md, filename=args.gold, only_boundaries=args.identify, 
                                                only_classify=args.classify,
                                                only_predicates=args.predicates)
         if args.identify:
@@ -167,9 +167,9 @@ def create_metadata(args):
     use_pos = getattr(args, 'pos', False)
     use_chunk = getattr(args, 'chunk', False)
     
-    return metadata.Metadata(args.task, use_caps, use_suffix, use_prefix, 
-                             use_pos, use_chunk)
-
+    return metadata.Metadata(args.task, None, use_caps, use_suffix, use_prefix, 
+                               use_pos, use_chunk)
+    
 def train(reader, args):
     """Trains a neural network for the selected task."""
     intervals = max(args.iterations / 200, 1)
@@ -194,7 +194,6 @@ if __name__ == '__main__':
     logger = logging.getLogger("Logger")
 
     config.set_data_dir(args.data)
-    text_reader = create_reader(args)
     
     if not args.load_network:
         # if we are about to create a new network, create the metadata too
@@ -202,8 +201,9 @@ if __name__ == '__main__':
         md.save_to_file()
     else:
         md = metadata.Metadata.load_from_file(args.task)
-    
-    text_reader.create_converter(md)
+        
+    text_reader = create_reader(args, md)
+    text_reader.create_converter()
     text_reader.codify_sentences()
     
     if args.load_network:

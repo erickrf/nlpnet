@@ -28,30 +28,30 @@ def load_network(md):
         net_class = ConvolutionalNetwork
     else:
         net_class = Network
-    nn = net_class.load_from_file(config.FILES[md.network])
+    nn = net_class.load_from_file(md.paths[md.network])
     
     logger.info('Loading features...')
-    type_features = utils.load_features_from_file(config.FILES[md.type_features])
+    type_features = utils.load_features_from_file(md.paths[md.type_features])
     tables = [type_features]
     
     if md.use_caps:
-        caps_features = utils.load_features_from_file(config.FILES[md.caps_features])
+        caps_features = utils.load_features_from_file(md.paths[md.caps_features])
         tables.append(caps_features)
     if md.use_prefix:
-        prefix_features = utils.load_features_from_file(config.FILES[md.prefix_features])
+        prefix_features = utils.load_features_from_file(md.paths[md.prefix_features])
         for table in prefix_features:
             # one table for each size
             tables.append(table)
     if md.use_suffix:
-        suffix_features = utils.load_features_from_file(config.FILES[md.suffix_features])
+        suffix_features = utils.load_features_from_file(md.paths[md.suffix_features])
         for table in suffix_features:
             # one table for each size
             tables.append(table)
     if md.use_pos:
-        pos_features = utils.load_features_from_file(config.FILES[md.pos_features])
+        pos_features = utils.load_features_from_file(md.paths[md.pos_features])
         tables.append(pos_features)
     if md.use_chunk:
-        chunk_features = utils.load_features_from_file(config.FILES[md.chunk_features])
+        chunk_features = utils.load_features_from_file(md.paths[md.chunk_features])
         tables.append(chunk_features)
         
     nn.feature_tables = tables
@@ -71,10 +71,10 @@ def create_reader(md, gold_file=None):
     logger.info('Loading text reader...')
     
     if md.task == 'pos':
-        tr = POSReader(filename=gold_file)
+        tr = POSReader(md, filename=gold_file)
         
     elif md.task.startswith('srl'):
-        tr = SRLReader(filename=gold_file, only_boundaries= (md.task == 'srl_boundary'),
+        tr = SRLReader(md, filename=gold_file, only_boundaries= (md.task == 'srl_boundary'),
                        only_classify= (md.task == 'srl_classify'), 
                        only_predicates= (md.task == 'srl_predicates'))
             
@@ -83,7 +83,7 @@ def create_reader(md, gold_file=None):
     
     tr.load_dictionary()
     tr.load_tag_dict()
-    tr.create_converter(md)
+    tr.create_converter()
     
     logger.info('Done')
     return tr
@@ -157,11 +157,15 @@ class Tagger(object):
     Base class for taggers. It should not be instantiated.
     """
     
-    def __init__(self):
+    def __init__(self, data = None):
         """Creates a tagger and loads data preemptively"""
         asrt_msg = "nlpnet data directory is not set. \
 If you don't have the trained models, download them from http://nilc.icmc.usp.br/nlpnet/models.html"
-        assert config.data_dir is not None, asrt_msg
+        if data is None:
+            assert config.data_dir is not None, asrt_msg
+            self.paths = config.FILES
+        else:
+            self.paths = config.get_config_paths(data)
         
         self._load_data()
         
@@ -180,19 +184,19 @@ class SRLTagger(Tagger):
     def _load_data(self):
         """Loads data for SRL"""
         # load boundary identification network and reader 
-        md_boundary = Metadata.load_from_file('srl_boundary')
+        md_boundary = Metadata.load_from_file('srl_boundary', self.paths)
         self.boundary_nn = load_network(md_boundary)
         self.boundary_reader = create_reader(md_boundary)
         self.boundary_itd = self.boundary_reader.get_inverse_tag_dictionary()
         
         # same for arg classification
-        md_classify = Metadata.load_from_file('srl_classify')
+        md_classify = Metadata.load_from_file('srl_classify', self.paths)
         self.classify_nn = load_network(md_classify)
         self.classify_reader = create_reader(md_classify)
         self.classify_itd = self.classify_reader.get_inverse_tag_dictionary()
         
         # predicate detection
-        md_pred = Metadata.load_from_file('srl_predicates')
+        md_pred = Metadata.load_from_file('srl_predicates', self.paths)
         self.pred_nn = load_network(md_pred)
         self.pred_reader = create_reader(md_pred)
     
@@ -266,7 +270,7 @@ class POSTagger(Tagger):
     
     def _load_data(self):
         """Loads data for POS"""
-        md = Metadata.load_from_file('pos')
+        md = Metadata.load_from_file('pos', self.paths)
         self.nn = load_network(md)
         self.reader = create_reader(md)
         self.itd = self.reader.get_inverse_tag_dictionary()

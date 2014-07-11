@@ -10,7 +10,6 @@ import nltk
 import numpy as np
 
 from nltk.tokenize.regexp import RegexpTokenizer
-import config
 import attributes
 
 
@@ -198,19 +197,11 @@ def generate_feature_vectors(num_vectors, num_features, min_value=-0.1, max_valu
     return table
 
 
-def count_pos_tags():
-    """Counts and returns how many POS tags there are."""
-    with open(config.FILES['pos_tags'], 'rb') as f:
-        text = f.read()
-    return len(text.split('\n'))
-
-
-def count_chunk_tags():
-    """Counts and returns how many chunk tags there are."""
-    with open(config.FILES['chunk_tags']) as f:
-        text = f.read()
-    return len(text.split('\n'))
-
+def count_lines(filename):
+    """Counts and returns how many non empty lines in a file there are."""
+    with open(filename, 'r') as f:
+        lines = [x for x in list(f) if x.strip()]
+    return len(lines)
 
 def _create_affix_tables(affix, table_list, num_features):
     """
@@ -247,6 +238,7 @@ def create_feature_tables(args, md, text_reader):
     :param text_reader: The TextReader being used.
     :returns: all the feature tables to be used
     """
+    
     logger = logging.getLogger("Logger")
     feature_tables = []
     
@@ -256,7 +248,7 @@ def create_feature_tables(args, md, text_reader):
         types_table = generate_feature_vectors(table_size, args.num_features)
     else:
         logger.info("Loading word type features...")
-        types_table = load_features_from_file(config.FILES[md.type_features])
+        types_table = load_features_from_file(md.paths[md.type_features])
         
         if len(types_table) < len(text_reader.word_dict):
             # the type dictionary provided has more types than
@@ -293,14 +285,14 @@ def create_feature_tables(args, md, text_reader):
     # POS tags
     if md.use_pos:
         logger.info("Generating POS features...")
-        num_pos_tags = count_pos_tags()
+        num_pos_tags = count_lines(md.paths['pos_tags'])
         pos_table = generate_feature_vectors(num_pos_tags, args.pos)
         feature_tables.append(pos_table)
     
     # chunk tags
     if md.use_chunk:
         logger.info("Generating chunk features...")
-        num_chunk_tags = count_chunk_tags()
+        num_chunk_tags = count_lines(md.paths['chunk_tags'])
         chunk_table = generate_feature_vectors(num_chunk_tags, args.chunk)
         feature_tables.append(chunk_table)
     
