@@ -25,7 +25,7 @@ class Metadata(object):
         self.use_prefix = use_prefix
         self.use_pos = use_pos
         self.use_chunk = use_chunk
-        self.use_lemma = use_lemma
+        self.use_lemma =use_lemma
         self.metadata = 'metadata_%s' % task
         self.network = 'network_%s' % task
         self.tag_dict = '%s_tag_dict' % task
@@ -107,44 +107,3 @@ class Metadata(object):
         
         return md
 
-
-
-if __name__ == '__main__':
-    
-    import argparse
-    
-    parser = argparse.ArgumentParser(description='This script will save a metadata file in the data directory.')
-    parser.add_argument('--task', choices=['srl', 'pos'], 
-                        help='Task for which the network should be used.', type=str)
-    parser.add_argument('--pos', help='Use POS as a feature',
-                        action='store_true')
-    parser.add_argument('--chunk', help='Use chunks as a feature',
-                        action='store_true')
-    parser.add_argument('--lemma', help='Use lemmas instead of the actual words',
-                        action='store_true')
-    parser.add_argument('--caps', help='Use capitalization as a feature',
-                        action='store_true')
-    parser.add_argument('--suf', help='Use suffix features', action='store_true', dest='suffix')
-    parser.add_argument('--pre', help='Use prefix features', action='store_true', dest='prefix')
-    parser.add_argument('--id', help='Only argument identification (SRL only)',
-                        action='store_true', dest='identify')
-    parser.add_argument('--class', help='Only argument classification (SRL only)',
-                        action='store_true', dest='classify')
-    parser.add_argument('--pred', help='Only predicate identification (SRL only)',
-                        action='store_true', dest='predicates')
-    
-    args = parser.parse_args()
-    if args.identify:
-        args.task = 'srl_boundary'
-    elif args.classify:
-        args.task = 'srl_classify'
-    elif args.predicates:
-        args.task = 'srl_predicates'
-    
-    m = Metadata(args.task, args.caps, args.suffix, args.prefix, args.pos, args.chunk, args.lemma)
-    m.save_to_file()
-    
-    
-    
-    
-    

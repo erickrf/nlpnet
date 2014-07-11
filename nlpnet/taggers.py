@@ -16,6 +16,7 @@ from pos.pos_reader import POSReader
 from srl.srl_reader import SRLReader
 from parse.parse_reader import DependencyReader
 from network import Network, ConvolutionalNetwork, DependencyNetwork
+from network import Network, ConvolutionalNetwork
 
 def load_network(md):
     """
@@ -87,6 +88,8 @@ def create_reader(md, gold_file=None):
     else:
         raise ValueError("Unknown task: %s" % md.task)
     
+    tr.load_dictionary()
+    tr.load_tag_dict()
     tr.create_converter(md)
     
     logger.info('Done')

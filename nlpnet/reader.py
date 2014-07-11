@@ -5,7 +5,7 @@
 Base class for reading NLP tagging data.
 """
 
-import cPickle
+import os
 import logging
 import numpy as np
 from collections import Counter
@@ -22,13 +22,16 @@ def load_tag_dict(filename):
     """
     tag_dict = {}
     with open(filename, 'rb') as f:
-        for code, tag in enumerate(f):
+        code = 0
+        for tag in f:
             tag = unicode(tag, 'utf-8').strip()
-            tag_dict[tag] = code
+            if tag:
+                tag_dict[tag] = code
+                code += 1
     
     return tag_dict
 
-def save_tag_dict(tag_dict, filename):
+def save_tag_dict(filename, tag_dict):
     """
     Save the given tag dictionary to the given file. Dictionary
     is saved with one tag per line, in the order of their codes.
@@ -84,7 +87,7 @@ class TextReader(object):
         self.word_dict = wd
         logger.info("Done. Dictionary size is %d types" % wd.num_tokens)
     
-    def generate_dictionary(self, dict_size=None, minimum_occurrences=None):
+    def generate_dictionary(self, dict_size=None, minimum_occurrences=2):
         """
         Generates a token dictionary based on the supplied text.
         
@@ -99,9 +102,9 @@ class TextReader(object):
             
         logger.info("Done. Dictionary size is %d tokens" % self.word_dict.num_tokens)
     
-    def save_word_dict(self, filename=None):
+    def save_dictionary(self, filename=None):
         """
-        Saves the reader's word dictionary in cPickle format.
+        Saves the reader's word dictionary as a list of words.
         
         :param filename: path to the file to save the dictionary. 
             if not given, it will be saved in the default nlpnet
@@ -109,11 +112,9 @@ class TextReader(object):
         """
         logger = logging.getLogger("Logger")
         if filename is None:
-            filename = config.FILES['word_dict_dat']
+            filename = config.FILES['vocabulary']
         
-        with open(filename, 'wb') as f:
-            cPickle.dump(self.word_dict, f, 2)
-            
+        self.word_dict.save(filename)
         logger.info("Dictionary saved in %s" % filename)
     
     def codify_sentences(self):
@@ -127,6 +128,56 @@ class TextReader(object):
             new_sentences.append(new_sent)
         
         self.sentences = new_sentences
+    
+    def create_suffix_list(self, max_size, min_occurrences):
+        """
+        Check if there exists a suffix list in the data directory. If there isn't,
+        create a new one based on the training sentences.
+        """
+        if os.path.isfile(config.FILES['suffixes']):
+            return
+        
+        logger = logging.getLogger("Logger")
+        suffixes_all_lengths = []
+        # only get the suffix size n from words with length at least (n+1)
+        types = {token.lower() for sent in self.sentences for token, _ in sent}
+        for length in range(1, max_size + 1):
+            c = Counter(type_[-length:]
+                        for type_ in types
+                        if len(type_) > length)
+            suffixes_this_length = [suffix for suffix in c 
+                                    if c[suffix] >= min_occurrences]
+            suffixes_all_lengths.extend(suffixes_this_length)
+        
+        logger.info('Created a list of %d sufixes.' % len(suffixes_all_lengths))
+        text = '\n'.join(suffixes_all_lengths)
+        with open(config.FILES['suffixes'], 'wb') as f:
+            f.write(text.encode('utf-8'))
+    
+    def create_prefix_list(self, max_size, min_occurrences):
+        """
+        Check if there exists a prefix list in the data directory. If there isn't,
+        create a new one based on the training sentences.
+        """
+        if os.path.isfile(config.FILES['prefixes']):
+            return
+        
+        logger = logging.getLogger("Logger")
+        prefixes_all_lengths = []
+        # only get the prefix size n from words with length at least (n+1)
+        types = {token.lower() for sent in self.sentences for token, _ in sent}
+        for length in range(1, max_size + 1):
+            c = Counter(type_[:length]
+                        for type_ in types
+                        if len(type_) > length)
+            prefixes_this_length = [prefix for prefix in c 
+                                    if c[prefix] >= min_occurrences]
+            prefixes_all_lengths.extend(prefixes_this_length)
+        
+        logger.info('Created a list of %d prefixes.' % len(prefixes_all_lengths))
+        text = '\n'.join(prefixes_all_lengths)
+        with open(config.FILES['prefixes'], 'wb') as f:
+            f.write(text.encode('utf-8'))
     
     def create_converter(self, metadata):
         """
@@ -182,7 +233,35 @@ class TaggerReader(TextReader):
         
         self.codified = False
     
-    def generate_dictionary(self, dict_size=None, minimum_occurrences=None):
+    def load_or_create_dictionary(self):
+        """
+        Try to load the vocabulary from the default location. If the vocabulary
+        file is not available, create a new one from the sentences available
+        and save it.
+        """
+        if os.path.isfile(config.FILES['vocabulary']):
+            self.load_dictionary()
+            return
+        
+        self.generate_dictionary(minimum_occurrences=2)
+        self.save_dictionary()
+    
+    def load_or_create_tag_dict(self):
+        """
+        Try to load the tag dictionary from the default location. If the dictinaty
+        file is not available, scan the available sentences and create a new one. 
+        """
+        key = '%s_tag_dict' % self.task
+        filename = config.FILES[key]
+        if os.path.isfile(filename):
+            self.load_tag_dict(filename)
+            return
+        
+        tags = {tag for sent in self.sentences for _, tag in sent}
+        self.tag_dict = {tag: code for code, tag in enumerate(tags)}
+        self.save_tag_dict(filename)
+    
+    def generate_dictionary(self, dict_size=None, minimum_occurrences=2):
         """
         Generates a token dictionary based on the given sentences.
         
@@ -191,13 +270,11 @@ class TaggerReader(TextReader):
             appear in the text in order to be included in the dictionary. 
         """
         logger = logging.getLogger("Logger")
-        logger.info("Creating dictionary...")
-        
+                
         tokens = [token for sent in self.sentences for token, _ in sent]
         self.word_dict = WordDictionary(tokens, dict_size, minimum_occurrences)
-            
-        logger.info("Done. Dictionary size is %d tokens" % self.word_dict.num_tokens)
-    
+        logger.info("Created dictionary with %d types" % self.word_dict.num_tokens)
+        
     def get_inverse_tag_dictionary(self):
         """
         Returns a version of the tag dictionary that maps numbers to tags.
@@ -246,7 +323,7 @@ class TaggerReader(TextReader):
         c = Counter(tag for sent in self.sentences for _, tag in sent)
         return c
     
-    def save_tag_dict(self, tag_dict=None, filename=None):
+    def save_tag_dict(self, filename=None, tag_dict=None):
         """
         Saves a tag dictionary to a file as a list of tags.
         
@@ -260,8 +337,8 @@ class TaggerReader(TextReader):
         if filename is None:
             key = '%s_tag_dict' % self.task
             filename = config.FILES[key]
-        
-        save_tag_dict(tag_dict, filename)
+       
+        save_tag_dict(filename, tag_dict)
     
     def load_tag_dict(self, filename=None):
         """

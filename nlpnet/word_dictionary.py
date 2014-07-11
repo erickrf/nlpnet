@@ -84,6 +84,17 @@ class WordDictionary(dict):
         """
         return cls([[]])
     
+    def save(self, filename):
+        """
+        Saves the word dictionary to the given file as a list of word types.
+        
+        Special words (paddings and rare) are also included.
+        """
+        sorted_words = sorted(self, key=self.get)
+        text = '\n'.join(sorted_words)
+        with open(filename, 'wb') as f:
+            f.write(text.encode('utf-8'))
+    
     def _get_frequency_count(self, token_list):
         """
         Returns a token counter for tokens in token_list.
