@@ -88,7 +88,8 @@ def create_reader(md, gold_file=None):
         raise ValueError("Unknown task: %s" % md.task)
     
     tr.load_dictionary()
-    tr.load_tag_dict()
+    if md.task != 'dependency':
+        tr.load_tag_dict()
     tr.create_converter()
     
     logger.info('Done')

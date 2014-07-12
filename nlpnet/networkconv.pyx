@@ -661,7 +661,8 @@ Output size: %d
         hidden_gradients = self.hidden_gradients * self.learning_rate_features
         
         for target in range(self.num_targets):
-            # the token that yielded the maximum value in each neuron
+            # array with the tokens that yielded the maximum value in each neuron
+            # for this target
             convolution_max = self.max_indices[target]
             
             if not self.only_classify:
@@ -680,7 +681,7 @@ Output size: %d
             
             # sparse matrix with gradients to be applied over the input
             # line i has the gradients for the i-th token in the sentence
-            grad_matrix = np.zeros((len(sentence), self.hidden_size)) 
+            grad_matrix = np.zeros((len(sentence), self.hidden_size))
             grad_matrix[convolution_max, np.arange(self.hidden_size)] = gradients
             
             self.input_deltas += grad_matrix.dot(self.hidden_weights) 
