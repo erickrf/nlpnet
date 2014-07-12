@@ -285,7 +285,7 @@ def create_feature_tables(args, md, text_reader):
     # POS tags
     if md.use_pos:
         logger.info("Generating POS features...")
-        num_pos_tags = count_lines(md.paths['pos_tags'])
+        num_pos_tags = text_reader.get_num_pos_tags()
         pos_table = generate_feature_vectors(num_pos_tags, args.pos)
         feature_tables.append(pos_table)
     

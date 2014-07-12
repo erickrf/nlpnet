@@ -53,13 +53,15 @@ def create_reader(args, md):
             text_reader.convert_tags('iob', update_tag_dict=False)
     
     elif args.task == 'dependency':
-        text_reader = parse.parse_reader.DependencyReader(args.gold)
+        text_reader = parse.parse_reader.DependencyReader(md, args.gold)
     
     else:
         raise ValueError("Unknown task: %s" % args.task)
     
     text_reader.load_or_create_dictionary()
-    text_reader.load_or_create_tag_dict()
+    if args.task != 'dependency':
+        text_reader.load_or_create_tag_dict()
+    
     return text_reader
     
 
@@ -241,6 +243,7 @@ if __name__ == '__main__':
     logger.info("Network connection learning rate: %f" % nn.learning_rate)
     logger.info("Feature vectors learning rate: %f" % nn.learning_rate_features)
     logger.info("Tag transition matrix learning rate: %f" % nn.learning_rate_trans)
+    
     train(nn, text_reader, args)
     
     logger.info("Saving trained models...")

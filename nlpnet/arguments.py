@@ -113,6 +113,11 @@ def get_args():
                            learning_rate=0.001, learning_rate_features=0.001,
                            learning_rate_transitions=0.001)
     
+    # dependency
+    subparsers.add_parser('dependency', help='Dependency parsing', 
+                          parents=[base_parser, conv_parser])
+    defaults['dependency'] = dict(window=3)
+    
     # SRL argument parser
     # There is another level of subparsers for predicate detection / 
     # argument boundary identification / argument classification / 

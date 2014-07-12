@@ -9,8 +9,8 @@ import logging
 import numpy as np
 
 from .. import attributes
-from .. import config
 from .. import reader
+from nlpnet.word_dictionary import WordDictionary
 
 class ConllPos(object):
     '''
@@ -39,7 +39,6 @@ class DependencyReader(reader.TaggerReader):
         
         self._set_metadata(md)
         self.task = 'dependency'
-        self.load_dictionary()
         self.rare_tag = None
         self.pos_dict = None
         
@@ -90,6 +89,11 @@ class DependencyReader(reader.TaggerReader):
             token = attributes.Token(word, pos=pos)
             sentence.append(token)
             sentence_heads.append(head)
+        
+        # in case there was not an empty line after the last sentence 
+        if len(sentence) > 0:
+            self.sentences.append(sentence)
+            self.heads.append(np.array(sentence_heads))
     
     def _create_pos_dict(self):
         """
@@ -110,8 +114,23 @@ class DependencyReader(reader.TaggerReader):
         """
         logger = logging.getLogger("Logger")
         logger.debug('Loading POS tag dictionary (for dependency parsing)')
-        pos_dict = reader.load_tag_dict(config.FILES['pos_tags'])
+        pos_dict = reader.load_tag_dict(self.md.paths['pos_tags'])
         return pos_dict
+    
+    def generate_dictionary(self, dict_size=None, minimum_occurrences=2):
+        """
+        Generates a token dictionary based on the given sentences.
+        
+        :param dict_size: Max number of tokens to be included in the dictionary.
+        :param minimum_occurrences: Minimum number of times that a token must
+            appear in the text in order to be included in the dictionary.
+        """
+        logger = logging.getLogger("Logger")
+        all_tokens = [token.word 
+                      for sent in self.sentences
+                      for token in sent]
+        self.word_dict = WordDictionary(all_tokens, dict_size, minimum_occurrences)
+        logger.info("Created dictionary with %d tokens" % self.word_dict.num_tokens)
     
     def codify_sentences(self):
         """
@@ -132,7 +151,7 @@ class DependencyReader(reader.TaggerReader):
         self.sentences = new_sentences
         self.codified = True
     
-    def load_or_create_pos_dict(self):
+    def _load_or_create_pos_dict(self):
         """
         Try to load the pos tag dictionary to be used with this reader (when
         using POS tags as additional features). If there isn't a file in the 
@@ -142,11 +161,11 @@ class DependencyReader(reader.TaggerReader):
         if self.pos_dict is not None:
             return
         
-        if os.path.isfile(config.FILES['pos_tags']):
+        if os.path.isfile(self.md.paths['pos_tags']):
             self.pos_dict = self.load_pos_dict()
         else:
             self.pos_dict = self._create_pos_dict()
-            self.save_tag_dict(self.pos_dict, config.FILES['pos_tags'])
+            self.save_tag_dict(self.md.paths['pos_tags'], self.pos_dict)
         
         # adding the padding pos key must come after saving the dictionary
         # because that key shouldn't be used in a POS tagger that shares the 
@@ -163,7 +182,7 @@ class DependencyReader(reader.TaggerReader):
         self._load_or_create_pos_dict()
         return len(self.pos_dict)
     
-    def create_converter(self, metadata):
+    def create_converter(self):
         """
         This function overrides the TextReader's one in order to deal with Token
         objects instead of raw strings. It also allows POS as an attribute.
@@ -172,11 +191,11 @@ class DependencyReader(reader.TaggerReader):
         self.converter = attributes.TokenConverter()
         self.converter.add_extractor(f)
         
-        if metadata.use_caps:
+        if self.md.use_caps:
             caps_lookup = lambda t: attributes.get_capitalization(t.word)
             self.converter.add_extractor(caps_lookup)
         
-        if metadata.use_pos:
+        if self.md.use_pos:
             self._load_or_create_pos_dict()
             g = lambda token: self.pos_dict[token.pos]
             self.converter.add_extractor(g)
