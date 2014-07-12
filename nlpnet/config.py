@@ -78,9 +78,6 @@ def get_config_paths(directory):
         ]
     }
 
-         # dependency parsing
-         
-
 
 def set_data_dir(directory):
     """Sets the global data directory containing the data for the models."""

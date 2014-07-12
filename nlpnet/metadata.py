@@ -16,7 +16,7 @@ class Metadata(object):
     parameter files.
     """
     
-    def __init__(self, task, paths = None, use_caps=True, use_suffix=False, use_prefix=False,
+    def __init__(self, task, paths=None, use_caps=True, use_suffix=False, use_prefix=False,
                  use_pos=False, use_chunk=False, use_lemma=False):
         self.task = task
         self.paths = paths if paths else config.FILES
@@ -97,7 +97,9 @@ class Metadata(object):
         """
         # the actual content of the file is the __dict__ member variable, which contain all
         # the instance's data
-        md = Metadata(None, paths if paths else config.FILES)
+        if paths is None:
+            paths = config.FILES
+        md = Metadata(None, paths)
         
         with open(paths['metadata_%s' % task], 'rb') as f:
             data = cPickle.load(f)
