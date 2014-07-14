@@ -7,6 +7,7 @@ It employs feature tables to store feature vectors for each token.
 
 import numpy as np
 cimport numpy as np
+from scipy.sparse import coo_matrix
 
 cdef class ConvolutionalNetwork(Network):
     
@@ -648,9 +649,11 @@ Output size: %d
             
     @cython.boundscheck(False)
     @cython.wraparound(False)
-    def _calculate_input_deltas(self, sentence, predicate, arguments=None):
+    cdef _calculate_input_deltas(self, np.ndarray sentence, int predicate, object arguments=None):
         """Calculates the input deltas to be applied in the feature tables."""
-        cdef np.ndarray[FLOAT_t, ndim=2] grad_matrix, hidden_gradients
+#         cdef np.ndarray[FLOAT_t, ndim=2] grad_matrix, hidden_gradients
+        cdef np.ndarray[FLOAT_t, ndim=1] gradients
+        cdef np.ndarray[INT_t, ndim=1] convolution_max, target_dists
         
         # this gradient matrix has a whole window in each line
         self.input_deltas = np.zeros((len(sentence), self.input_size))
@@ -659,6 +662,7 @@ Output size: %d
         
         # avoid multiplying by the learning rate multiple times
         hidden_gradients = self.hidden_gradients * self.learning_rate_features
+        cdef np.ndarray[INT_t, ndim=1] column_numbers = np.arange(self.hidden_size)
         
         for target in range(self.num_targets):
             # array with the tokens that yielded the maximum value in each neuron
@@ -681,18 +685,17 @@ Output size: %d
             
             # sparse matrix with gradients to be applied over the input
             # line i has the gradients for the i-th token in the sentence
-            grad_matrix = np.zeros((len(sentence), self.hidden_size))
-            grad_matrix[convolution_max, np.arange(self.hidden_size)] = gradients
-            
+            grad_matrix = coo_matrix((gradients, (convolution_max, column_numbers)), 
+                                      (len(sentence), self.hidden_size)).tocsc()
             self.input_deltas += grad_matrix.dot(self.hidden_weights) 
             
             # distance deltas
-            grad_matrix = np.zeros((self.target_dist_lookup.shape[0], self.hidden_size))
-            grad_matrix[target_dists, np.arange(self.hidden_size)] = gradients
+            grad_matrix = coo_matrix((gradients, (target_dists, column_numbers)), 
+                                     (self.target_dist_lookup.shape[0], self.hidden_size)).tocsc()
             self.target_dist_deltas += grad_matrix.dot(self.target_dist_weights.T)
             
-            grad_matrix = np.zeros((self.pred_dist_lookup.shape[0], self.hidden_size))
-            grad_matrix[pred_dists, np.arange(self.hidden_size)] = gradients
+            grad_matrix = coo_matrix((gradients, (pred_dists, column_numbers)), 
+                                     (self.pred_dist_lookup.shape[0], self.hidden_size)).tocsc()
             self.pred_dist_deltas += grad_matrix.dot(self.pred_dist_weights.T)
             
         
