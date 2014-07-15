@@ -95,10 +95,12 @@ class Metadata(object):
         Reads the file containing the metadata for the given task and returns a 
         Metadata object.
         """
+        if paths is None:
+            paths = config.FILES
+        md = Metadata(None, paths)
+        
         # the actual content of the file is the __dict__ member variable, which contain all
         # the instance's data
-        md = Metadata(None, paths if paths else config.FILES)
-        
         with open(paths['metadata_%s' % task], 'rb') as f:
             data = cPickle.load(f)
         md.__dict__.update(data)
