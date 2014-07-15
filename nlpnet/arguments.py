@@ -119,7 +119,8 @@ def get_args():
     parser_dep.add_argument('step', help='Which step of the dependency training '\
                             '(detecting dependency edges or labeling them)',
                             choices=['labeled', 'unlabeled'])
-    defaults['dependency'] = dict(window=3)
+    defaults['labeled_dependency'] = dict(window=3)
+    defaults['unlabeled_dependency'] = dict(window=3)
     
     # SRL argument parser
     # There is another level of subparsers for predicate detection / 

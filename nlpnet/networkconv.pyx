@@ -288,7 +288,8 @@ Output size: %d
         if arguments is not None:
             np.random.set_state(random_state)
             np.random.shuffle(arguments)
-    
+        
+        
     def _train_epoch(self, sentences, predicates, tags, arguments):
         """Trains for one epoch with all examples."""
         

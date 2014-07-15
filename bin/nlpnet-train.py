@@ -69,7 +69,7 @@ def create_network(args, text_reader, feature_tables, md=None):
     logger = logging.getLogger("Logger")
     
     convolution_srl =  args.task.startswith('srl') and args.task != 'srl_predicates'
-    convolution = convolution_srl or args.task == 'dependency'
+    convolution = convolution_srl or args.task.endswith('dependency')
     
     if convolution:
         # get some data structures used both by dep parsing and SRL
@@ -79,9 +79,10 @@ def create_network(args, text_reader, feature_tables, md=None):
         padding_right = text_reader.converter.get_padding_right(False)
     
         if args.task.endswith('dependency'):
+            output_size = 1 if not args.labeled else len(text_reader.tag_dict)
             nn = DependencyNetwork.create_new(feature_tables, distance_tables[0], 
                                               distance_tables[1], args.window, 
-                                              args.convolution, args.hidden)
+                                              args.convolution, args.hidden, output_size)
     
         else:
             num_tags = len(text_reader.tag_dict)

@@ -40,6 +40,11 @@ class DependencyReader(reader.TaggerReader):
             to be used in labeled dependency parsing. Note that if it is 
             True, another reader object will be needed for unlabeled dependency.
         '''
+        if md is not None:
+            self.labeled = md.task.startswith('labeled')
+        else:
+            self.labeled = labeled
+        
         if filename is not None:
             self._read_conll(filename)
         
@@ -47,12 +52,7 @@ class DependencyReader(reader.TaggerReader):
         self.task = 'dependency'
         self.rare_tag = None
         self.pos_dict = None
-        
-        if md is not None:
-            self.labeled = md.task.startswith('labeled')
-        else:
-            self.labeled = labeled
-        
+                
     
     def _read_conll(self, filename): 
         '''
@@ -97,7 +97,7 @@ class DependencyReader(reader.TaggerReader):
             word = fields[ConllPos.word]
             pos = fields[ConllPos.pos]
             head = int(fields[ConllPos.dep_head])
-            label = int(fields[ConllPos.dep_rel])
+            label = fields[ConllPos.dep_rel]
             
             if head == 0:
                 # we represent a dependency to root as an edge to the token itself
@@ -116,6 +116,8 @@ class DependencyReader(reader.TaggerReader):
         if len(sentence) > 0:
             self.sentences.append(sentence)
             self.heads.append(np.array(sentence_heads))
+            if self.labeled:
+                self.labels.append(sentence_labels)
     
     def _create_pos_dict(self):
         """

@@ -39,8 +39,8 @@ def get_config_paths(directory):
         ('caps_features_labeled_dependency', 'caps-features-ldep.npy'),
         ('pos_features_labeled_dependency', 'pos-features-ldep.npy'),
         ('metadata_labeled_dependency', 'metadata-ldep.pickle'),
-        ('dependency_tags', 'dependency-tags.txt'),
-        ('labeled_dependency_tags', 'dependency-tags.txt'),
+        ('dependency_tag_dict', 'dependency-tags.txt'),
+        ('labeled_dependency_tag_dict', 'dependency-tags.txt'),
         
         ('network_unlabeled_dependency', 'udep-network.npz'),
         ('type_features_unlabeled_dependency', 'types-features-udep.npy'),

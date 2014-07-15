@@ -16,19 +16,6 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
     # the weights of all possible dependency among tokens
     cdef readonly np.ndarray dependency_weights
     
-    @classmethod
-    def create_new(cls, feature_tables, target_dist_table, pred_dist_table, 
-                   int word_window, int hidden1_size, int hidden2_size):
-        """
-        Creates a new convolutional neural network for dependency parsing.
-        
-        Same as the ConvolutionalNetwork creator function, except for the output
-        layer which always has size 1.
-        """
-        return super(DependencyNetwork, cls).create_new(feature_tables, target_dist_table, 
-                                                        pred_dist_table, word_window, 
-                                                        hidden1_size, hidden2_size, 1)
-    
     def train(self, list sentences, list heads, int epochs, 
               int epochs_between_reports=0, float desired_accuracy=0,
               list labels=None):
@@ -38,7 +25,7 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         """
         # the ConvolutionalNetwork class was written primarily for SRL
         # every token acts as a predicate, and we don't need to tell it explicitely
-        predicates = []
+        predicates = [np.arange(len(sentence)) for sentence in sentences]
         
         # the last argument in ConvolutionalNetwork.train is actually the argument
         # groups list. We use "labels" here just to signal that there is non-None
@@ -78,7 +65,7 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         algorithm.
         """
         self._pre_tagging_setup(sentence)
-
+                
         num_tokens = len(sentence)
         # dependency_weights [i, j] has the score for token i having j as a head
         # the main diagonal has the values for dependencies from the root and is 
@@ -121,14 +108,15 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         Run the network for labeling pre determined dependency edges between tokens.
         This is similar to the classification step in SRL.
         """
-        cdef np.ndarray[FLOAT_t, ndim=1] scores, answer
+        cdef np.ndarray[FLOAT_t, ndim=1] answer
+        cdef np.ndarray[FLOAT_t, ndim=2] scores
         self._pre_tagging_setup(sentence)
         
         answer = np.zeros(len(sentence))
         
         # as in unlabeled dependency, each token is treated as a predicate from the
         # SRL point of view. The only target is its head
-        for token in len(sentence):
+        for token in range(len(sentence)):
             head = heads[token]
             
             # weird format just to take advantage of the SRL classification code
@@ -146,6 +134,9 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
                     self._calculate_input_deltas(sentence, token, head)
                     self._adjust_weights(token, head)
                     self._adjust_features(sentence, token)
+        
+        if self.training:
+            self._evaluate(answer, labels)
         
         return answer
     
@@ -189,12 +180,12 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         
         return True
     
-    def _evaluate(self, answer, heads):
+    def _evaluate(self, answer, tags):
         """
         Evaluate the network performance by token hit and whole sentence hit.
         """
         sentence_hit = True
-        for net_tag, gold_tag in zip(answer, heads):
+        for net_tag, gold_tag in zip(answer, tags):
             if net_tag == gold_tag:
                 self.train_hits += 1
             else:
@@ -202,7 +193,7 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
             
         if sentence_hit:
             self.sentence_hits += 1
-        self.num_tokens += len(heads)
+        self.num_tokens += len(tags)
         self.num_sentences += 1
     
     def _average_error(self):
