@@ -93,8 +93,7 @@ def clean_text(text, correct=True):
     replacing digits for 9 and simplifying quotation marks.
     
     :param correct: If True, tries to correct punctuation misspellings. 
-    """
-    
+    """    
     # replaces different kinds of quotation marks with "
     # take care not to remove apostrophes
     text = re.sub(ur"(?u)(^|\W)[‘’′`']", r'\1"', text)

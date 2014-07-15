@@ -27,7 +27,7 @@ def load_network(md):
     logger.info('Loading network')
     if is_srl:
         net_class = ConvolutionalNetwork
-    elif md.task == 'dependency':
+    elif md.task.endswith('dependency'):
         net_class = DependencyNetwork
     else:
         net_class = Network
@@ -76,8 +76,9 @@ def create_reader(md, gold_file=None):
     if md.task == 'pos':
         tr = POSReader(md, filename=gold_file)
     
-    elif md.task == 'dependency':
-        tr = DependencyReader(md, filename=gold_file)
+    elif md.task.endswith('dependency'):
+        labeled = md.task.starswith('labeled')
+        tr = DependencyReader(md, filename=gold_file, labeled=labeled)
         
     elif md.task.startswith('srl'):
         tr = SRLReader(md, filename=gold_file, only_boundaries= (md.task == 'srl_boundary'),
@@ -88,8 +89,7 @@ def create_reader(md, gold_file=None):
         raise ValueError("Unknown task: %s" % md.task)
     
     tr.load_dictionary()
-    if md.task != 'dependency':
-        tr.load_tag_dict()
+    tr.load_tag_dict()
     tr.create_converter()
     
     logger.info('Done')
@@ -164,16 +164,17 @@ class Tagger(object):
     Base class for taggers. It should not be instantiated.
     """
     
-    def __init__(self, data = None):
+    def __init__(self, data_dir=None):
         """Creates a tagger and loads data preemptively"""
         asrt_msg = "nlpnet data directory is not set. \
 If you don't have the trained models, download them from http://nilc.icmc.usp.br/nlpnet/models.html"
-        if data is None:
+        if data_dir is None:
             assert config.data_dir is not None, asrt_msg
             self.paths = config.FILES
         else:
-            self.paths = config.get_config_paths(data)
+            self.paths = config.get_config_paths(data_dir)
         
+        self.data_dir = data_dir
         self._load_data()
         
     def _load_data(self):
@@ -283,6 +284,7 @@ class DependencyParser(Tagger):
         self.reader = create_reader(md)
         if md.use_pos:
             self.reader.load_pos_dict()
+            self.pos_tagger = POSTagger(self.data_dir)
     
     def parse(self, text):
         """
@@ -315,13 +317,25 @@ class DependencyParser(Tagger):
         
         :param tokens: a list of strings
         :param return_tokens: if True, returns tuples (token, head). If False,
-            only return the heads.
+            only return the heads. The heads are the index of the tokens in the
+            sentence, and a dependency to root is indicated with a value equal
+            to the sentence length.
         """
         converter = self.reader.converter
         tokens_obj = []
+        
+        # if the parser uses POS a feature, have a tagger tag it first
+        if self.reader.md.use_pos:
+            use_pos = True
+            tokens = self.pos_tagger.tag_tokens(tokens, return_tokens=True)
+        
         for token in tokens:
-            word, pos = token.split('_')
-            word = utils.clean_text(word, False)
+            if use_pos:
+                # if we tagged for POS, each item is a tuple
+                word, pos = token
+            else:
+                pos = None
+#             word = utils.clean_text(word, False)
             tokens_obj.append(attributes.Token(word, pos=pos))
         
         converted_tokens = np.array([converter.convert(token) 

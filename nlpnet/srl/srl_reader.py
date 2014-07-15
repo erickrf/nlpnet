@@ -205,6 +205,8 @@ class SRLReader(reader.TaggerReader):
             return
         
         self._create_tag_dict(iob)
+        logger = logging.getLogger('Logger')
+        logger.info('Created SRL tag dictionary')
     
     def _create_tag_dict(self, iob=False):
         """
@@ -361,7 +363,7 @@ class SRLReader(reader.TaggerReader):
     
     def generate_tag_dict(self):
         """
-        Generates a tag dictionary, to convert the tag itself
+        Generates a tag dictionary that converts the tag itself
         to an index to be used in the neural network.
         """
         self.tagset = set(tag

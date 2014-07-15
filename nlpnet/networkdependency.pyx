@@ -2,7 +2,7 @@
 
 """
 A convolutional neural network for NLP tagging tasks such as dependency
-parsing, where each token has another (or itself) as a head. 
+parsing, where each token has another (or root) as a head. 
 """
 
 import numpy as np
@@ -30,20 +30,25 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
                                                         hidden1_size, hidden2_size, 1)
     
     def train(self, list sentences, list heads, int epochs, 
-              int epochs_between_reports=0, float desired_accuracy=0):
+              int epochs_between_reports=0, float desired_accuracy=0,
+              list labels=None):
         """
         Trains the convolutional network. Refer to the basic Network
         train method for detailed explanation. 
         """
         # the ConvolutionalNetwork class was written primarily for SRL
-        # in dependency parsing, every token in the sentence is a effectively 
-        # predicate, because other tokens are analyzed with respect to it
-        predicates = [np.arange(len(sentence)) for sentence in sentences]
+        # every token acts as a predicate, and we don't need to tell it explicitely
+        predicates = []
+        
+        # the last argument in ConvolutionalNetwork.train is actually the argument
+        # groups list. We use "labels" here just to signal that there is non-None
+        # argument, which is correctly handled by the DependencyNetwork._tag(...) method.
         
         super(DependencyNetwork, self).train(sentences, predicates, 
                                              heads, epochs, 
                                              epochs_between_reports, 
-                                             desired_accuracy)
+                                             desired_accuracy,
+                                             labels)
         self.num_sentences = 0
         self.sentence_hits = 0
     
@@ -55,17 +60,19 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         super(DependencyNetwork, self)._reset_counters()
         self.sentence_hits = 0
     
-    def _tag_sentence(self, np.ndarray sentence, np.ndarray predicates=None, 
-                      np.ndarray tags=None, list argument_blocks=None):
+    def _tag_sentence(self, sentence, predicates=None, heads=None, labels=None):
         """
         This function is just an interface to the _tag_sentence signature
         defined in ConvolutionalNetwork.
         """
-        self._tag_sentence_dependency(sentence, tags)
+        if labels is None:
+            self._tag_sentence_unlabeled_dependency(sentence, heads)
+        else:
+            self._tag_sentence_labeled_dependency(sentence, heads, labels)
     
-    def _tag_sentence_dependency(self, np.ndarray sentence, np.ndarray tags=None):
+    def _tag_sentence_unlabeled_dependency(self, np.ndarray sentence, np.ndarray heads=None):
         """
-        Run the network for the dependency tagging task.
+        Run the network for the unlabeled dependency task.
         A graph with all weights for possible dependencies is built 
         and the final answer is obtained applying the Chu-Liu-Edmond's
         algorithm.
@@ -74,15 +81,15 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
 
         num_tokens = len(sentence)
         # dependency_weights [i, j] has the score for token i having j as a head
-        # the main diagonal has the values for edges from the root and is copied to 
-        # the last column for easier processing
+        # the main diagonal has the values for dependencies from the root and is 
+        # later copied to the last column for easier processing
         self.dependency_weights = np.empty((num_tokens, num_tokens + 1))
         
         cdef np.ndarray[FLOAT_t, ndim=1] token_scores
         
         # in the SRL parlance, each token is treated as a predicate, because all
         # sentence tokens are scored with respect to it (in order to determine the
-        # candidate dependency weight)
+        # dependency weights)
         for token in range(num_tokens):
             # _sentence_convolution returns a 2-dim array. in dep parsing, 
             # we only have one dimension, so reshape it
@@ -90,19 +97,55 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
             self.dependency_weights[token, :-1] = token_scores
             
             if self.training:
-                head = tags[token]
+                head = heads[token]
                 if self._calculate_gradients(head, token_scores):
                     self._backpropagate()
                     self._calculate_input_deltas(sentence, token)
                     self._adjust_weights(token)
                     self._adjust_features(sentence, token)
         
+        # copy dependency weights from the root to the last column and
+        # effectively ignore the main diagonal (dependency to the token itself)
         self.dependency_weights[np.arange(num_tokens), 
                                 -1] = self.dependency_weights.diagonal()
         np.fill_diagonal(self.dependency_weights, -np.Infinity)
         answer = self._find_maximum_spanning_tree()
         if self.training:
-            self._evaluate(answer, tags)
+            self._evaluate(answer, heads)
+        
+        return answer
+    
+    def _tag_sentence_labeled_dependency(self, np.ndarray sentence, np.ndarray heads,
+                                         np.ndarray labels=None):
+        """
+        Run the network for labeling pre determined dependency edges between tokens.
+        This is similar to the classification step in SRL.
+        """
+        cdef np.ndarray[FLOAT_t, ndim=1] scores, answer
+        self._pre_tagging_setup(sentence)
+        
+        answer = np.zeros(len(sentence))
+        
+        # as in unlabeled dependency, each token is treated as a predicate from the
+        # SRL point of view. The only target is its head
+        for token in len(sentence):
+            head = heads[token]
+            
+            # weird format just to take advantage of the SRL classification code
+            # it means that the target starts at position *head* and ends at *head*
+            head = [[head, head]]
+            
+            # it will return a 2-dim array, but we only have one target
+            scores = self._sentence_convolution(sentence, token, head)
+            answer[token] = scores[0].argmax()
+            
+            if self.training:
+                label = labels[token]
+                if self._calculate_gradients_classify(labels, scores):
+                    self._backpropagate()
+                    self._calculate_input_deltas(sentence, token, head)
+                    self._adjust_weights(token, head)
+                    self._adjust_features(sentence, token)
         
         return answer
     
@@ -146,12 +189,12 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         
         return True
     
-    def _evaluate(self, answer, tags):
+    def _evaluate(self, answer, heads):
         """
         Evaluate the network performance by token hit and whole sentence hit.
         """
         sentence_hit = True
-        for net_tag, gold_tag in zip(answer, tags):
+        for net_tag, gold_tag in zip(answer, heads):
             if net_tag == gold_tag:
                 self.train_hits += 1
             else:
@@ -159,7 +202,7 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
             
         if sentence_hit:
             self.sentence_hits += 1
-        self.num_tokens += len(tags)
+        self.num_tokens += len(heads)
         self.num_sentences += 1
     
     def _average_error(self):

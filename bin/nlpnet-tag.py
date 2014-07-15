@@ -70,7 +70,13 @@ def _print_tagged(tagged_sents, task):
 def _print_parsed_dependency(parsed_sents):
     """Prints one token per line and its head"""
     for sent in parsed_sents:
-        for i, (token, head) in enumerate(sent):
+        for i, (token, head) in enumerate(sent, 1):
+            # print in accordance to conll format 
+            # (tokens start from 1, root = 0)
+            if head == len(sent):
+                head = 0
+            else:
+                head += 1
             line = u'%2d %s\t\t%s' % (i, token, head)
             print line.encode('utf-8') 
         

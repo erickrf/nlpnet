@@ -30,9 +30,15 @@ class ConllPos(object):
 
 class DependencyReader(reader.TaggerReader):
 
-    def __init__(self, md=None, filename=None):
+    def __init__(self, md=None, filename=None, labeled=False):
         '''
-        Constructor
+        Constructor.
+        :param md: Metadata object containing the description for this reader
+        :param filename: file containing data to be read and used in training
+            or tagging
+        :param labeled: (ignored if md is supplied) whether it is intended 
+            to be used in labeled dependency parsing. Note that if it is 
+            True, another reader object will be needed for unlabeled dependency.
         '''
         if filename is not None:
             self._read_conll(filename)
@@ -41,6 +47,11 @@ class DependencyReader(reader.TaggerReader):
         self.task = 'dependency'
         self.rare_tag = None
         self.pos_dict = None
+        
+        if md is not None:
+            self.labeled = md.task.startswith('labeled')
+        else:
+            self.labeled = labeled
         
     
     def _read_conll(self, filename): 
@@ -57,6 +68,9 @@ class DependencyReader(reader.TaggerReader):
         # this has the number of each token's head, in the same order as 
         # the tokens appear
         sentence_heads = []
+        if self.labeled:
+            self.labels = []
+            sentence_labels = []
         
         with open(filename, 'rb') as f:
             for line in f:
@@ -69,6 +83,11 @@ class DependencyReader(reader.TaggerReader):
                 if len(sentence) > 0:
                     self.sentences.append(sentence)
                     self.heads.append(np.array(sentence_heads))
+                    
+                    if self.labeled:
+                        self.labels.append(sentence_labels)
+                        sentence_labels = []
+                        
                     sentence = []
                     sentence_heads = []
                     
@@ -78,6 +97,7 @@ class DependencyReader(reader.TaggerReader):
             word = fields[ConllPos.word]
             pos = fields[ConllPos.pos]
             head = int(fields[ConllPos.dep_head])
+            label = int(fields[ConllPos.dep_rel])
             
             if head == 0:
                 # we represent a dependency to root as an edge to the token itself
@@ -89,6 +109,8 @@ class DependencyReader(reader.TaggerReader):
             token = attributes.Token(word, pos=pos)
             sentence.append(token)
             sentence_heads.append(head)
+            if self.labeled:
+                sentence_labels.append(label)
         
         # in case there was not an empty line after the last sentence 
         if len(sentence) > 0:
@@ -117,6 +139,31 @@ class DependencyReader(reader.TaggerReader):
         pos_dict = reader.load_tag_dict(self.md.paths['pos_tags'])
         return pos_dict
     
+    
+    def load_or_create_tag_dict(self):
+        """
+        Try to load the tag dictionary from the default location. If the dictinaty
+        file is not available, scan the available sentences and create a new one.
+        
+        It only is needed in labeled dependency parsing. 
+        """
+        if not self.labeled:
+            return
+        
+        logger = logging.getLogger('Logger')
+        filename = self.md.paths['dependency_tag_dict']
+        if os.path.isfile(filename):
+            self.load_tag_dict(filename)
+            logger.debug('Loaded dependency tag dictionary')
+            return
+        
+        tags = {tag for sent_labels in self.labels for tag in sent_labels}
+        self.tag_dict = {tag: code for code, tag in enumerate(tags)}
+        
+        reader.save_tag_dict(filename, self.tag_dict)
+        logger.debug('Saved dependency tag dictionary')
+        
+    
     def generate_dictionary(self, dict_size=None, minimum_occurrences=2):
         """
         Generates a token dictionary based on the given sentences.
@@ -138,17 +185,13 @@ class DependencyReader(reader.TaggerReader):
         in feature matrices. The previous sentences as text are not accessible anymore.
         Tags are left as the index of the each token's head.
         """
-        new_sentences = []
-        for sent in self.sentences:
-            new_sentence = []
-            
-            for token in sent:
-                new_token = self.converter.convert(token)
-                new_sentence.append(new_token)
-            
-            new_sentences.append(np.array(new_sentence))
+        self.sentences = [np.array([self.converter.convert(token) for token in sent])
+                          for sent in self.sentences]
         
-        self.sentences = new_sentences
+        if self.labeled:
+            self.labels = [np.array([self.tag_dict[label] for label in sent_labels]) 
+                           for sent_labels in self.labels]
+        
         self.codified = True
     
     def _load_or_create_pos_dict(self):

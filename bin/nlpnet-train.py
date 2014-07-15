@@ -52,15 +52,14 @@ def create_reader(args, md):
             # this is SRL as one step, we use IOB
             text_reader.convert_tags('iob', update_tag_dict=False)
     
-    elif args.task == 'dependency':
+    elif args.task.endswith('dependency'):
         text_reader = parse.parse_reader.DependencyReader(md, args.gold)
     
     else:
         raise ValueError("Unknown task: %s" % args.task)
     
     text_reader.load_or_create_dictionary()
-    if args.task != 'dependency':
-        text_reader.load_or_create_tag_dict()
+    text_reader.load_or_create_tag_dict()
     
     return text_reader
     
@@ -79,7 +78,7 @@ def create_network(args, text_reader, feature_tables, md=None):
         padding_left = text_reader.converter.get_padding_left(False)
         padding_right = text_reader.converter.get_padding_right(False)
     
-        if args.task == 'dependency':
+        if args.task.endswith('dependency'):
             nn = DependencyNetwork.create_new(feature_tables, distance_tables[0], 
                                               distance_tables[1], args.window, 
                                               args.convolution, args.hidden)
@@ -192,6 +191,16 @@ def create_metadata(args):
 
 def train(nn, reader, args):
     """Trains a neural network for the selected task."""
+    num_sents = len(reader.sentences)
+    logger.info("Starting training with %d sentences" % num_sents)
+    
+    avg_len = sum(len(x) for x in text_reader.sentences) / float(num_sents)
+    logger.debug("Average sentence length is %f tokens" % avg_len)
+    
+    logger.debug("Network connection learning rate: %f" % nn.learning_rate)
+    logger.debug("Feature vectors learning rate: %f" % nn.learning_rate_features)
+    logger.debug("Tag transition matrix learning rate: %f\n" % nn.learning_rate_trans)
+    
     intervals = max(args.iterations / 200, 1)
     np.seterr(over='raise')
     
@@ -201,9 +210,10 @@ def train(nn, reader, args):
         nn.train(reader.sentences, reader.predicates, reader.tags, 
                  args.iterations, intervals, args.accuracy, arg_limits)
     
-    elif args.task == 'dependency':
+    elif args.task.endswith('dependency'):
+        labels = None if not args.labeled else text_reader.labels
         nn.train(reader.sentences, reader.heads, args.iterations, 
-                 intervals, args.accuracy)
+                 intervals, args.accuracy, labels)
         
     else:
         nn.train(reader.sentences, reader.tags, 
@@ -238,11 +248,6 @@ if __name__ == '__main__':
         logger.info('Creating new network...')
         feature_tables = utils.create_feature_tables(args, md, text_reader)
         nn = create_network(args, text_reader, feature_tables, md)
-    
-    logger.info("Starting training with %d sentences" % len(text_reader.sentences))
-    logger.info("Network connection learning rate: %f" % nn.learning_rate)
-    logger.info("Feature vectors learning rate: %f" % nn.learning_rate_features)
-    logger.info("Tag transition matrix learning rate: %f" % nn.learning_rate_trans)
     
     train(nn, text_reader, args)
     

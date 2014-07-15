@@ -114,8 +114,11 @@ def get_args():
                            learning_rate_transitions=0.001)
     
     # dependency
-    subparsers.add_parser('dependency', help='Dependency parsing', 
-                          parents=[base_parser, conv_parser])
+    parser_dep = subparsers.add_parser('dependency', help='Dependency parsing', 
+                                       parents=[base_parser, conv_parser])
+    parser_dep.add_argument('step', help='Which step of the dependency training '\
+                            '(detecting dependency edges or labeling them)',
+                            choices=['labeled', 'unlabeled'])
     defaults['dependency'] = dict(window=3)
     
     # SRL argument parser
@@ -178,6 +181,13 @@ Type %(prog)s [SUBTASK] -h to get subtask-specific help.'''
         elif args.subtask == 'pred':
             args.task = 'srl_predicates'
             args.predicates = True
+    elif args.task == 'dependency':
+        if args.step == 'labeled':
+            args.task = 'labeled_dependency'
+            args.labeled = True
+        else:
+            args.task = 'unlabeled_dependency'
+            args.labeled = False
     
     fill_defaults(args, defaults)
     return args
