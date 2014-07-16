@@ -279,7 +279,7 @@ class DependencyParser(Tagger):
     
     def _load_data(self):
         """Loads data for Dependency Parsing"""
-        md = Metadata.load_from_file('dependency')
+        md = Metadata.load_from_file('unlabeled_dependency')
         self.nn = load_network(md)
         self.reader = create_reader(md)
         if md.use_pos:
@@ -322,6 +322,7 @@ class DependencyParser(Tagger):
             to the sentence length.
         """
         converter = self.reader.converter
+        original_tokens = tokens
         tokens_obj = []
         
         # if the parser uses POS a feature, have a tagger tag it first
@@ -343,7 +344,7 @@ class DependencyParser(Tagger):
         answer = self.nn.tag_sentence(converted_tokens)
         
         if return_tokens:
-            return zip(tokens, answer)
+            return zip(original_tokens, answer)
         
         return answer
     

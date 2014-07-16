@@ -133,6 +133,9 @@ class DependencyReader(reader.TaggerReader):
                 for token in sent}
         pos_dict = {tag: code for code, tag in enumerate(tags)}
         
+        code = max(self.pos_dict.values()) + 1
+        self.pos_dict[attributes.PADDING_POS] = code
+        
         return pos_dict
     
     def load_pos_dict(self):
@@ -142,9 +145,18 @@ class DependencyReader(reader.TaggerReader):
         """
         logger = logging.getLogger("Logger")
         logger.debug('Loading POS tag dictionary (for dependency parsing)')
-        pos_dict = reader.load_tag_dict(self.md.paths['pos_tags'])
+        pos_dict = reader.load_tag_dict(self.md.paths['dependency_pos_tags'])
         return pos_dict
     
+    def load_tag_dict(self, filename=None):
+        """
+        Verify if this reader is for the unlabeled dependency task. If so, 
+        it doesn't use a tag dictionary and the call is ignored.
+        """
+        if not self.labeled:
+            return
+        
+        super(DependencyReader, self).load_tag_dict(filename)    
     
     def load_or_create_tag_dict(self):
         """
@@ -210,18 +222,13 @@ class DependencyReader(reader.TaggerReader):
         if self.pos_dict is not None:
             return
         
-        if os.path.isfile(self.md.paths['pos_tags']):
+        if os.path.isfile(self.md.paths['dependency_pos_tags']):
             self.pos_dict = self.load_pos_dict()
         else:
             self.pos_dict = self._create_pos_dict()
-            self.save_tag_dict(self.md.paths['pos_tags'], self.pos_dict)
+            self.save_tag_dict(self.md.paths['dependency_pos_tags'], self.pos_dict)
         
-        # adding the padding pos key must come after saving the dictionary
-        # because that key shouldn't be used in a POS tagger that shares the 
-        # pos dict
-        if attributes.PADDING_POS not in self.pos_dict:
-            code = max(self.pos_dict.values()) + 1
-            self.pos_dict[attributes.PADDING_POS] = code
+        
     
     def get_num_pos_tags(self):
         """

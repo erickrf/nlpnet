@@ -27,7 +27,7 @@ def interactive_running(task, use_tokenizer=True):
         tagger = nlpnet.taggers.POSTagger()
     elif task_lower == 'srl':
         tagger = nlpnet.taggers.SRLTagger()
-    elif task_lower == 'dependency':
+    elif task_lower == 'unlabeled_dependency':
         tagger = nlpnet.taggers.DependencyParser()
     else:
         raise ValueError('Unknown task: %s' % task)
@@ -62,7 +62,7 @@ def _print_tagged(tagged_sents, task):
         _print_tagged_pos(tagged_sents)
     elif task == 'srl':
         _print_tagged_srl(tagged_sents)
-    elif task == 'dependency':
+    elif task == 'unlabeled_dependency':
         _print_parsed_dependency(tagged_sents)
     else:
         raise ValueError('Unknown task: %s' % task)
@@ -104,7 +104,7 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
     parser.add_argument('task', help='Task for which the network should be used.', 
-                        type=str, choices=['srl', 'pos', 'dependency'])
+                        type=str, choices=['srl', 'pos', 'unlabeled_dependency'])
     parser.add_argument('data', help='Directory containing trained models.', type=str)
     parser.add_argument('-v', help='Verbose mode', action='store_true', dest='verbose')
     parser.add_argument('-t', action='store_true', dest='disable_tokenizer',

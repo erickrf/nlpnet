@@ -85,8 +85,10 @@ class Metadata(object):
         to the task.
         """
         save_data = self.__dict__.copy()
+        filename = self.paths['metadata_%s' % self.task]
         del(save_data['paths'])
-        with open(self.paths['metadata_%s' % self.task], 'wb') as f:
+        
+        with open(filename, 'wb') as f:
             cPickle.dump(save_data, f, 2)
     
     @classmethod
