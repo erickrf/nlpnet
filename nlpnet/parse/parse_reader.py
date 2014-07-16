@@ -133,8 +133,8 @@ class DependencyReader(reader.TaggerReader):
                 for token in sent}
         pos_dict = {tag: code for code, tag in enumerate(tags)}
         
-        code = max(self.pos_dict.values()) + 1
-        self.pos_dict[attributes.PADDING_POS] = code
+        code = max(pos_dict.values()) + 1
+        pos_dict[attributes.PADDING_POS] = code
         
         return pos_dict
     
@@ -228,8 +228,6 @@ class DependencyReader(reader.TaggerReader):
             self.pos_dict = self._create_pos_dict()
             self.save_tag_dict(self.md.paths['dependency_pos_tags'], self.pos_dict)
         
-        
-    
     def get_num_pos_tags(self):
         """
         Return the number of POS tags that can be used as an additional feature
