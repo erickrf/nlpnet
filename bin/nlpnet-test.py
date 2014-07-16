@@ -69,6 +69,50 @@ def evaluate_pos(gold_file=None, oov=None):
     logger.info('Done.')
     return accuracy
 
+def evaluate_labeled_dependency(gold_file):
+    """
+    Evaluate the accuracy for dependency labels per token.
+    """
+    md = Metadata.load_from_file('labeled_dependency')
+    nn = taggers.load_network(md)
+    reader = taggers.create_reader(md, gold_file)
+    reader.codify_sentences()
+    
+    logger = logging.getLogger("Logger")
+    logger.debug('Loaded network')
+    logger.debug(nn.description())
+    logger.info('Starting test...')
+    hits = 0
+    num_tokens = 0
+    sentence_hits = 0
+    num_sentences = 0
+    
+    for sent, heads, labels in zip(reader.sentences, reader.heads, reader.labels):
+        
+        answer = nn.tag_sentence(sent, heads)
+        correct_sentence = True
+                
+        for net_tag, gold_tag in zip(answer, labels):
+            
+            if net_tag == gold_tag:
+                hits += 1
+            else:
+                correct_sentence = False
+            
+            num_tokens += 1
+            
+        if correct_sentence:
+            sentence_hits += 1
+        num_sentences += 1
+        
+    accuracy = float(hits) / num_tokens
+    sent_accuracy = 100 * float(sentence_hits) / num_sentences
+    print '%d hits out of %d' % (hits, num_tokens)
+    print '%d sentences completely correct (%f%%)' % (sentence_hits, sent_accuracy)
+    
+    logger.info('Done.')
+    return accuracy
+    
 def sentence_precision(network_tags, gold_tags, gold_tag_dict, network_tag_dict):
     """
     Evaluates the network precision on a single sentence.
@@ -485,7 +529,7 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
     parser.add_argument('--task', help='Task for which the network should be used.', 
-                        type=str, required=True, choices=['srl', 'pos'])
+                        type=str, required=True, choices=['srl', 'pos', 'labeled_dependency'])
     parser.add_argument('-v', help='Verbose mode', action='store_true', dest='verbose')
     parser.add_argument('--id', help='Evaluate only argument identification (SRL only)',
                         action='store_true', dest='identify')
@@ -524,6 +568,10 @@ if __name__ == '__main__':
                     
         accuracy = evaluate_pos(gold_file=args.gold, oov=oov)
         print "Accuracy: %f" % accuracy
+    
+    elif args.task == 'labeled_dependency':
+        accuracy = evaluate_labeled_dependency(args.gold)
+        print 'Accuracy: %f' % accuracy
     
     elif args.task.startswith('srl'):
         

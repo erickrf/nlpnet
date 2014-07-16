@@ -549,6 +549,7 @@ Output size: %d
         min_error = np.Infinity 
         last_error = np.Infinity 
         self.training = True
+        self.num_tokens = sum(len(sent) for sent in sentences)
         
         np.seterr(all='raise')
 
@@ -578,6 +579,7 @@ Output size: %d
             last_accuracy = self.accuracy
             last_error = self.error
         
+        self.num_tokens = 0
         self.training = False
             
     def _print_epoch_report(self, int num):
@@ -601,7 +603,6 @@ Output size: %d
         self.error = 0
         self.skips = 0
         self.float_errors = 0
-        self.num_tokens = 0
         
         # shuffle data
         # get the random number generator state in order to shuffle
@@ -618,7 +619,6 @@ Output size: %d
         for sent, sent_tags in izip(sentences, tags):
             try:
                 self._tag_sentence(sent, sent_tags)
-                self.num_tokens += len(sent)
             except FloatingPointError:
                 # just ignore the sentence in case of an overflow
                 self.float_errors += 1

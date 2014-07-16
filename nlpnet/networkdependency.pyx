@@ -36,7 +36,6 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
                                              epochs_between_reports, 
                                              desired_accuracy,
                                              labels)
-        self.num_sentences = 0
         self.sentence_hits = 0
     
     def _reset_counters(self):
@@ -65,7 +64,7 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         algorithm.
         """
         self._pre_tagging_setup(sentence)
-                
+        
         num_tokens = len(sentence)
         # dependency_weights [i, j] has the score for token i having j as a head
         # the main diagonal has the values for dependencies from the root and is 
@@ -124,12 +123,13 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
             head = [[head, head]]
             
             # it will return a 2-dim array, but we only have one target
+            # argmax() works as expected
             scores = self._sentence_convolution(sentence, token, head)
-            answer[token] = scores[0].argmax()
+            answer[token] = scores.argmax()
             
             if self.training:
                 label = labels[token]
-                if self._calculate_gradients_classify(labels, scores):
+                if self._calculate_gradients_classify([label], scores):
                     self._backpropagate()
                     self._calculate_input_deltas(sentence, token, head)
                     self._adjust_weights(token, head)
@@ -193,8 +193,6 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
             
         if sentence_hit:
             self.sentence_hits += 1
-        self.num_tokens += len(tags)
-        self.num_sentences += 1
     
     def _average_error(self):
         """
@@ -217,12 +215,15 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
                                             sentence_accuracy,
                                             self.skips))
     
-    def tag_sentence(self, np.ndarray sentence):
+    def tag_sentence(self, np.ndarray sentence, np.ndarray heads=None):
         """
-        Run the network for each token in the sentence and compute the 
-        dependency tree. It returns a list with the head of each token.
+        If heads is not given, compute the dependency edges in the sentence.
+        If it is given, compute the lable of each dependency.
         """
-        return self._tag_sentence_dependency(sentence)
+        if heads is None:
+            return self._tag_sentence_unlabeled_dependency(sentence)
+        else:
+            return self._tag_sentence_labeled_dependency(sentence, heads)
     
     def _find_cycles(self, np.ndarray graph):
         """

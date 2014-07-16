@@ -48,8 +48,12 @@ class DependencyReader(reader.TaggerReader):
         if filename is not None:
             self._read_conll(filename)
         
+        if self.labeled:
+            self.task = 'labeled_dependency'
+        else:
+            self.task = 'unlabeled_dependency'
+        
         self._set_metadata(md)
-        self.task = 'dependency'
         self.rare_tag = None
         self.pos_dict = None
                 

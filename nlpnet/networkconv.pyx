@@ -220,6 +220,8 @@ Output size: %d
         :param arguments: (only for argument classifying) a list of 2-dim
             numpy arrays indicating the start and end of each argument. 
         """
+        self.num_sentences = len(sentences)
+        self.num_tokens = sum(len(sent) for sent in sentences)
         self.only_classify = arguments is not None
         
         logger = logging.getLogger("Logger")
@@ -258,6 +260,8 @@ Output size: %d
             last_accuracy = self.accuracy
             last_error = self.error
         
+        self.num_sentences = 0
+        self.num_tokens = 0
         self._reset_counters()
         self.training = False
     
@@ -268,8 +272,6 @@ Output size: %d
         """
         self.train_hits = 0
         self.error = 0
-        self.num_tokens = 0
-        self.num_sentences = 0
         self.skips = 0
         self.float_errors = 0
     
@@ -306,7 +308,6 @@ Output size: %d
             
             try:
                 self._tag_sentence(sent, sent_preds, sent_tags, sent_args)
-                self.num_sentences += 1
             except FloatingPointError:
                 # just ignore the sentence in case of an overflow
                 self.float_errors += 1
@@ -514,7 +515,6 @@ Output size: %d
         for net_tag, gold_tag in zip(answer, tags):
             if net_tag == gold_tag:
                 self.train_hits += 1
-        self.num_tokens += len(tags)
     
     def _calculate_gradients(self, tags, scores):
         """Delegates the call to the appropriate function."""
