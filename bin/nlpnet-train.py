@@ -28,20 +28,32 @@ from nlpnet.network import Network, ConvolutionalNetwork, DependencyNetwork
 ### FUNCTION DEFINITIONS ###
 ############################
 
-def create_reader(args, md):
+def create_reader(args, md, validation=False):
     """
     Creates and returns a TextReader object according to the task at hand.
+    
+    :param args: the object containing the program arguments 
+    :param md: metadata for the task
+    :param validation: whether the reader should read the validation data
+        from `args`
     """
-    logger.info("Reading text...")
+    if validation:
+        msg = "validation"
+        filename = args.dev
+    else:
+        msg = "training"
+        filename = args.gold
+    
+    logger.info("Reading %s data..." % msg)
     if args.task == 'pos':
-        text_reader = pos.pos_reader.POSReader(md, filename=args.gold)
+        text_reader = pos.pos_reader.POSReader(md, filename=filename)
         if args.suffix:
             text_reader.create_suffix_list(args.suffix_size, 5)
         if args.prefix:
             text_reader.create_prefix_list(args.prefix_size, 5)
             
     elif args.task.startswith('srl'):
-        text_reader = srl.srl_reader.SRLReader(md, filename=args.gold, only_boundaries=args.identify, 
+        text_reader = srl.srl_reader.SRLReader(md, filename=filename, only_boundaries=args.identify, 
                                                only_classify=args.classify,
                                                only_predicates=args.predicates)
         if args.identify:
@@ -53,13 +65,15 @@ def create_reader(args, md):
             text_reader.convert_tags('iob', update_tag_dict=False)
     
     elif args.task.endswith('dependency'):
-        text_reader = parse.parse_reader.DependencyReader(md, args.gold)
+        text_reader = parse.parse_reader.DependencyReader(md, filename)
     
     else:
         raise ValueError("Unknown task: %s" % args.task)
     
     text_reader.load_or_create_dictionary()
     text_reader.load_or_create_tag_dict()
+    text_reader.create_converter()
+    text_reader.codify_sentences()
     
     return text_reader
     
@@ -190,6 +204,23 @@ def create_metadata(args):
     return metadata.Metadata(args.task, None, use_caps, use_suffix, use_prefix, 
                                use_pos, use_chunk)
 
+def set_validation_data(nn, task, reader):
+    """Sets the neural network validation data."""
+    if task == 'pos' or task == 'srl_predicates':
+        nn.set_validation_data(reader.sentences, reader.tags)
+    
+    elif task.startswith('srl') and task != 'srl_predicates':
+        arg_limits = None if task != 'srl_classify' else reader.arg_limits
+        nn.set_validation_data(reader.sentences, reader.predicates,
+                               reader.tags, arg_limits)
+    
+    elif task.endswith('dependency'):
+        labels = None if task.startswith('unlabeled') else reader.labels
+        nn.set_validation_data(reader.sentences, reader.heads, labels)
+    
+    else:
+        raise ValueError('Unknown task: %s' % task)
+
 def train(nn, reader, args):
     """Trains a neural network for the selected task."""
     num_sents = len(reader.sentences)
@@ -239,8 +270,6 @@ if __name__ == '__main__':
         md = metadata.Metadata.load_from_file(args.task)
         
     text_reader = create_reader(args, md)
-    text_reader.create_converter()
-    text_reader.codify_sentences()
     
     if args.load_network:
         logger.info("Loading provided network...")
@@ -250,6 +279,9 @@ if __name__ == '__main__':
         feature_tables = utils.create_feature_tables(args, md, text_reader)
         nn = create_network(args, text_reader, feature_tables, md)
     
+    if args.dev is not None:
+        validation_reader = create_reader(args, md, True)
+        set_validation_data(nn, args.task, validation_reader)
     train(nn, text_reader, args)
     
     logger.info("Saving trained models...")

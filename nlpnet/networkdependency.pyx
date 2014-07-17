@@ -16,6 +16,17 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
     # the weights of all possible dependency among tokens
     cdef readonly np.ndarray dependency_weights
     
+    # validation data
+    cdef validation_heads
+    
+#     def __init__(self, *args, **kwargs):
+#         """
+#         Just call the ConvolutionalNetwork constructor and fill needed
+#         values
+#         """
+#         super(DependencyNetwork, self).__init__(*args, **kwargs)
+#         self.validation_heads = None
+    
     def train(self, list sentences, list heads, int epochs, 
               int epochs_between_reports=0, float desired_accuracy=0,
               list labels=None):
@@ -31,12 +42,27 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         # groups list. We use "labels" here just to signal that there is non-None
         # argument, which is correctly handled by the DependencyNetwork._tag(...) method.
         
+        if self.validation_sentences is None:
+            self.set_validation_data(sentences, heads, labels)
+        
         super(DependencyNetwork, self).train(sentences, predicates, 
                                              heads, epochs, 
                                              epochs_between_reports, 
                                              desired_accuracy,
                                              labels)
         self.sentence_hits = 0
+    
+    def set_validation_data(self, list sentences, list heads, list labels=None):
+        """
+        Sets the data to be used in validation during training. If this function
+        is not called before training, the training data itself is used to 
+        measure the model's performance.
+        
+        :param labels: only used when learning labels
+        """
+        self.validation_sentences = sentences
+        self.validation_tags = labels
+        self.validation_heads = heads
     
     def _reset_counters(self):
         """
@@ -63,7 +89,8 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         and the final answer is obtained applying the Chu-Liu-Edmond's
         algorithm.
         """
-        self._pre_tagging_setup(sentence)
+        training = heads is not None
+        self._pre_tagging_setup(sentence, training)
         
         num_tokens = len(sentence)
         # dependency_weights [i, j] has the score for token i having j as a head
@@ -82,7 +109,7 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
             token_scores = self._sentence_convolution(sentence, token).reshape(num_tokens)
             self.dependency_weights[token, :-1] = token_scores
             
-            if self.training:
+            if training:
                 head = heads[token]
                 if self._calculate_gradients(head, token_scores):
                     self._backpropagate()
@@ -96,8 +123,6 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
                                 -1] = self.dependency_weights.diagonal()
         np.fill_diagonal(self.dependency_weights, -np.Infinity)
         answer = self._find_maximum_spanning_tree()
-        if self.training:
-            self._evaluate(answer, heads)
         
         return answer
     
@@ -109,7 +134,8 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         """
         cdef np.ndarray[FLOAT_t, ndim=1] answer
         cdef np.ndarray[FLOAT_t, ndim=2] scores
-        self._pre_tagging_setup(sentence)
+        training = labels is not None
+        self._pre_tagging_setup(sentence, training)
         
         answer = np.zeros(len(sentence))
         
@@ -127,7 +153,7 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
             scores = self._sentence_convolution(sentence, token, head)
             answer[token] = scores.argmax()
             
-            if self.training:
+            if training:
                 label = labels[token]
                 if self._calculate_gradients_classify([label], scores):
                     self._backpropagate()
@@ -135,8 +161,6 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
                     self._adjust_weights(token, head)
                     self._adjust_features(sentence, token)
         
-        if self.training:
-            self._evaluate(answer, labels)
         
         return answer
     
@@ -180,19 +204,39 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         
         return True
     
-    def _evaluate(self, answer, tags):
+    def _validate(self):
         """
         Evaluate the network performance by token hit and whole sentence hit.
         """
-        sentence_hit = True
-        for net_tag, gold_tag in zip(answer, tags):
-            if net_tag == gold_tag:
-                self.train_hits += 1
-            else:
-                sentence_hit = False
+        hits = 0
+        num_tokens = 0
+        
+        for i in range(self.validation_sentences):
+            sent = self.validation_sentences[i]
+            heads = self.validation_heads[i]
+            sentence_hit = True
             
-        if sentence_hit:
-            self.sentence_hits += 1
+            if self.validation_labels is None:
+                # unlabeled dependency
+                answer = self._tag_sentence_unlabeled_dependency(sent)
+                gold_tags = heads
+            else:
+                # labeled dependency
+                gold_tags = self.validation_tags[i]
+                answer = self._tag_sentence_labeled_dependency(sent, heads)
+                
+            for net_tag, gold_tag in zip(answer, gold_tags):
+                if net_tag == gold_tag:
+                    hits += 1
+                else:
+                    sentence_hit = False
+            
+            if sentence_hit:
+                self.sentence_hits += 1
+            num_tokens += len(sent)               
+        
+        self.accuracy = float(hits) / num_tokens
+            
     
     def _average_error(self):
         """

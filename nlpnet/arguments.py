@@ -76,6 +76,9 @@ def get_args():
                              type=str, required=True)
     base_parser.add_argument('--data', help='Directory to save new models and load '\
                              'partially trained ones', type=str, required=True)
+    base_parser.add_argument('--dev', help='Development (validation) data. If not given, '\
+                             'training data will be used to evaluate performance.',
+                             default=None)
     
         
     # parser with arguments shared among convolutional-based tasks

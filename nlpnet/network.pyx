@@ -109,8 +109,8 @@ cdef class Network:
     # function to save periodically
     cdef public object saver
     
-    # whether the network is undergoing training
-    cdef bool training
+    cdef list validation_sentences
+    cdef list validation_tags
 
     @classmethod
     def create_new(cls, feature_tables, int word_window, int hidden_size, 
@@ -180,7 +180,8 @@ cdef class Network:
         self.output_weights = output_weights
         self.output_bias = output_bias
         
-        self.training = False
+        self.validation_sentences = None
+        self.validation_tags = None
 
         # Attardi: saver fuction
         self.saver = lambda nn: None
@@ -275,7 +276,8 @@ Output size: %d
         # scores[t, i] = ftheta_i,t = score for i-th tag, t-th word
         cdef np.ndarray scores = np.empty((len(sentence), self.output_size))
         
-        if self.training:
+        training = tags is not None
+        if training:
             self.input_sent_values = np.empty((len(sentence), self.input_size))
             # layer2_values at each token in the correct path
             self.layer2_sent_values = np.empty((len(sentence), self.hidden_size))
@@ -291,12 +293,12 @@ Output size: %d
         for i in xrange(len(sentence)):
             window = padded_sentence[i: i+self.word_window_size]
             scores[i] = self.run(window)
-            if self.training:
+            if training:
                 self.input_sent_values[i] = self.input_values
                 self.layer2_sent_values[i] = self.layer2_values
                 self.hidden_sent_values[i] = self.hidden_values
         
-        if self.training:
+        if training:
             if self._calculate_gradients_sll(tags, scores):
                 self._backpropagate(sentence)
 
@@ -525,6 +527,18 @@ Output size: %d
         answer[0] = previous_tag
         return answer
     
+    def set_validation_data(self, list validation_sentences=None,
+                            list validation_tags=None):
+        """
+        Sets the data to be used during validation. If this function is not
+        called before training, the training data is used to measure performance.
+        
+        :param validation_sentences: sentences to be used in validation.
+        :param validation_tags: tags for the validation sentences.
+        """
+        self.validation_sentences = validation_sentences
+        self.validation_tags = validation_tags 
+    
     def train(self, list sentences, list tags, 
               int epochs, int epochs_between_reports=0,
               float desired_accuracy=0):
@@ -548,16 +562,20 @@ Output size: %d
         last_accuracy = 0
         min_error = np.Infinity 
         last_error = np.Infinity 
-        self.training = True
         self.num_tokens = sum(len(sent) for sent in sentences)
         
         np.seterr(all='raise')
+        if self.validation_sentences is None:
+            self.validation_sentences = sentences
+            self.validation_tags = tags
 
         for i in xrange(epochs):
             self._train_epoch(sentences, tags)
+            self._validate()
             
             # normalize error
             self.error = self.error / self.num_tokens if self.num_tokens else np.Infinity
+            
             # Attardi: save model
             if self.error < min_error:
                 min_error = self.error
@@ -580,7 +598,6 @@ Output size: %d
             last_error = self.error
         
         self.num_tokens = 0
-        self.training = False
             
     def _print_epoch_report(self, int num):
         """
@@ -612,9 +629,6 @@ Output size: %d
         np.random.set_state(random_state)
         np.random.shuffle(tags)
         
-        # keep last 2% for validation
-        validation = int(len(sentences) * 0.98)
-
         i = 0
         for sent, sent_tags in izip(sentences, tags):
             try:
@@ -622,26 +636,21 @@ Output size: %d
             except FloatingPointError:
                 # just ignore the sentence in case of an overflow
                 self.float_errors += 1
-            i += 1
-            if i == validation:
-                break
 
-        self._validate(sentences, tags, validation)
-
-    def _validate(self, sentences, tags, idx):
-        """Perform validation on held out data and estimate accuracy"""
-        tokens = 0
+    def _validate(self):
+        """Perform validation on validation data and estimate accuracy"""
         hits = 0
-        for i in xrange(idx, len(sentences)):
-            sent = sentences[i]
-            gold_tags = tags[i]
-            scores = self._tag_sentence(sent, False)
+        num_tokens = 0
+        
+        for sent, gold_tags in zip(self.validation_sentences, self.validation_tags):
+            scores = self._tag_sentence(sent)
             answer = self._viterbi(scores)
             for pred_tag, gold_tag in izip(answer, gold_tags):
                 if pred_tag == gold_tag:
                     hits += 1
-                tokens += 1
-        self.accuracy = float(hits) / tokens
+            num_tokens += len(sent)
+        
+        self.accuracy = float(hits) / num_tokens
 
     def _backpropagate(self, sentence):
         """

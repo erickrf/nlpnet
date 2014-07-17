@@ -46,7 +46,10 @@ cdef class ConvolutionalNetwork(Network):
     cdef np.ndarray input_deltas
     
     # keeping statistics
-    cdef int train_hits, num_sentences
+    cdef int num_sentences
+    
+    # validation
+    cdef list validation_predicates, validation_arguments
     
     @classmethod
     def create_new(cls, feature_tables, target_dist_table, pred_dist_table, 
@@ -136,6 +139,9 @@ Output size: %d
         self.hidden2_weights = hidden2_weights
         self.hidden2_bias = hidden2_bias
         
+        self.validation_predicates = None
+        self.validation_arguments = None
+        
     def save(self, filename):
         """
         Saves the neural network to a file.
@@ -208,6 +214,20 @@ Output size: %d
         """
         self.error = self.error / self.num_sentences
     
+    def set_validation_data(self, list validation_sentences,
+                            list validation_predicates,
+                            list validation_tags,
+                            list validation_arguments=None):
+        """
+        Sets the data to be used in validation during training. If this function
+        is not called before training, the training data itself is used to 
+        measure the model's performance.
+        """
+        self.validation_sentences = validation_sentences
+        self.validation_predicates = validation_predicates
+        self.validation_tags = validation_tags
+        self.validation_arguments = validation_arguments
+    
     def train(self, list sentences, list predicates, list tags,  
               int epochs, int epochs_between_reports=0,
               float desired_accuracy=0, list arguments=None):
@@ -230,13 +250,14 @@ Output size: %d
         last_accuracy = 0
         min_error = np.Infinity 
         last_error = np.Infinity
-        self.training = True
+        
+        if self.validation_sentences is None:
+            self.set_validation_data(sentences, predicates, tags, arguments)
         
         for i in xrange(epochs):
             self._train_epoch(sentences, predicates, tags, arguments)
-            
+            self._validate()
             self._average_error()
-            self.accuracy = float(self.train_hits) / self.num_tokens
             
             if self.accuracy > top_accuracy:
                 top_accuracy = self.accuracy
@@ -263,14 +284,12 @@ Output size: %d
         self.num_sentences = 0
         self.num_tokens = 0
         self._reset_counters()
-        self.training = False
     
     def _reset_counters(self):
         """
         Reset the performance statistics counters. They are updated during
         each epoch. 
         """
-        self.train_hits = 0
         self.error = 0
         self.skips = 0
         self.float_errors = 0
@@ -353,7 +372,7 @@ Output size: %d
     
     @cython.boundscheck(False)
     @cython.wraparound(False)
-    def _sentence_convolution(self, sentence, predicate, argument_blocks=None):
+    def _sentence_convolution(self, sentence, predicate, argument_blocks=None, training=False):
         """
         Perform the convolution for a given predicate.
         
@@ -375,7 +394,7 @@ Output size: %d
         self.num_targets = len(sentence) if argument_blocks is None else len(argument_blocks)
         scores = np.empty((self.num_targets, self.output_size))
         
-        if self.training: 
+        if training: 
             # layer 2: results after applying hidden weights, before tanh
             # hidden sent values: results after tanh
             self.layer2_sent_values = np.empty((self.num_targets, self.hidden_size))
@@ -412,28 +431,28 @@ Output size: %d
                                  + pred_dist_values + self.convolution_lookup
             
             # now, find the maximum values
-            if self.training:
+            if training:
                 self.max_indices[target] = convolution_values.argmax(0)
             
             # apply the bias and proceed to the next layer
             self.hidden_values = convolution_values.max(0) + self.hidden_bias
-            if self.training:
+            if training:
                 self.hidden_sent_values[target] = self.hidden_values
             
             if self.hidden2_weights is not None:
                 self.hidden2_values = self.hidden2_weights.dot(self.hidden_values) + self.hidden2_bias
-                if self.training:
+                if training:
                     self.layer3_sent_values[target] = self.hidden2_values
                 
                 self.hidden2_values = hardtanh(self.hidden2_values)
-                if self.training:
+                if training:
                     self.hidden2_sent_values[target] = self.hidden2_values
             else:
                 # apply non-linearity here
-                if self.training:
+                if training:
                     self.layer2_sent_values[target] = self.hidden_values
                 self.hidden2_values = hardtanh(self.hidden_values)
-                if self.training:
+                if training:
                     self.hidden_sent_values[target] = self.hidden2_values
             
             scores[target] = self.output_weights.dot(self.hidden2_values)
@@ -441,17 +460,17 @@ Output size: %d
         
         return scores
     
-    def _pre_tagging_setup(self, np.ndarray sentence):
+    def _pre_tagging_setup(self, np.ndarray sentence, bool training):
         """
         Perform some initialization actions before the actual tagging.
         """
-        if self.training:
+        if training:
             # this table will store the values of the neurons for each input token
             # they will be needed during weight adjustments
             self.input_sent_values = np.empty((len(sentence), self.input_size))
         
         # store the convolution values to save time
-        self._create_convolution_lookup(sentence)
+        self._create_convolution_lookup(sentence, training)
         
         if self.target_dist_lookup is None: self._create_target_lookup()
         if self.pred_dist_lookup is None: self._create_pred_lookup()
@@ -475,18 +494,18 @@ Output size: %d
         :param predicates: a numpy array with the indices of the predicates in the sentence.
         """
         answer = []
-        self._pre_tagging_setup(sentence)
+        training = tags is not None
+        self._pre_tagging_setup(sentence, training)
         cdef np.ndarray[FLOAT_t, ndim=2] token_scores
         
         for i, predicate in enumerate(predicates):
             pred_arguments = None if not self.only_classify else argument_blocks[i]
             
-            token_scores = self._sentence_convolution(sentence, predicate, pred_arguments)
+            token_scores = self._sentence_convolution(sentence, predicate, pred_arguments, training)
             pred_answer = self._viterbi(token_scores, allow_repeats)
         
-            if self.training:
+            if training:
                 pred_tags = tags[i]
-                self._evaluate(pred_answer, pred_tags)
                 
                 if self._calculate_gradients(pred_tags, token_scores):
                     self._backpropagate()
@@ -507,14 +526,36 @@ Output size: %d
             answer.append(pred_answer)
         
         return answer
-            
-    def _evaluate(self, answer, tags):
+        
+    def _validate(self):
         """
         Evaluates the network performance, updating its hits count.
         """
-        for net_tag, gold_tag in zip(answer, tags):
-            if net_tag == gold_tag:
-                self.train_hits += 1
+        # call it "item" instead of token because the same token may be counted
+        # more than once (sentences with multiple predicates)
+        num_items = 0
+        hits = 0
+        
+        if self.validation_arguments is not None:
+            i_args = iter(self.validation_arguments)
+        else:
+            sent_args = None
+        
+        for sent, sent_preds, sent_tags in izip(self.validation_sentences, 
+                                                self.validation_predicates, 
+                                                self.validation_tags):
+            if self.validation_arguments is not None:
+                sent_args = i_args.next()
+            
+            answer = self._tag_sentence(sent, sent_preds, None, sent_args)
+            for predicate_answer, predicate_tags in zip(answer, sent_tags):
+                for net_tag, gold_tag in zip(predicate_answer, predicate_tags):
+                    if net_tag == gold_tag:
+                        hits += 1
+                
+                num_items += len(predicate_answer)
+        
+        self.accuracy = float(hits) / num_items
     
     def _calculate_gradients(self, tags, scores):
         """Delegates the call to the appropriate function."""
@@ -874,7 +915,7 @@ Output size: %d
             window_from = window_to
             window_to += self.pred_dist_table.shape[1] 
     
-    def _create_convolution_lookup(self, sentence):
+    def _create_convolution_lookup(self, sentence, training):
         """
         Creates a lookup table storing the values found by each
         convolutional neuron before summing distance features.
@@ -905,7 +946,7 @@ Output size: %d
                                     )
         
         self.convolution_lookup[0] = self.hidden_weights.dot(input_data)
-        if self.training:
+        if training:
             # store the values of each input -- needed when adjusting features
             self.input_sent_values[0] = input_data
         
@@ -919,6 +960,6 @@ Output size: %d
                                          new_data))
             
             self.convolution_lookup[i] = self.hidden_weights.dot(input_data)
-            if self.training:
+            if training:
                 self.input_sent_values[i] = input_data
         
