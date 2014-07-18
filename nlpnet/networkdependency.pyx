@@ -106,7 +106,8 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         for token in range(num_tokens):
             # _sentence_convolution returns a 2-dim array. in dep parsing, 
             # we only have one dimension, so reshape it
-            token_scores = self._sentence_convolution(sentence, token).reshape(num_tokens)
+            token_scores = self._sentence_convolution(sentence, token, 
+                                                      training=training).reshape(num_tokens)
             self.dependency_weights[token, :-1] = token_scores
             
             if training:
@@ -150,7 +151,7 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
             
             # it will return a 2-dim array, but we only have one target
             # argmax() works as expected
-            scores = self._sentence_convolution(sentence, token, head)
+            scores = self._sentence_convolution(sentence, token, head, training)
             answer[token] = scores.argmax()
             
             if training:

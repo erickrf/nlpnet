@@ -394,7 +394,7 @@ Output size: %d
         self.num_targets = len(sentence) if argument_blocks is None else len(argument_blocks)
         scores = np.empty((self.num_targets, self.output_size))
         
-        if training: 
+        if training:
             # layer 2: results after applying hidden weights, before tanh
             # hidden sent values: results after tanh
             self.layer2_sent_values = np.empty((self.num_targets, self.hidden_size))

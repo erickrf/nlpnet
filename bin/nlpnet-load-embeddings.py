@@ -156,7 +156,7 @@ This script can deal with the following formats:
     parser.add_argument('--task', help='Task for which the embeddings will be used. '\
                         'It determines the name of the embeddings file. If not given, '\
                         'it will be nlpnet-embeddings.npy.', dest='task', default=None, 
-                        choices=['pos', 'srl', 'srl_boundary', 'labeled_dependency',
+                        choices=['pos', 'srl', 'srl_boundary', 'unlabeled_dependency',
                                  'labeled_dependency', 'srl_classify', 'srl_predicates'])
     args = parser.parse_args()
     
