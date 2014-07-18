@@ -217,7 +217,7 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
             heads = self.validation_heads[i]
             sentence_hit = True
             
-            if self.validation_labels is None:
+            if self.validation_tags is None:
                 # unlabeled dependency
                 answer = self._tag_sentence_unlabeled_dependency(sent)
                 gold_tags = heads
