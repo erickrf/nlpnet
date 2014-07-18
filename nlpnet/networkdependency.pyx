@@ -212,7 +212,7 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         hits = 0
         num_tokens = 0
         
-        for i in range(self.validation_sentences):
+        for i in range(len(self.validation_sentences)):
             sent = self.validation_sentences[i]
             heads = self.validation_heads[i]
             sentence_hit = True
