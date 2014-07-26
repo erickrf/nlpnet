@@ -49,26 +49,20 @@ cdef logsumexp(np.ndarray a, axis=None):
 
 cdef hardtanh(np.ndarray[FLOAT_t, ndim=1] weights):
     """Hard hyperbolic tangent."""
-    cdef np.ndarray out = np.empty_like(weights)
-    cdef int i
-    cdef float w
-    for i, w in enumerate(weights):
-        if w < -1:
-            out[i] = -1
-        elif w > 1:
-            out[i] = 1
-        else:
-            out[i] = w
+    cdef np.ndarray out = np.copy(weights)
+    inds_greater = weights > 1
+    inds_lesser = weights < -1
+    out[inds_greater] = 1
+    out[inds_lesser] = -1
+    
     return out
 
 cdef hardtanhd(np.ndarray[FLOAT_t, ndim=2] weights):
     """derivative of hardtanh"""
     cdef np.ndarray out = np.zeros_like(weights)
-    cdef int i
-    cdef float w
-    for i, w in enumerate(weights.flat):
-        if -1.0 <= w <= 1.0:
-            out.flat[i] = 1.0
+    inds = np.logical_and(-1.0 <= weights, weights <= 1.0)
+    out[inds] = 1.0
+    
     return out
 
 # ----------------------------------------------------------------------
