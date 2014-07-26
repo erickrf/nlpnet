@@ -10,8 +10,8 @@ cimport numpy as np
 
 cdef class DependencyNetwork(ConvolutionalNetwork):
     
-    # counter of completely correct sentences
-    cdef int sentence_hits
+    # proportion of completely correct sentences
+    cdef float sentence_accuracy
     
     # the weights of all possible dependency among tokens
     cdef readonly np.ndarray dependency_weights
@@ -64,14 +64,6 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         self.validation_tags = labels
         self.validation_heads = heads
     
-    def _reset_counters(self):
-        """
-        Reset the same counters as the ConvolutionalNetwork class, and additionally
-        those related to sentences.
-        """
-        super(DependencyNetwork, self)._reset_counters()
-        self.sentence_hits = 0
-    
     def _tag_sentence(self, sentence, predicates=None, heads=None, labels=None):
         """
         This function is just an interface to the _tag_sentence signature
@@ -118,7 +110,7 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
                     self._adjust_weights(token)
                     self._adjust_features(sentence, token)
         
-        # copy dependency weights from the root to the last column and
+        # copy dependency weights from the root to each token to the last column and
         # effectively ignore the main diagonal (dependency to the token itself)
         self.dependency_weights[np.arange(num_tokens), 
                                 -1] = self.dependency_weights.diagonal()
@@ -226,18 +218,22 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
                 gold_tags = self.validation_tags[i]
                 answer = self._tag_sentence_labeled_dependency(sent, heads)
                 
-            for net_tag, gold_tag in zip(answer, gold_tags):
-                if net_tag == gold_tag:
+            for i in enumerate(gold_tags):
+                net_tag = answer[i]
+                gold_tag = gold_tags[i]
+                
+                if net_tag == gold_tag or (gold_tag == i and net_tag == len(sent)):
                     hits += 1
                 else:
                     sentence_hit = False
             
             if sentence_hit:
-                self.sentence_hits += 1
-            num_tokens += len(sent)               
+                sentence_hits += 1
+            num_tokens += len(sent)
         
         self.accuracy = float(hits) / num_tokens
-            
+        self.sentence_accuracy = float(sentence_hits) / len(self.validation_sentences)
+        
     
     def _average_error(self):
         """
@@ -250,20 +246,23 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         Reports the status of the network in the given training
         epoch, including error, token and sentence accuracy.
         """
-        sentence_accuracy = float(self.sentence_hits) / self.num_sentences        
         logger = logging.getLogger("Logger")
         logger.info("%d epochs   Error: %f   Token accuracy: %f   " \
-            "Sentence accuracy: %f    " \
-            "%d corrections skipped   "  % (num,
-                                            self.error,
-                                            self.accuracy,
-                                            sentence_accuracy,
-                                            self.skips))
+                    "Sentence accuracy: %f    " \
+                    "%d corrections skipped   "  % (num,
+                                                    self.error,
+                                                    self.accuracy,
+                                                    self.sentence_accuracy,
+                                                    self.skips))
     
     def tag_sentence(self, np.ndarray sentence, np.ndarray heads=None):
         """
         If heads is not given, compute the dependency edges in the sentence.
-        If it is given, compute the lable of each dependency.
+        If it is given, compute the label of each dependency.
+        
+        :returns: a numpy 1-dim array with the head for each token or label
+            of each edge. In the first case, a dependency from the root is 
+            represented as a value equal to the sentence length. 
         """
         if heads is None:
             return self._tag_sentence_unlabeled_dependency(sentence)
