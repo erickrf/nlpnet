@@ -105,7 +105,7 @@ class DependencyReader(reader.TaggerReader):
             
             if head == 0:
                 # we represent a dependency to root as an edge to the token itself
-                head = int(fields[ConllPos.id]) 
+                head = int(fields[ConllPos.id])
             
             # -1 because tokens are numbered from 1
             head -= 1

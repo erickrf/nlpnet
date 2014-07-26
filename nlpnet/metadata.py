@@ -92,7 +92,7 @@ class Metadata(object):
             cPickle.dump(save_data, f, 2)
     
     @classmethod
-    def load_from_file(cls, task, paths = None):
+    def load_from_file(cls, task, paths=None):
         """
         Reads the file containing the metadata for the given task and returns a 
         Metadata object.

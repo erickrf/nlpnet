@@ -294,6 +294,14 @@ class TaggerReader(TextReader):
         
         return ret
     
+    def codify_sentence(self, sentence):
+        """
+        Converts a given sentence into the indices used by the neural network.
+        
+        :param sentence: a sequence of tokens, already tokenized
+        """
+        return np.array([self.converter.convert(t) for t in sentence])
+    
     def codify_sentences(self):
         """
         Converts each token in each sequence into indices to their feature vectors

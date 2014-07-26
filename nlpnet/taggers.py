@@ -321,7 +321,6 @@ class DependencyParser(Tagger):
             sentence, and a dependency to root is indicated with a value equal
             to the sentence length.
         """
-        converter = self.reader.converter
         original_tokens = tokens
         tokens_obj = []
         
@@ -339,8 +338,7 @@ class DependencyParser(Tagger):
 #             word = utils.clean_text(word, False)
             tokens_obj.append(attributes.Token(word, pos=pos))
         
-        converted_tokens = np.array([converter.convert(token) 
-                                     for token in tokens_obj])
+        converted_tokens = self.reader.codify_sentence(tokens_obj)
         answer = self.nn.tag_sentence(converted_tokens)
         
         if return_tokens:
