@@ -50,7 +50,6 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
                                              epochs_between_reports, 
                                              desired_accuracy,
                                              labels)
-        self.sentence_hits = 0
     
     def set_validation_data(self, list sentences, list heads, list labels=None):
         """
@@ -203,6 +202,7 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         """
         hits = 0
         num_tokens = 0
+        sentence_hits = 0
         
         for i in range(len(self.validation_sentences)):
             sent = self.validation_sentences[i]
@@ -218,11 +218,11 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
                 gold_tags = self.validation_tags[i]
                 answer = self._tag_sentence_labeled_dependency(sent, heads)
                 
-            for i in enumerate(gold_tags):
-                net_tag = answer[i]
-                gold_tag = gold_tags[i]
+            for j in range(len(gold_tags)):
+                net_tag = answer[j]
+                gold_tag = gold_tags[j]
                 
-                if net_tag == gold_tag or (gold_tag == i and net_tag == len(sent)):
+                if net_tag == gold_tag or (gold_tag == j and net_tag == len(sent)):
                     hits += 1
                 else:
                     sentence_hit = False
