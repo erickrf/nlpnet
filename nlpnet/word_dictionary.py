@@ -10,9 +10,11 @@ class WordDictionary(dict):
     maps rare words to a special index.
     """
     
-    padding_left = '*LEFT*'
-    padding_right = '*RIGHT*'
-    rare = '*RARE*'
+    padding_left = u'*LEFT*'
+    padding_right = u'*RIGHT*'
+    rare = u'*RARE*'
+    
+    number_transformation = {ord(c): u'9' for c in u'012345678'}
     
     def __init__(self, tokens, size=None, minimum_occurrences=None, wordlist=None):
         """
@@ -163,11 +165,14 @@ class WordDictionary(dict):
         """
         Overrides the [] read operator. 
         
-        Two differences from the original:
+        Three differences from the original:
         1) when given a word without an entry, it returns the value for the *RARE* key.
         2) all entries are converted to lower case before verification.
+        3) digits are mapped to 9
         """
-        return super(WordDictionary, self).get(key.lower(), self.index_rare)
+        # faster than regexp
+        transformed = key.lower().translate(WordDictionary.number_transformation)
+        return super(WordDictionary, self).get(transformed, self.index_rare)
     
     def get(self, key):
         """
@@ -175,7 +180,9 @@ class WordDictionary(dict):
         the value for the *RARE* key. Note that it is not possible to supply a default value as 
         in the dict class.
         """
-        return super(WordDictionary, self).get(key.lower(), self.index_rare)
+        # faster than regexp
+        transformed = key.lower().translate(WordDictionary.number_transformation)
+        return super(WordDictionary, self).get(transformed, self.index_rare)
         
     def check(self):
         """
