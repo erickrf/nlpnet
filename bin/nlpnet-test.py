@@ -15,6 +15,7 @@ evaluated externally.
 
 import logging
 import argparse
+import re
 from itertools import izip
 import numpy as np
 from collections import Counter, defaultdict
@@ -75,7 +76,7 @@ def evaluate_unlabeled_dependency(gold_file):
     md = Metadata.load_from_file('unlabeled_dependency')
     nn = taggers.load_network(md)
     reader = taggers.create_reader(md, gold_file)
-    reader.codify_sentences()
+    #reader.codify_sentences()
     
     logger = logging.getLogger("Logger")
     logger.debug('Loaded network')
@@ -88,10 +89,16 @@ def evaluate_unlabeled_dependency(gold_file):
     
     for sent, heads in zip(reader.sentences, reader.heads):
         
-        answer = nn.tag_sentence(sent)
+        sent_codified = reader.codify_sentence(sent)
+        answer = nn.tag_sentence(sent_codified)
         correct_sentence = True
             
         for i, (net_tag, gold_tag) in enumerate(zip(answer, heads)):
+            
+            token = sent[i]
+            # detect punctuation
+            if re.match(r'(?u)[\W_]+$', token.word):
+                continue
             
             if net_tag == gold_tag or (gold_tag == i and net_tag == len(sent)):
                 hits += 1
