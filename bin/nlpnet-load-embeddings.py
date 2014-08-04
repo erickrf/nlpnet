@@ -9,8 +9,10 @@ vocabulary).
 
 import argparse
 import os
+import re
 import logging
 import numpy as np
+from collections import defaultdict
 
 import nlpnet
 
@@ -100,6 +102,43 @@ def read_w2e_embeddings(filename):
     return matrix
 
 
+def read_skipdep_embeddings(filename):
+    """
+    Load the feature matrix and vocabulary used by Bansal et al.
+    for dependency parsing.
+    """
+    model = {}
+    with open(filename, 'rb') as f:
+        for line in f:
+            fields = line.split()
+            word = unicode(fields[0], 'utf-8')
+            vector = np.fromiter((float(x) for x in fields[1:]), 
+                                 dtype=np.float)
+            model[word] = vector
+    
+    # group vectors by their corresponding words' normalized form
+    clusters = defaultdict(list)
+    for word, vector in model.iteritems():
+        if '_<CH>' in word or word == '</s>' or word == '<ROOT>':
+            # dependency relations; we're not interested in them
+            # or apparently sentence end 
+            continue
+        normalized_word = re.sub(r'\d', '9', word.lower())
+        clusters[normalized_word].append(vector)
+    
+    # now, average out each cluster
+    for word, vectors in clusters.iteritems():
+        clusters[word] = np.mean(vectors, 0)
+    
+    # and separate vocabulary from vectors
+    vocabulary = clusters.keys()
+    matrix = np.array(clusters.values())
+    
+    index_rare = vocabulary.index('*unknown*')
+    vocabulary[index_rare] = nlpnet.word_dictionary.WordDictionary.rare
+    return matrix, vocabulary
+    
+
 def read_gensim_embeddings(filename):
     """
     Load the feature matrix used by gensim.
@@ -118,7 +157,8 @@ def read_gensim_embeddings(filename):
     vocab = model.vocab
     # gensim saves words in UTF-8. We convert to unicode here for consistency
     # with the rest of the script
-    sorted_words = [unicode(word, 'utf-8') for word in sorted(vocab, key=lambda x: vocab[x].index)]
+    sorted_words = [unicode(word, 'utf-8') 
+                    for word in sorted(vocab, key=lambda x: vocab[x].index)]
     
     return matrix, sorted_words
 
@@ -142,12 +182,15 @@ This script can deal with the following formats:
     
     word2embeddings - format used by the neural language model from
         word2embeddings (used in polyglot).
+    
+    skipdep - format used by Mohit Bansal et al. for vectors based on
+        the skip gram model considering dependency edges as neighborhood.
         '''
     
     parser = argparse.ArgumentParser(description=__doc__, epilog=epilog,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('type', help='Format of the embeddings. See the description below.', 
-                        choices=['plain', 'senna', 'gensim', 'word2embeddings'])
+                        choices=['plain', 'senna', 'gensim', 'word2embeddings', 'skipdep'])
     parser.add_argument('embeddings', help='File containing the actual embeddings')
     parser.add_argument('-v', help='Vocabulary file, if applicable. '\
                         'In SENNA, it is hash/words.lst', dest='vocabulary')
@@ -182,6 +225,8 @@ This script can deal with the following formats:
     elif args.type == 'word2embeddings':
         words = read_w2e_vocabulary(args.vocabulary)
         matrix = read_w2e_embeddings(args.embeddings)
+    elif args.type == 'skipdep':
+        matrix, words = read_skipdep_embeddings(args.embeddings)
         
     wd = nlpnet.word_dictionary.WordDictionary.init_from_wordlist(words)
     
