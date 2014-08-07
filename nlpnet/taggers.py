@@ -277,14 +277,30 @@ class SRLTagger(Tagger):
 class DependencyParser(Tagger):
     """A Dependency Parser based on a neural network tagger."""
     
+    def __init__(self, pos_data_dir=None, *args):
+        """
+        Set the data directory for the POS tagger, if one is used,
+        and call the parent constructor.        
+        """
+        self.pos_data_dir = pos_data_dir
+        super(DependencyParser, self).__init__(*args)
+    
     def _load_data(self):
         """Loads data for Dependency Parsing"""
-        md = Metadata.load_from_file('unlabeled_dependency')
-        self.nn = load_network(md)
-        self.reader = create_reader(md)
-        if md.use_pos:
-            self.reader.load_pos_dict()
-            self.pos_tagger = POSTagger(self.data_dir)
+        md_udep = Metadata.load_from_file('unlabeled_dependency')
+        self.unlabeled_nn = load_network(md_udep)
+        self.unlabeled_reader = create_reader(md_udep)
+        
+        md_ldep = Metadata.load_from_file('labeled_dependency')
+        self.labeled_nn = load_network(md_ldep)
+        self.labeled_reader = create_reader(md_ldep)
+        self.itd = self.labeled_reader.get_inverse_tag_dictionary()
+        
+        self.use_pos = md_udep.use_pos or md_ldep.use_pos
+        if self.use_pos:
+            if self.pos_data_dir is None:
+                self.pos_data_dir = self.data_dir
+            self.pos_tagger = POSTagger(self.pos_data_dir)
     
     def parse(self, text):
         """
@@ -325,21 +341,23 @@ class DependencyParser(Tagger):
         tokens_obj = []
         
         # if the parser uses POS a feature, have a tagger tag it first
-        if self.reader.md.use_pos:
-            use_pos = True
+        if self.use_pos:
             tokens = self.pos_tagger.tag_tokens(tokens, return_tokens=True)
         
         for token in tokens:
-            if use_pos:
+            if self.use_pos:
                 # if we tagged for POS, each item is a tuple
                 word, pos = token
             else:
                 pos = None
-#             word = utils.clean_text(word, False)
             tokens_obj.append(attributes.Token(word, pos=pos))
         
-        converted_tokens = self.reader.codify_sentence(tokens_obj)
-        answer = self.nn.tag_sentence(converted_tokens)
+        converted_tokens = self.unlabeled_reader.codify_sentence(tokens_obj)
+        heads = self.unlabeled_nn.tag_sentence(converted_tokens)
+        converted_tokens = self.labeled_reader.codify_sentence(tokens_obj)
+        label_codes = self.labeled_nn.tag_sentence(converted_tokens, heads)
+        labels = [self.itd[code] for code in label_codes]
+        answer = zip(heads, labels)
         
         if return_tokens:
             return zip(original_tokens, answer)

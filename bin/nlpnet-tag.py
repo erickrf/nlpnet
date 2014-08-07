@@ -13,24 +13,25 @@ from itertools import izip
 import nlpnet
 import nlpnet.utils as utils
 
-def interactive_running(task, use_tokenizer=True):
+def interactive_running(args):
     """
     This function provides an interactive environment for running the system.
     It receives text from the standard input, tokenizes it, and calls the function
     given as a parameter to produce an answer.
     
-    :param task: either 'pos' or 'srl'
+    :param task: 'pos', 'srl' or 'dependency'
     :param use_tokenizer: whether to use built-in tokenizer
     """
-    task_lower = task.lower()
+    use_tokenizer = not args.disable_tokenizer
+    task_lower = args.task.lower()
     if task_lower == 'pos':
         tagger = nlpnet.taggers.POSTagger()
     elif task_lower == 'srl':
         tagger = nlpnet.taggers.SRLTagger()
-    elif task_lower == 'unlabeled_dependency':
-        tagger = nlpnet.taggers.DependencyParser()
+    elif task_lower == 'dependency':
+        tagger = nlpnet.taggers.DependencyParser(args.data_pos)
     else:
-        raise ValueError('Unknown task: %s' % task)
+        raise ValueError('Unknown task: %s' % args.task)
     
     while True:
         try:
@@ -49,7 +50,7 @@ def interactive_running(task, use_tokenizer=True):
             tokens = text.split()
             result = [tagger.tag_tokens(tokens, True)]
         
-        _print_tagged(result, task)
+        _print_tagged(result, task_lower)
 
 def _print_tagged(tagged_sents, task):
     """
@@ -62,7 +63,7 @@ def _print_tagged(tagged_sents, task):
         _print_tagged_pos(tagged_sents)
     elif task == 'srl':
         _print_tagged_srl(tagged_sents)
-    elif task == 'unlabeled_dependency':
+    elif task == 'dependency':
         _print_parsed_dependency(tagged_sents)
     else:
         raise ValueError('Unknown task: %s' % task)
@@ -70,14 +71,14 @@ def _print_tagged(tagged_sents, task):
 def _print_parsed_dependency(parsed_sents):
     """Prints one token per line and its head"""
     for sent in parsed_sents:
-        for i, (token, head) in enumerate(sent, 1):
+        for i, (token, (head, label)) in enumerate(sent, 1):
             # print in accordance to conll format 
             # (tokens start from 1, root = 0)
             if head == len(sent):
                 head = 0
             else:
                 head += 1
-            line = u'%2d %s\t\t%s' % (i, token, head)
+            line = u'%2d %s\t\t%s\t%s' % (i, token, head, label)
             print line.encode('utf-8') 
         
         print
@@ -104,11 +105,13 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
     parser.add_argument('task', help='Task for which the network should be used.', 
-                        type=str, choices=['srl', 'pos', 'unlabeled_dependency'])
+                        type=str, choices=['srl', 'pos', 'dependency'])
     parser.add_argument('data', help='Directory containing trained models.', type=str)
     parser.add_argument('-v', help='Verbose mode', action='store_true', dest='verbose')
     parser.add_argument('-t', action='store_true', dest='disable_tokenizer',
                         help='Disable built-in tokenizer. Tokens are assumed to be separated by whitespace.')
+    parser.add_argument('--data-pos', dest='data_pos', default=None,
+                        help='Directory containing POS tagger, if different from --data (Dependency parsing only)')
     parser.add_argument('--no-repeat', dest='no_repeat', action='store_true',
                         help='Forces the classification step to avoid repeated argument labels (SRL only).')
     args = parser.parse_args()
@@ -118,6 +121,5 @@ if __name__ == '__main__':
     logger = logging.getLogger("Logger")
     nlpnet.set_data_dir(args.data)
     
-    use_tokenizer = not args.disable_tokenizer
-    interactive_running(args.task, use_tokenizer)
+    interactive_running(args)
     

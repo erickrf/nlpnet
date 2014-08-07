@@ -18,15 +18,7 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
     
     # validation data
     cdef validation_heads
-    
-#     def __init__(self, *args, **kwargs):
-#         """
-#         Just call the ConvolutionalNetwork constructor and fill needed
-#         values
-#         """
-#         super(DependencyNetwork, self).__init__(*args, **kwargs)
-#         self.validation_heads = None
-    
+        
     def train(self, list sentences, list heads, int epochs, 
               int epochs_between_reports=0, float desired_accuracy=0,
               list labels=None):
