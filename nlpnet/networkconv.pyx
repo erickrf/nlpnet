@@ -246,9 +246,7 @@ Output size: %d
         
         logger = logging.getLogger("Logger")
         logger.info("Training for up to %d epochs" % epochs)
-        top_accuracy = 0
         last_accuracy = 0
-        min_error = np.Infinity 
         last_error = np.Infinity
         
         if self.validation_sentences is None:
@@ -259,12 +257,6 @@ Output size: %d
             self._validate()
             self._average_error()
             
-            if self.accuracy > top_accuracy:
-                top_accuracy = self.accuracy
-            
-            if self.error < min_error:
-                min_error = self.error
-            
             if (epochs_between_reports > 0 and i % epochs_between_reports == 0) \
                 or self.accuracy >= desired_accuracy > 0 \
                 or (self.accuracy < last_accuracy and self.error > last_error):
@@ -274,8 +266,9 @@ Output size: %d
                 if self.accuracy >= desired_accuracy > 0:
                     break
                 
-                if self.accuracy < last_accuracy and self.error > last_error:
+                if self.accuracy < last_accuracy or self.error > last_error:
                     # accuracy is falling, the network is probably diverging
+                    # or overfitting
                     break
             
             last_accuracy = self.accuracy
