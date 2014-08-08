@@ -123,6 +123,11 @@ def read_skipdep_embeddings(filename):
             # dependency relations; we're not interested in them
             # or apparently sentence end 
             continue
+        
+        if word.strip() == '':
+            # there was a unicode control char in the vocabulary
+            continue
+        
         normalized_word = re.sub(r'\d', '9', word.lower())
         clusters[normalized_word].append(vector)
     
