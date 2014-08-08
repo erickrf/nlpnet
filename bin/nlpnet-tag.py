@@ -74,10 +74,8 @@ def _print_parsed_dependency(parsed_sents):
         for i, (token, (head, label)) in enumerate(sent, 1):
             # print in accordance to conll format 
             # (tokens start from 1, root = 0)
-            if head == len(sent):
-                head = 0
-            else:
-                head += 1
+            # we just need to add +1, root is indicated by -1
+            head += 1
             line = u'%2d %s\t\t%s\t%s' % (i, token, head, label)
             print line.encode('utf-8') 
         

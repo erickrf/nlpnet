@@ -354,11 +354,18 @@ class DependencyParser(Tagger):
         
         converted_tokens = self.unlabeled_reader.codify_sentence(tokens_obj)
         heads = self.unlabeled_nn.tag_sentence(converted_tokens)
+        
+        # the root is returned having a value == len(sentence)
+        root = heads.argmax()
+        heads[root] = root
+        
         converted_tokens = self.labeled_reader.codify_sentence(tokens_obj)
         label_codes = self.labeled_nn.tag_sentence(converted_tokens, heads)
         labels = [self.itd[code] for code in label_codes]
-        answer = zip(heads, labels)
         
+        # to the final answer, signal the root with -1
+        heads[root] = -1
+        answer = zip(heads, labels)
         if return_tokens:
             return zip(original_tokens, answer)
         
