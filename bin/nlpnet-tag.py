@@ -29,7 +29,7 @@ def interactive_running(args):
     elif task_lower == 'srl':
         tagger = nlpnet.taggers.SRLTagger()
     elif task_lower == 'dependency':
-        tagger = nlpnet.taggers.DependencyParser(args.data_pos)
+        tagger = nlpnet.taggers.DependencyParser()
     else:
         raise ValueError('Unknown task: %s' % args.task)
     
@@ -71,13 +71,22 @@ def _print_tagged(tagged_sents, task):
 def _print_parsed_dependency(parsed_sents):
     """Prints one token per line and its head"""
     for sent in parsed_sents:
-        for i, (token, (head, label)) in enumerate(sent, 1):
-            # print in accordance to conll format 
-            # (tokens start from 1, root = 0)
-            # we just need to add +1, root is indicated by -1
-            head += 1
-            line = u'%2d %s\t\t%s\t%s' % (i, token, head, label)
-            print line.encode('utf-8') 
+        sent.print_conll()
+#         for i in range(len(sent.tokens)):
+#             token = sent.tokens[i]
+#             head = sent.heads[i]
+#             label = sent.labels[i]
+#             if sent.pos is not None:
+#                 pos = sent.pos[i]
+#             else:
+#                 pos = '_'
+#             
+#             # print in accordance to conll format 
+#             # (tokens start from 1, root = 0)
+#             # we just need to add +1, root is indicated by -1
+#             head += 1
+#             line = u'%2d %s\t\t%s\t%s' % (i, token, head, label)
+#             print line.encode('utf-8') 
         
         print
 
@@ -108,8 +117,9 @@ if __name__ == '__main__':
     parser.add_argument('-v', help='Verbose mode', action='store_true', dest='verbose')
     parser.add_argument('-t', action='store_true', dest='disable_tokenizer',
                         help='Disable built-in tokenizer. Tokens are assumed to be separated by whitespace.')
-    parser.add_argument('--data-pos', dest='data_pos', default=None,
-                        help='Directory containing POS tagger, if different from --data (Dependency parsing only)')
+    parser.add_argument('--lang', dest='lang', default=None,
+                        help='Language (used to determine which tokenizer to run. Ignore if -t is provided)', 
+                        choices=['en', 'pt'])
     parser.add_argument('--no-repeat', dest='no_repeat', action='store_true',
                         help='Forces the classification step to avoid repeated argument labels (SRL only).')
     args = parser.parse_args()

@@ -10,6 +10,7 @@ import nltk
 import numpy as np
 
 from nltk.tokenize.regexp import RegexpTokenizer
+from nltk.tokenize import TreebankWordTokenizer
 import attributes
 
 
@@ -50,7 +51,30 @@ _clitic_regexp_str = r'''(?ux)
 '''
 _clitic_regexp = re.compile(_clitic_regexp_str)
 
-def tokenize(text, clean=True):
+
+def tokenize(text, language):
+    """
+    Call the tokenizer function for the given language.
+    The returned tokens are in a list of lists, one for each sentence.
+    
+    :param language: two letter code (en, pt)
+    """
+    if language == 'en':
+        return tokenize_en(text)
+    elif language == 'pt':
+        return tokenize_pt(text, False)
+
+def tokenize_en(text):
+    """
+    Return a list of lists of the tokens in text, separated by sentences.
+    """
+    sent_tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
+    tokenizer = TreebankWordTokenizer()
+    sentences = [tokenizer.tokenize(sentence) 
+                 for sentence in sent_tokenizer.tokenize(text)]
+    return sentences
+    
+def tokenize_pt(text, clean=True):
     """
     Returns a list of lists of the tokens in text, separated by sentences.
     Each line break in the text starts a new list.
@@ -58,8 +82,6 @@ def tokenize(text, clean=True):
     :param clean: If True, performs some cleaning action on the text, such as replacing
         all digits for 9 (by calling :func:`clean_text`)
     """
-    ret = []
-    
     if type(text) != unicode:
         text = unicode(text, 'utf-8')
     
@@ -70,22 +92,10 @@ def tokenize(text, clean=True):
     
     # loads trained model for tokenizing Portuguese sentences (provided by NLTK)
     sent_tokenizer = nltk.data.load('tokenizers/punkt/portuguese.pickle')
+    sentences = [_tokenizer.tokenize(sent)
+                 for sent in sent_tokenizer.tokenize(text, realign_boundaries=True)]
     
-    # the sentence tokenizer doesn't consider line breaks as sentence delimiters, so
-    # we split them manually where there are two consecutive line breaks.
-    sentences = []
-    lines = text.split('\n\n')
-    for line in lines:
-        sentences.extend(sent_tokenizer.tokenize(line, realign_boundaries=True))
-    
-    for p in sentences:
-        if p.strip() == '':
-            continue
-        
-        new_sent = _tokenizer.tokenize(p)
-        ret.append(new_sent)
-        
-    return ret
+    return sentences
 
 def clean_text(text, correct=True):
     """

@@ -16,8 +16,9 @@ def get_config_paths(directory):
     return { key: os.path.join(directory, value) for key, value in [ 
         # cross-task data
         ('.', '.'), #for data_dir access
+        
+        # vocabulary file used as a fallback if a reader doesn't have a specific one
         ('vocabulary'                  , 'vocabulary.txt'),
-        ('word_dict_dat'               , 'vocabulary.txt'), # deprecated
         ('type_features'               , 'types-features.npy'),
         ('termvectors'                 , 'termvectors.txt'),
 
@@ -32,6 +33,7 @@ def get_config_paths(directory):
         ('caps_features_pos'           , 'caps-features-pos.npy'),
         ('suffix_features_pos'         , 'suffix-features-pos.npy'),
         ('prefix_features_pos'         , 'prefix-features-pos.npy'),
+        ('vocabulary_pos'              , 'vocabulary-pos.txt'),
         
         # dependency
         ('network_labeled_dependency', 'ldep-network.npz'),
@@ -41,6 +43,7 @@ def get_config_paths(directory):
         ('metadata_labeled_dependency', 'metadata-ldep.pickle'),
         ('dependency_tag_dict', 'dependency-tags.txt'),
         ('labeled_dependency_tag_dict', 'dependency-tags.txt'),
+        ('vocabulary_labeled_dependency', 'vocabulary-ldep.txt'),
         
         ('dependency_pos_tags', 'dep-pos-tags.txt'),
         
@@ -49,6 +52,7 @@ def get_config_paths(directory):
         ('caps_features_unlabeled_dependency', 'caps-features-udep.npy'),
         ('pos_features_unlabeled_dependency', 'pos-features-udep.npy'),
         ('metadata_unlabeled_dependency', 'metadata-udep.pickle'),
+        ('vocabulary_unlabeled_dependency', 'vocabulary-udep.txt'),
                 
         # chunk
         ('chunk_tag_dict'              , 'chunk-tag-dict.pickle'),
@@ -85,6 +89,10 @@ def get_config_paths(directory):
         ('metadata_srl_boundary'       , 'metadata-srl-boundary.pickle'),
         ('metadata_srl_classify'       , 'metadata-srl-classify.pickle'),
         ('metadata_srl_predicates'     , 'metadata-srl-predicates.pickle'),
+        ('vocabulary_srl', 'vocabulary-srl.txt'),
+        ('vocabulary_srl_boundary', 'vocabulary-srl-boundary.txt'),
+        ('vocabulary_srl_classify', 'vocabulary-srl-classify.txt'),
+        ('vocabulary_srl_predicates', 'vocabulary-srl-predicates.txt'),
         ]
     }
 

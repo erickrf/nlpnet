@@ -157,14 +157,57 @@ class SRLAnnotatedSentence(object):
         self.tokens = tokens
         self.arg_structures = arg_structures
         
-
+class ParsedSentence(object):
+    """
+    Class for storing a sentence with dependency parsing annotation.
+    
+    It stores a list of tokens, the dependency heads, dependency labels and POS tags 
+    if the parser used them. Dependency heads are the index of the head of each
+    token, and -1 means a dependency to the root.
+    """
+    def __init__(self, tokens, heads, labels, pos=None):
+        """
+        Constructor.
+        
+        :param tokens: list of strings
+        :param heads: list of integers (-1 means dependency to root, others
+            are token indices)
+        :param labels: list of strings
+        :param pos: None or list of strings
+        """
+        self.tokens = tokens
+        self.heads = heads
+        self.labels = labels
+        self.pos = pos
+    
+    def __len__(self):
+        return len(self.tokens)
+    
+    def print_conll(self):
+        """
+        Print the sentence in CoNLL X format. 
+        
+        Each line has:
+        [number starting from 1] token _ POS POS _ head label
+        
+        Token numbers start from 1, root is referred as 0.
+        POS is only available if the original parser used it.
+        """
+        for i in range(len(self.tokens)):
+            token = self.tokens[i]
+            head = self.heads[i] + 1
+            label = self.labels[i]
+            pos = self.pos[i] if self.pos else '_'
+            
+            line = '{id}\t{token}\t_\t{pos}\t{pos}\t_\t{head}\t{label}'
+            print line.format(id=i+1, pos=pos, head=head, label=label, token=token)
 
 class Tagger(object):
     """
     Base class for taggers. It should not be instantiated.
     """
     
-    def __init__(self, data_dir=None):
+    def __init__(self, data_dir=None, language='en'):
         """Creates a tagger and loads data preemptively"""
         asrt_msg = "nlpnet data directory is not set. \
 If you don't have the trained models, download them from http://nilc.icmc.usp.br/nlpnet/models.html"
@@ -175,6 +218,7 @@ If you don't have the trained models, download them from http://nilc.icmc.usp.br
             self.paths = config.get_config_paths(data_dir)
         
         self.data_dir = data_dir
+        self.language = language
         self._load_data()
         
     def _load_data(self):
@@ -229,7 +273,7 @@ class SRLTagger(Tagger):
         :param no_repeats: whether to prevent repeated argument labels
         :returns: a list of SRLAnnotatedSentence objects
         """
-        tokens = utils.tokenize(text, clean=False)
+        tokens = utils.tokenize(text, self.language)
         result = []
         for sent in tokens:
             tagged = self.tag_tokens(sent)
@@ -247,7 +291,11 @@ class SRLTagger(Tagger):
             (all_tokens, predicate, arg_structure), where arg_structure is a dictionary 
             mapping argument labels to the words it includes.
         """
-        tokens_obj = [attributes.Token(utils.clean_text(t, False)) for t in tokens]
+        if self.language == 'pt':
+            tokens_obj = [attributes.Token(utils.clean_text(t, False)) for t in tokens]
+        else:
+            tokens_obj = [attributes.Token(t) for t in tokens]
+            
         converted_bound = np.array([self.boundary_reader.converter.convert(t) 
                                     for t in tokens_obj])
         converted_class = np.array([self.classify_reader.converter.convert(t) 
@@ -311,7 +359,7 @@ class DependencyParser(Tagger):
         :param text: a string
         :returns: a list of ParsedSentence's
         """
-        sentences = utils.tokenize(text, False)
+        sentences = utils.tokenize(text, self.language)
         result = []
         for sent in sentences:
             parsed = self.parse_sentence(sent)
@@ -319,23 +367,26 @@ class DependencyParser(Tagger):
         
         return result
     
-    def tag_tokens(self, tokens, return_tokens=False):
+    def tag_tokens(self, tokens):
         """
         Parse the given sentence. This function is just an alias for
         `parse_sentence`.
         """
-        return self.parse_sentence(tokens, return_tokens)
+        return self.parse_sentence(tokens)
     
-    def parse_sentence(self, tokens, return_tokens=False):
+    def parse_sentence(self, tokens):
         """
         Parse the given sentence. It must be already tokenized; if you
         want nlpnet to tokenize the text, use the method `parse` instead.
         
         :param tokens: a list of strings
-        :param return_tokens: if True, returns tuples (token, head). If False,
-            only return the heads. The heads are the index of the tokens in the
-            sentence, and a dependency to root is indicated with a value equal
-            to the sentence length.
+        :param return_tokens: if True, include the tokens in the result
+        :param return_pos: if True, include POS tags in the result. This
+            will raise an exception if the parser doesn't use POS tags
+            as a feature.
+        :return: a list of (head, dependency_label) tuples in the same 
+            order as the input tokens. If return_tokens or return_pos was
+            True, the result is a list of (token, pos, (head, label))
         """
         original_tokens = tokens
         tokens_obj = []
@@ -365,11 +416,14 @@ class DependencyParser(Tagger):
         
         # to the final answer, signal the root with -1
         heads[root] = -1
-        answer = zip(heads, labels)
-        if return_tokens:
-            return zip(original_tokens, answer)
-        
-        return answer
+        if self.use_pos:
+            # unzip
+            pos_tags = zip(*tokens)[1]
+        else:
+            pos_tags = None
+            
+        parsed = ParsedSentence(original_tokens, heads, labels, pos_tags)
+        return parsed
     
     def tag(self, text):
         """
@@ -397,7 +451,7 @@ class POSTagger(Tagger):
         :returns: a list of lists (sentences with tokens). 
             Each sentence has (token, tag) tuples.
         """
-        tokens = utils.tokenize(text, clean=False)
+        tokens = utils.tokenize(text, self.language)
         result = []
         for sent in tokens:
             tagged = self.tag_tokens(sent, return_tokens=True)
@@ -419,8 +473,13 @@ class POSTagger(Tagger):
         :returns: a list of strings (the tags)
         """
         converter = self.reader.converter
-        converted_tokens = np.array([converter.convert(utils.clean_text(token, False)) 
-                                     for token in tokens])
+        if self.language == 'pt':
+            converted_tokens = np.array([converter.convert(utils.clean_text(token, False)) 
+                                         for token in tokens])
+        else:
+            converted_tokens = np.array([converter.convert(token) 
+                                         for token in tokens])
+            
         answer = self.nn.tag_sentence(converted_tokens)
         tags = [self.itd[tag] for tag in answer]
         
