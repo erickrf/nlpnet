@@ -183,9 +183,9 @@ class ParsedSentence(object):
     def __len__(self):
         return len(self.tokens)
     
-    def print_conll(self):
+    def to_conll(self):
         """
-        Print the sentence in CoNLL X format. 
+        Return a string representation of the sentence in CoNLL X format. 
         
         Each line has:
         [number starting from 1] token _ POS POS _ head label
@@ -193,6 +193,7 @@ class ParsedSentence(object):
         Token numbers start from 1, root is referred as 0.
         POS is only available if the original parser used it.
         """
+        result = []
         for i in range(len(self.tokens)):
             token = self.tokens[i]
             head = self.heads[i] + 1
@@ -200,7 +201,9 @@ class ParsedSentence(object):
             pos = self.pos[i] if self.pos else '_'
             
             line = '{id}\t{token}\t_\t{pos}\t{pos}\t_\t{head}\t{label}'
-            print line.format(id=i+1, pos=pos, head=head, label=label, token=token)
+            result.append(line.format(id=i+1, pos=pos, head=head, label=label, token=token))
+        
+        return '\n'.join(result)
 
 class Tagger(object):
     """
@@ -325,13 +328,13 @@ class SRLTagger(Tagger):
 class DependencyParser(Tagger):
     """A Dependency Parser based on a neural network tagger."""
     
-    def __init__(self, pos_data_dir=None, *args):
+    def __init__(self, pos_data_dir=None, *args, **kwargs):
         """
         Set the data directory for the POS tagger, if one is used,
         and call the parent constructor.        
         """
         self.pos_data_dir = pos_data_dir
-        super(DependencyParser, self).__init__(*args)
+        super(DependencyParser, self).__init__(*args, **kwargs)
     
     def _load_data(self):
         """Loads data for Dependency Parsing"""
@@ -380,13 +383,7 @@ class DependencyParser(Tagger):
         want nlpnet to tokenize the text, use the method `parse` instead.
         
         :param tokens: a list of strings
-        :param return_tokens: if True, include the tokens in the result
-        :param return_pos: if True, include POS tags in the result. This
-            will raise an exception if the parser doesn't use POS tags
-            as a feature.
-        :return: a list of (head, dependency_label) tuples in the same 
-            order as the input tokens. If return_tokens or return_pos was
-            True, the result is a list of (token, pos, (head, label))
+        :return: a ParsedSentence instance
         """
         original_tokens = tokens
         tokens_obj = []
