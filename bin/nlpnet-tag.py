@@ -71,23 +71,7 @@ def _print_tagged(tagged_sents, task):
 def _print_parsed_dependency(parsed_sents):
     """Prints one token per line and its head"""
     for sent in parsed_sents:
-        sent.print_conll()
-#         for i in range(len(sent.tokens)):
-#             token = sent.tokens[i]
-#             head = sent.heads[i]
-#             label = sent.labels[i]
-#             if sent.pos is not None:
-#                 pos = sent.pos[i]
-#             else:
-#                 pos = '_'
-#             
-#             # print in accordance to conll format 
-#             # (tokens start from 1, root = 0)
-#             # we just need to add +1, root is indicated by -1
-#             head += 1
-#             line = u'%2d %s\t\t%s\t%s' % (i, token, head, label)
-#             print line.encode('utf-8') 
-        
+        print sent.to_conll()
         print
 
 def _print_tagged_pos(tagged_sents):

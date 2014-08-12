@@ -29,7 +29,10 @@ class ConllPos(object):
 
 
 class DependencyReader(reader.TaggerReader):
-
+    '''
+    Class to read dependency files in CoNLL X format.
+    '''
+    
     def __init__(self, md=None, filename=None, labeled=False):
         '''
         Constructor.
