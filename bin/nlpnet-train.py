@@ -141,7 +141,14 @@ def create_network(args, text_reader, feature_tables, md=None):
                 % ', '.join(str(x) for x in layer_sizes))
     
     return nn
-        
+
+def saver(nn_file, md):
+    """Function to save model periodically"""
+    def save(nn):
+        save_features(nn, md)
+        nn.save(nn_file)
+    return save
+
 def save_features(nn, md):
     """
     Receives a sequence of feature tables and saves each one in the appropriate file.
@@ -282,12 +289,14 @@ if __name__ == '__main__':
     if args.dev is not None:
         validation_reader = create_reader(args, md, True)
         set_validation_data(nn, args.task, validation_reader)
-    train(nn, text_reader, args)
-    
-    logger.info("Saving trained models...")
-    save_features(nn, md)
     
     nn_file = config.FILES[md.network]
-    nn.save(nn_file)
-    logger.info("Saved network to %s" % nn_file)
+    nn.saver = saver(nn_file, md)
+    train(nn, text_reader, args)
+    
+    # network saves itself during training after each iteration that raises accuracy
+#     save_features(nn, md)
+#     nn.save(nn_file)
+    
+    logger.info("Finished training")
     

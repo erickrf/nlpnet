@@ -554,8 +554,7 @@ Output size: %d
         logger.info("Training for up to %d epochs" % epochs)
         top_accuracy = 0
         last_accuracy = 0
-        min_error = np.Infinity 
-        last_error = np.Infinity 
+        last_error = np.Infinity
         self.num_tokens = sum(len(sent) for sent in sentences)
         
         np.seterr(all='raise')
@@ -571,20 +570,18 @@ Output size: %d
             self.error = self.error / self.num_tokens if self.num_tokens else np.Infinity
             
             # Attardi: save model
-            if self.error < min_error:
-                min_error = self.error
-                self.saver(self)
-
             if self.accuracy > top_accuracy:
                 top_accuracy = self.accuracy
-            
+                self.saver(self)
+                logger.debug("Saved model")
+                        
             if (epochs_between_reports > 0 and i % epochs_between_reports == 0) \
                 or self.accuracy >= desired_accuracy > 0 \
                 or (self.accuracy < last_accuracy and self.error > last_error):
                 
                 self._print_epoch_report(i + 1)
                 
-                if self.accuracy >= desired_accuracy > 0 \
+                if self.accuracy >= desired_accuracy > 0\
                         or (self.error > last_error and self.accuracy < last_accuracy):
                     break
                 

@@ -247,6 +247,7 @@ Output size: %d
         logger = logging.getLogger("Logger")
         logger.info("Training for up to %d epochs" % epochs)
         last_accuracy = 0
+        top_accuracy = 0
         last_error = np.Infinity
         
         if self.validation_sentences is None:
@@ -257,16 +258,20 @@ Output size: %d
             self._validate()
             self._average_error()
             
+            # Attardi: save model
+            if self.accuracy > top_accuracy:
+                top_accuracy = self.accuracy
+                self.saver(self)
+                logger.debug("Saved model")
+            
             if (epochs_between_reports > 0 and i % epochs_between_reports == 0) \
                 or self.accuracy >= desired_accuracy > 0 \
                 or (self.accuracy < last_accuracy and self.error > last_error):
                 
                 self._print_epoch_report(i + 1)
 
-                if self.accuracy >= desired_accuracy > 0:
-                    break
-                
-                if self.accuracy < last_accuracy or self.error > last_error:
+                if self.accuracy >= desired_accuracy > 0\
+                        or (self.accuracy < last_accuracy and self.error > last_error):
                     # accuracy is falling, the network is probably diverging
                     # or overfitting
                     break
