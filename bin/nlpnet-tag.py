@@ -48,7 +48,10 @@ def interactive_running(args):
             result = tagger.tag(text)
         else:
             tokens = text.split()
-            result = [tagger.tag_tokens(tokens, True)]
+            if task_lower != 'dependency':
+                result = [tagger.tag_tokens(tokens, True)]
+            else:
+                result = [tagger.tag_tokens(tokens)]
         
         _print_tagged(result, task_lower)
 
