@@ -625,18 +625,22 @@ Output size: %d
         cdef np.ndarray[FLOAT_t, ndim=2] last_values, deltas, grad_matrix, input_values
         
         last_values = self.hidden2_sent_values if self.hidden2_weights is not None else self.hidden_sent_values
-        
         deltas = self.net_gradients.T.dot(last_values) * self.learning_rate
-        self.output_weights += deltas
-        self.output_bias += self.net_gradients.sum(0) * self.learning_rate
+        # divide adjustment by fan-in
+        fanin = self.hidden2_size if self.hidden2_weights is not None else self.hidden_size
+        self.output_weights += deltas / fanin
+        self.output_bias += self.net_gradients.sum(0) * self.learning_rate / fanin
         
         if self.hidden2_weights is not None:
             deltas = self.hidden2_gradients.T.dot(self.hidden_sent_values) * self.learning_rate
-            self.hidden2_weights += deltas
-            self.hidden2_bias += self.hidden2_gradients.sum(0) * self.learning_rate
+            fanin = self.hidden_size
+            self.hidden2_weights += deltas / fanin
+            self.hidden2_bias += self.hidden2_gradients.sum(0) * self.learning_rate / fanin
         
         # now adjust weights from input to convolution. these will be trickier.
         # we need to know which input value to use in the delta formula
+        num_dist_features = self.word_window_size * (self.target_dist_table.shape[1] + self.pred_dist_table.shape[1])
+        fanin = self.input_size + num_dist_features
         
         # I tried vectorizing this loop but it got a bit slower, probably because
         # of the overhead in building matrices/tensors with the max indices
@@ -649,7 +653,7 @@ Output size: %d
             
             # stack the gradients to multiply all weights for a neuron
             grad_matrix = np.tile(gradients_t, [self.input_size, 1]).T
-            self.hidden_weights += grad_matrix * input_values
+            self.hidden_weights += grad_matrix * input_values / fanin
             
             # target distance weights
             # get the relative distance from each max token to its target
@@ -662,7 +666,7 @@ Output size: %d
             dist_features = self.target_dist_lookup.take(target_dists + self.target_dist_offset, 
                                                          0, mode='clip')
             grad_matrix = np.tile(gradients_t, [self.target_dist_weights.shape[0], 1]).T
-            self.target_dist_weights += (grad_matrix * dist_features).T
+            self.target_dist_weights += (grad_matrix * dist_features).T / fanin
             
             # predicate distance weights
             # get the distance from each max token to its predicate
@@ -673,9 +677,9 @@ Output size: %d
             if self.target_dist_weights.shape[0] != self.pred_dist_weights.shape[0]: 
                 grad_matrix = np.tile(gradients_t, [self.pred_dist_weights.shape[0], 1]).T
             
-            self.pred_dist_weights += (grad_matrix * dist_features).T
+            self.pred_dist_weights += (grad_matrix * dist_features).T / fanin
         
-        self.hidden_bias += self.hidden_gradients.sum(0) * self.learning_rate
+        self.hidden_bias += self.hidden_gradients.sum(0) * self.learning_rate / fanin
         
         # Adjusts the transition scores table with the calculated gradients.
         if not self.only_classify and self.transitions is not None:
@@ -782,7 +786,6 @@ Output size: %d
             pos_dist += 1
             dist_pred_from += self.pred_dist_table.shape[1]
             
-        
         self._create_target_lookup()
         self._create_pred_lookup()
     

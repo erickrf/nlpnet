@@ -703,12 +703,12 @@ Output size: %d
         input_gradients = dCdf_2.dot(self.hidden_weights)
 
         """
-        Adjust the weights
+        Adjust the weights. Learning rate is divided by the fan-in.
         """
-        self.output_weights += output_gradients * self.learning_rate
-        self.output_bias += output_bias_gradients * self.learning_rate
-        self.hidden_weights += hidden_gradients * self.learning_rate
-        self.hidden_bias += hidden_bias_gradients * self.learning_rate
+        self.output_weights += output_gradients * self.learning_rate / self.hidden_size
+        self.output_bias += output_bias_gradients * self.learning_rate / self.hidden_size
+        self.hidden_weights += hidden_gradients * self.learning_rate / self.input_size
+        self.hidden_bias += hidden_bias_gradients * self.learning_rate / self.input_size
 
         """
         Adjust the features indexed by the input window.
