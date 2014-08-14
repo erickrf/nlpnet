@@ -87,6 +87,8 @@ def evaluate_unlabeled_dependency(gold_file):
     sentence_hits = 0
     num_sentences = 0
     
+    punctuation = set(['.', ',', "''", ':', '(', ')', '#', '``'])
+    
     for sent, heads in zip(reader.sentences, reader.heads):
         
         sent_codified = reader.codify_sentence(sent)
@@ -97,7 +99,7 @@ def evaluate_unlabeled_dependency(gold_file):
             
             token = sent[i]
             # detect punctuation
-            if re.match(r'(?u)[\W_]+$', token.word):
+            if token.pos in punctuation:
                 continue
             
             if net_tag == gold_tag or (gold_tag == i and net_tag == len(sent)):
@@ -139,7 +141,7 @@ def evaluate_labeled_dependency(gold_file):
         
         answer = nn.tag_sentence(sent, heads)
         correct_sentence = True
-                
+        
         for net_tag, gold_tag in zip(answer, labels):
             
             if net_tag == gold_tag:
