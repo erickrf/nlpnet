@@ -103,6 +103,7 @@ class DependencyReader(reader.TaggerReader):
             fields = line.split()
             word = fields[ConllPos.word]
             pos = fields[ConllPos.pos]
+            pos2 = fields[ConllPos.pos2]
             head = int(fields[ConllPos.dep_head])
             label = fields[ConllPos.dep_rel]
             
@@ -113,7 +114,7 @@ class DependencyReader(reader.TaggerReader):
             # -1 because tokens are numbered from 1
             head -= 1
             
-            token = attributes.Token(word, pos=pos)
+            token = attributes.Token(word, pos=pos, pos2=pos2)
             sentence.append(token)
             sentence_heads.append(head)
             if self.labeled:

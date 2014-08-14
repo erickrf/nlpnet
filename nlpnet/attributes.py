@@ -19,7 +19,7 @@ class Caps(object):
 
 
 class Token(object):
-    def __init__(self, word, lemma='NA', pos='NA', morph='NA', chunk='NA'):
+    def __init__(self, word, lemma='NA', pos='NA', pos2='NA', morph='NA', chunk='NA'):
         """
         A token representation that stores discrete attributes to be given as 
         input to the neural network. 
@@ -27,6 +27,7 @@ class Token(object):
         self.word = word
         self.lemma = lemma
         self.pos = pos
+        self.pos2 = pos2
         self.morph = morph
         self.chunk = chunk
     
