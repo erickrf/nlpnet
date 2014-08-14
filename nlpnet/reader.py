@@ -267,7 +267,7 @@ class TaggerReader(object):
                                     if c[suffix] >= min_occurrences]
             suffixes_all_lengths.extend(suffixes_this_length)
         
-        logger.info('Created a list of %d sufixes.' % len(suffixes_all_lengths))
+        logger.info('Created a list of %d suffixes.' % len(suffixes_all_lengths))
         text = '\n'.join(suffixes_all_lengths)
         with open(config.FILES['suffixes'], 'wb') as f:
             f.write(text.encode('utf-8'))
