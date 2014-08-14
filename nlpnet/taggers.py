@@ -351,7 +351,7 @@ class DependencyParser(Tagger):
         if self.use_pos:
             if self.pos_data_dir is None:
                 self.pos_data_dir = self.data_dir
-            self.pos_tagger = POSTagger(self.pos_data_dir)
+            self.pos_tagger = POSTagger(self.pos_data_dir, language=self.language)
     
     def parse(self, text):
         """
