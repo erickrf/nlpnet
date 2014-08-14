@@ -25,11 +25,11 @@ def interactive_running(args):
     use_tokenizer = not args.disable_tokenizer
     task_lower = args.task.lower()
     if task_lower == 'pos':
-        tagger = nlpnet.taggers.POSTagger()
+        tagger = nlpnet.taggers.POSTagger(language=args.lang)
     elif task_lower == 'srl':
-        tagger = nlpnet.taggers.SRLTagger()
+        tagger = nlpnet.taggers.SRLTagger(language=args.lang)
     elif task_lower == 'dependency':
-        tagger = nlpnet.taggers.DependencyParser()
+        tagger = nlpnet.taggers.DependencyParser(language=args.lang)
     else:
         raise ValueError('Unknown task: %s' % args.task)
     
