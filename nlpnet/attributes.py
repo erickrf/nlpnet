@@ -11,11 +11,12 @@ PADDING_POS = 'PADDING'
 
 class Caps(object):
     """Dummy class for storing numeric values for capitalization."""
-    num_values = 4
+    num_values = 5
     lower = 0
     title = 1
     non_alpha = 2
     other = 3
+    padding = 4
 
 
 class Token(object):
@@ -45,6 +46,7 @@ class Affix(object):
     suffix_codes = {}
     prefix_codes = {}
     other = 0
+    padding = 1
     num_suffixes_per_size = {}
     num_prefixes_per_size = {}
     
@@ -55,8 +57,8 @@ class Affix(object):
         """
         cls.load_affixes(cls.suffix_codes, md.paths['suffixes'])
         
-        # +1 because of the unkown suffix code
-        cls.num_suffixes_per_size = {size: len(cls.suffix_codes[size]) + 1
+        # +2 because of the unkown suffix code and padding
+        cls.num_suffixes_per_size = {size: len(cls.suffix_codes[size]) + 2
                                      for size in cls.suffix_codes}
     
     @classmethod
@@ -66,8 +68,8 @@ class Affix(object):
         """
         cls.load_affixes(cls.prefix_codes, md.paths['prefixes'])
         
-        # +1 because of the unkown prefix code
-        cls.num_prefixes_per_size = {size: len(cls.prefix_codes[size]) + 1
+        # +2 because of the unkown prefix code and padding
+        cls.num_prefixes_per_size = {size: len(cls.prefix_codes[size]) + 2
                                      for size in cls.prefix_codes}
         
     
@@ -92,10 +94,11 @@ class Affix(object):
             raise
         
         for size in affixes_by_size:
-            # for each size, each affix has a code starting from 1
+            # for each size, each affix has a code starting from 2
             # 0 is reserved for unknown affixes
+            # 1 is reserved for padding pseudo-affixes
             codes[size] = {affix: code 
-                           for code, affix in enumerate(affixes_by_size[size], 1)}
+                           for code, affix in enumerate(affixes_by_size[size], 2)}
     
     @classmethod
     def get_suffix(cls, word, size):
@@ -103,6 +106,9 @@ class Affix(object):
         Return the suffix code for the given word. Consider a suffix
         of the given size.
         """
+        if word == WD.padding_left or word == WD.padding_right:
+            return cls.padding
+        
         if len(word) <= size:
             return cls.other
         
@@ -116,6 +122,9 @@ class Affix(object):
         Return the suffix code for the given word. Consider a suffix
         of the given size.
         """
+        if word == WD.padding_left or word == WD.padding_right:
+            return cls.padding
+        
         if len(word) <= size:
             return cls.other
         
@@ -181,14 +190,23 @@ def get_capitalization(word):
     lower, title, other or non-alpha (numbers and other tokens that can't be
     capitalized).
     """
-    if not word.isalpha():
-        return Caps.non_alpha
+    if word == WD.padding_left or word == WD.padding_right:
+        return Caps.padding
     
-    if word.istitle():
-        return Caps.title
+    if not any(c.isalpha() for c in word):
+        # check if there is at least one letter
+        # (this is faster than using a regex)
+        return Caps.non_alpha
     
     if word.islower():
         return Caps.lower
+    
+    # word.istitle() returns false for compunds like Low-cost
+    if len(word) == 1:
+        # if we reached here, there's a single upper case letter
+        return Caps.title
+    elif word[0].isupper() and word[1:].islower():
+        return Caps.title    
     
     return Caps.other
 
@@ -197,12 +215,12 @@ def capitalize(word, capitalization):
     Capitalizes the word in the desired format. If the capitalization is 
     Caps.other, it is set all uppercase.
     """
-    if capitalization == Caps.non_alpha:
+    if capitalization == Caps.non_alpha or capitalization == Caps.padding:
         return word
     elif capitalization == Caps.lower:
         return word.lower()
     elif capitalization == Caps.title:
-        return word.title()
+        return word[0].upper() + word[1:].lower()
     elif capitalization == Caps.other:
         return word.upper()
     else:

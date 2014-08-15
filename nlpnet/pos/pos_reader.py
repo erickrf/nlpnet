@@ -38,7 +38,6 @@ class POSReader(TaggerReader):
                         sentence = []
                         for item in items:
                             token, tag = item.rsplit('_', 1)
-                            token = utils.clean_text(token, False)
                             sentence.append((token, tag))
                             
                         self.sentences.append(sentence)

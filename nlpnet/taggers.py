@@ -470,12 +470,8 @@ class POSTagger(Tagger):
         :returns: a list of strings (the tags)
         """
         converter = self.reader.converter
-        if self.language == 'pt':
-            converted_tokens = np.array([converter.convert(utils.clean_text(token, False)) 
-                                         for token in tokens])
-        else:
-            converted_tokens = np.array([converter.convert(token) 
-                                         for token in tokens])
+        converted_tokens = np.array([converter.convert(token) 
+                                     for token in tokens])
             
         answer = self.nn.tag_sentence(converted_tokens)
         tags = [self.itd[tag] for tag in answer]

@@ -13,10 +13,6 @@ from nltk.tokenize.regexp import RegexpTokenizer
 from nltk.tokenize import TreebankWordTokenizer
 import attributes
 
-
-# these variables appear at module level for faster access and to avoid
-# repeated initialization
-
 _tokenizer_regexp = ur'''(?ux)
     # the order of the patterns is important!!
     ([^\W\d_]\.)+|                # one letter abbreviations, e.g. E.U.A.
