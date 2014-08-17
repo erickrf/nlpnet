@@ -4,7 +4,6 @@
 Class for dealing with POS data.
 """
 
-from .. import utils
 from ..reader import TaggerReader
 
 class POSReader(TaggerReader):
