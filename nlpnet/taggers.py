@@ -338,11 +338,11 @@ class DependencyParser(Tagger):
     
     def _load_data(self):
         """Loads data for Dependency Parsing"""
-        md_udep = Metadata.load_from_file('unlabeled_dependency')
+        md_udep = Metadata.load_from_file('unlabeled_dependency', paths=self.paths)
         self.unlabeled_nn = load_network(md_udep)
         self.unlabeled_reader = create_reader(md_udep)
         
-        md_ldep = Metadata.load_from_file('labeled_dependency')
+        md_ldep = Metadata.load_from_file('labeled_dependency', paths=self.paths)
         self.labeled_nn = load_network(md_ldep)
         self.labeled_reader = create_reader(md_ldep)
         self.itd = self.labeled_reader.get_inverse_tag_dictionary()

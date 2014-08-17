@@ -55,6 +55,7 @@ def tokenize(text, language):
     
     :param language: two letter code (en, pt)
     """
+    text = unicode(text, 'utf-8')
     if language == 'en':
         return tokenize_en(text)
     elif language == 'pt':
@@ -77,10 +78,7 @@ def tokenize_pt(text, clean=True):
     
     :param clean: If True, performs some cleaning action on the text, such as replacing
         all digits for 9 (by calling :func:`clean_text`)
-    """
-    if type(text) != unicode:
-        text = unicode(text, 'utf-8')
-    
+    """    
     if clean:
         text = clean_text(text, correct=True)
     
