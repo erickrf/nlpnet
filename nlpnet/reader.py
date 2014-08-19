@@ -241,7 +241,7 @@ class TaggerReader(object):
         """
         logger = logging.getLogger("Logger")
         if filename is None:
-            key = 'vocabulary_s%' % self.task
+            key = 'vocabulary_%s' % self.task
             filename = self.md.paths[key]
         
         self.word_dict.save(filename)
