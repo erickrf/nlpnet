@@ -55,7 +55,9 @@ def tokenize(text, language):
     
     :param language: two letter code (en, pt)
     """
-    text = unicode(text, 'utf-8')
+    if not isinstance(text, unicode):
+        text = unicode(text, 'utf-8')
+    
     if language == 'en':
         return tokenize_en(text)
     elif language == 'pt':
