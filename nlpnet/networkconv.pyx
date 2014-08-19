@@ -15,6 +15,7 @@ cdef class ConvolutionalNetwork(Network):
     cdef readonly np.ndarray target_dist_weights, pred_dist_weights
     cdef readonly int target_dist_offset, pred_dist_offset
     cdef readonly np.ndarray target_dist_lookup, pred_dist_lookup
+    cdef readonly np.ndarray target_convolution_lookup, pred_convolution_lookup
     cdef readonly np.ndarray target_dist_deltas, pred_dist_deltas
     
     # the second hidden layer
@@ -381,13 +382,14 @@ Output size: %d
             starting and end positions of all delimited arguments
         :return: the scores for all tokens with respect to the given predicate
         """        
-        cdef np.ndarray[FLOAT_t, ndim=2] target_dist_features, pred_dist_features
-        
         # store the values found by each convolution neuron here and then find the max
         cdef np.ndarray[FLOAT_t, ndim=2] convolution_values
         
         # a priori scores for all tokens
         cdef np.ndarray[FLOAT_t, ndim=2] scores
+        
+        # intermediate storage
+        cdef np.ndarray[FLOAT_t, ndim=2] input_and_pred_dist_values
         
         self.num_targets = len(sentence) if argument_blocks is None else len(argument_blocks)
         scores = np.empty((self.num_targets, self.output_size))
@@ -405,9 +407,10 @@ Output size: %d
     
         # predicate distances are the same across all targets
         pred_dist_indices = np.arange(len(sentence)) - predicate
-        pred_dist_features = self.pred_dist_lookup.take(pred_dist_indices + self.pred_dist_offset,
-                                                        0, mode='clip')
-        pred_dist_values = pred_dist_features.dot(self.pred_dist_weights)
+        pred_dist_values = self.pred_convolution_lookup.take(pred_dist_indices + self.pred_dist_offset,
+                                                             0, mode='clip')
+        
+        input_and_pred_dist_values = pred_dist_values + self.convolution_lookup
         
         # add the weighted distance features to each token 
         for target in range(self.num_targets):
@@ -422,11 +425,10 @@ Output size: %d
                 argument = argument_blocks[target]
                 target_dist_indices = self.argument_distances(np.arange(len(sentence)), argument)
             
-            target_dist_features = self.target_dist_lookup.take(target_dist_indices + self.target_dist_offset,
-                                                                0, mode='clip')
+            target_dist_values = self.target_convolution_lookup.take(target_dist_indices + self.target_dist_offset,
+                                                                     0, mode='clip')
 
-            convolution_values = target_dist_features.dot(self.target_dist_weights) \
-                                 + pred_dist_values + self.convolution_lookup
+            convolution_values = target_dist_values + input_and_pred_dist_values
             
             # now, find the maximum values
             if training:
@@ -869,7 +871,8 @@ Output size: %d
     def _create_target_lookup(self):
         """
         Creates a lookup table with the window value for each different distance
-        to the target token. 
+        to the target token (target_dist_lookup) and one with the precomputed
+        values in the convolution layer (target_convolution_lookup). 
         """
         # consider padding. if the table has 10 entries, with a word window of 3,
         # we would have to consider up to the distance of 11, because of the padding.
@@ -889,12 +892,16 @@ Output size: %d
             self.target_dist_lookup[:,window_from : window_to] = self.target_dist_table[inds,]
             
             window_from = window_to
-            window_to += self.target_dist_table.shape[1] 
+            window_to += self.target_dist_table.shape[1]
+        
+        self.target_convolution_lookup = self.target_dist_lookup.dot(self.target_dist_weights)
+        
     
     def _create_pred_lookup(self):
         """
         Creates a lookup table with the window value for each different distance
-        to the predicate token. 
+        to the predicate token (pred_dist_lookup) and one with the precomputed
+        values in the convolution layer (pred_convolution_lookup). 
         """
         # consider padding. if the table has 10 entries, with a word window of 3,
         # we would have to consider up to the distance of 11, because of the padding.
@@ -915,6 +922,8 @@ Output size: %d
             
             window_from = window_to
             window_to += self.pred_dist_table.shape[1] 
+        
+        self.pred_convolution_lookup = self.pred_dist_lookup.dot(self.pred_dist_weights)
     
     def _create_convolution_lookup(self, sentence, training):
         """
