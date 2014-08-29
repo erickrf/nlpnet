@@ -292,6 +292,9 @@ if __name__ == '__main__':
     
     nn_file = config.FILES[md.network]
     nn.saver = saver(nn_file, md)
+    
+    if args.decay:
+        nn.set_learning_rate_decay(args.decay)
     train(nn, text_reader, args)
     
     # network saves itself during training after each iteration that raises accuracy

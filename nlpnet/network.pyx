@@ -72,6 +72,8 @@ cdef class Network:
     # sizes and learning rates
     cdef readonly int word_window_size, input_size, hidden_size, output_size
     cdef public float learning_rate, learning_rate_features
+    cdef public float decay_factor
+    cdef public bool decrease_learning_rate
     
     # padding stuff
     cdef np.ndarray padding_left, padding_right
@@ -176,6 +178,8 @@ cdef class Network:
         
         self.validation_sentences = None
         self.validation_tags = None
+        
+        self.decrease_learning_rate = False
 
         # Attardi: saver fuction
         self.saver = lambda nn: None
@@ -533,6 +537,34 @@ Output size: %d
         self.validation_sentences = validation_sentences
         self.validation_tags = validation_tags 
     
+    def set_learning_rate_decay(self, float decay_factor=1.0):
+        """
+        Sets the network to use learning rate decay. 
+        
+        The learning rate at each iteration t is determined as:
+        initial_rate / (1 + t * decay_factor)
+        
+        with t starting from 0
+        """
+        self.decrease_learning_rate = True
+        self.decay_factor = decay_factor
+    
+    def decrease_learning_rates(self, epoch):
+        """
+        Apply the learning rate decay, if the network was configured to use it.
+        """
+        if not self.decrease_learning_rate or epoch == 0:
+            return
+        
+        # multiplying the last rate by this adjustment is equivalent to
+        # initial_rate / (1 + t * decay_factor)
+        # and we don't need to store the initial rates
+        factor = (1.0 + (epoch - 1) * self.decay_factor) / (1 + epoch * self.decay_factor)
+        self.learning_rate *= factor
+        self.learning_rate_features *= factor
+        if self.transitions is not None:
+            self.learning_rate_trans *= factor
+    
     def train(self, list sentences, list tags, 
               int epochs, int epochs_between_reports=0,
               float desired_accuracy=0):
@@ -561,8 +593,10 @@ Output size: %d
         if self.validation_sentences is None:
             self.validation_sentences = sentences
             self.validation_tags = tags
-
+        
         for i in xrange(epochs):
+            self.decrease_learning_rates()
+            
             self._train_epoch(sentences, tags)
             self._validate()
             

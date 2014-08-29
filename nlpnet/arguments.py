@@ -61,6 +61,9 @@ def get_args():
     base_parser.add_argument('--lt', type=float, 
                              help='Learning rate for tag transitions',
                              dest='learning_rate_transitions')
+    base_parser.add_argument('--decay', type=float, const=1, nargs='?', default=None,
+                             help='Use learning rate decay. Optionally, '\
+                             'supply decay factor (default 1)')
     base_parser.add_argument('-a', '--accuracy', type=float,
                              help='Maximum desired accuracy per token.',
                              default=0, dest='accuracy')
