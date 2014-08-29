@@ -84,9 +84,8 @@ class POSReader(TaggerReader):
                 pos = fields[ConllPos.pos]
                 sentence.append((word, pos))
         
-        if line.strip() == '':
-            if len(sentence) > 0:
-                self.sentences.append(sentence)
+        if len(sentence) > 0:
+            self.sentences.append(sentence)
 
 # backwards compatibility
 MacMorphoReader = POSReader
