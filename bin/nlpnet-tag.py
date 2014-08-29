@@ -74,7 +74,7 @@ def _print_tagged(tagged_sents, task):
 def _print_parsed_dependency(parsed_sents):
     """Prints one token per line and its head"""
     for sent in parsed_sents:
-        print sent.to_conll()
+        print sent.to_conll().encode('utf-8')
         print
 
 def _print_tagged_pos(tagged_sents):
