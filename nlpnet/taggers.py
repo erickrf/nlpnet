@@ -200,7 +200,7 @@ class ParsedSentence(object):
             label = self.labels[i]
             pos = self.pos[i] if self.pos else '_'
             
-            line = '{id}\t{token}\t_\t{pos}\t{pos}\t_\t{head}\t{label}'
+            line = u'{id}\t{token}\t_\t{pos}\t{pos}\t_\t{head}\t{label}'
             result.append(line.format(id=i+1, pos=pos, head=head, label=label, token=token))
         
         return '\n'.join(result)
