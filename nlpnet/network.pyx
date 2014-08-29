@@ -73,7 +73,7 @@ cdef class Network:
     cdef readonly int word_window_size, input_size, hidden_size, output_size
     cdef public float learning_rate, learning_rate_features
     cdef public float decay_factor
-    cdef public bool decrease_learning_rate
+    cdef public bool use_learning_rate_decay
     
     # padding stuff
     cdef np.ndarray padding_left, padding_right
@@ -179,7 +179,7 @@ cdef class Network:
         self.validation_sentences = None
         self.validation_tags = None
         
-        self.decrease_learning_rate = False
+        self.use_learning_rate_decay = False
 
         # Attardi: saver fuction
         self.saver = lambda nn: None
@@ -546,14 +546,14 @@ Output size: %d
         
         with t starting from 0
         """
-        self.decrease_learning_rate = True
+        self.use_learning_rate_decay = True
         self.decay_factor = decay_factor
     
     def decrease_learning_rates(self, epoch):
         """
         Apply the learning rate decay, if the network was configured to use it.
         """
-        if not self.decrease_learning_rate or epoch == 0:
+        if not self.use_learning_rate_decay or epoch == 0:
             return
         
         # multiplying the last rate by this adjustment is equivalent to
@@ -595,7 +595,7 @@ Output size: %d
             self.validation_tags = tags
         
         for i in xrange(epochs):
-            self.decrease_learning_rates()
+            self.decrease_learning_rates(i)
             
             self._train_epoch(sentences, tags)
             self._validate()
@@ -632,11 +632,11 @@ Output size: %d
         logger = logging.getLogger("Logger")
         logger.info("%d epochs   Error: %f   Accuracy: %f   " \
             "%d corrections skipped   " \
-            "%d floating point errors" % (num,
-                                          self.error,
-                                          self.accuracy,
-                                          self.skips,
-                                          self.float_errors))
+            "learning rate: %f" % (num,
+                                   self.error,
+                                   self.accuracy,
+                                   self.skips,
+                                   self.learning_rate))
     
     def _train_epoch(self, list sentences, list tags):
         """
