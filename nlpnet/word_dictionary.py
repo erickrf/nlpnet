@@ -47,7 +47,8 @@ class WordDictionary(dict):
         else:
             # using ordered dict as an ordered set
             # (we need to keep the order and eliminate duplicates)
-            words = [word.lower() for word in wordlist]
+            words = [word.lower().translate(WordDictionary.number_transformation)
+                     for word in wordlist]
             values = [None] * len(words)
             words = OD(zip(words, values)).keys()
         
@@ -105,9 +106,11 @@ class WordDictionary(dict):
             of lists of tokens.
         """
         if type(token_list[0]) == list:
-            c = Counter(t.lower() for sent in token_list for t in sent)
+            c = Counter(t.lower().translate(WordDictionary.number_transformation) 
+                        for sent in token_list for t in sent)
         else:
-            c = Counter(t.lower() for t in token_list)
+            c = Counter(t.lower().translate(WordDictionary.number_transformation)
+                        for t in token_list)
         return c
     
     
