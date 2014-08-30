@@ -101,10 +101,11 @@ cdef class Network:
     # data for statistics during training. 
     cdef float error, accuracy, float_errors
     cdef int num_tokens, skips
+        
+    # file where the network is saved
+    cdef public str network_filename
     
-    # function to save periodically
-    cdef public object saver
-    
+    # validation
     cdef list validation_sentences
     cdef list validation_tags
 
@@ -181,9 +182,6 @@ cdef class Network:
         
         self.use_learning_rate_decay = False
 
-        # Attardi: saver fuction
-        self.saver = lambda nn: None
-    
     def description(self):
         """
         Returns a textual description of the network.
@@ -606,8 +604,12 @@ Output size: %d
             # Attardi: save model
             if self.accuracy > top_accuracy:
                 top_accuracy = self.accuracy
-                self.saver(self)
+                self.save()
                 logger.debug("Saved model")
+            elif self.use_learning_rate_decay:
+                # this iteration didn't bring improvements; load the last saved model
+                # before continuing training with a lower rate
+                self._load_parameters()
                         
             if (epochs_between_reports > 0 and i % epochs_between_reports == 0) \
                 or self.accuracy >= desired_accuracy > 0 \
@@ -776,26 +778,43 @@ Output size: %d
         if self.transitions is not None:
             self.transitions += self.trans_gradients * self.learning_rate_trans
 
-    def save(self, filename):
+    def _load_parameters(self):
+        """
+        Loads weights, feature tables and transition tables previously saved.
+        """
+        data = np.load(self.network_filename)
+        self.hidden_weights = data['hidden_weights']
+        self.hidden_bias = data['hidden_bias']
+        self.output_weights = data['output_weights']
+        self.output_bias = data['output_bias']
+        self.feature_tables = data['feature_tables']
+        
+        if 'transitions' in data:
+            self.transitions = data['transitions']
+        else:
+            self.transitions = None
+    
+    def save(self):
         """
         Saves the neural network to a file.
-        It will save the weights, biases, sizes, padding and 
-        distance tables, but not other feature tables.
+        It will save the weights, biases, sizes, padding, 
+        distance tables and other feature tables.
         """
-        np.savez(filename, hidden_weights=self.hidden_weights,
+        np.savez(self.network_filename, hidden_weights=self.hidden_weights,
                  output_weights=self.output_weights,
                  hidden_bias=self.hidden_bias, output_bias=self.output_bias,
                  word_window_size=self.word_window_size, 
                  input_size=self.input_size, hidden_size=self.hidden_size,
                  output_size=self.output_size, padding_left=self.padding_left,
-                 padding_right=self.padding_right, transitions=self.transitions)
+                 padding_right=self.padding_right, transitions=self.transitions,
+                 feature_tables=self.feature_tables)
     
     @classmethod
     def load_from_file(cls, filename):
         """
         Loads the neural network from a file.
-        It will load weights, biases, sizes, padding and 
-        distance tables, but not other feature tables.
+        It will load weights, biases, sizes, padding, 
+        distance tables and other feature tables.
         """
         data = np.load(filename)
         
@@ -823,6 +842,8 @@ Output size: %d
         nn.padding_right = data['padding_right']
         nn.pre_padding = np.array((nn.word_window_size / 2) * [nn.padding_left])
         nn.pos_padding = np.array((nn.word_window_size / 2) * [nn.padding_right])
+        nn.feature_tables = list(data['feature_tables'])
+        nn.network_filename = filename
         
         return nn
         

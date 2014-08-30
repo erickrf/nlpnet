@@ -48,9 +48,9 @@ def create_reader(args, md, validation=False):
     if args.task == 'pos':
         text_reader = pos.pos_reader.POSReader(md, filename=filename)
         if args.suffix:
-            text_reader.create_suffix_list(args.suffix_size, 5)
+            text_reader.create_affix_list('suffix', args.suffix_size, 5)
         if args.prefix:
-            text_reader.create_prefix_list(args.prefix_size, 5)
+            text_reader.create_affix_list('prefix', args.prefix_size, 5)
             
     elif args.task.startswith('srl'):
         text_reader = srl.srl_reader.SRLReader(md, filename=filename, only_boundaries=args.identify, 
@@ -142,49 +142,6 @@ def create_network(args, text_reader, feature_tables, md=None):
     
     return nn
 
-def saver(nn_file, md):
-    """Function to save model periodically"""
-    def save(nn):
-        save_features(nn, md)
-        nn.save(nn_file)
-    return save
-
-def save_features(nn, md):
-    """
-    Receives a sequence of feature tables and saves each one in the appropriate file.
-    
-    :param nn: the neural network
-    :param md: a Metadata object describing the network
-    """
-    def save_affix_features(affix, iter_tables):
-        """
-        Helper function for both suffixes and affixes.
-        affix should be either 'suffix' or 'affix'
-        """
-        # there can be an arbitrary number of tables, one for each length
-        affix_features = []
-        codes = getattr(attributes.Affix, '%s_codes' % affix)
-        num_sizes = len(codes)
-        for _ in range(num_sizes):
-            affix_features.append(iter_tables.next())
-        
-        filename_key = getattr(md, '%s_features' % affix)
-        filename = config.FILES[filename_key]
-        utils.save_features_to_file(affix_features, filename)
-        
-    # type features
-    utils.save_features_to_file(nn.feature_tables[0], config.FILES[md.type_features])
-    
-    # other features - the order is important!
-    iter_tables = iter(nn.feature_tables[1:])
-    if md.use_caps: utils.save_features_to_file(iter_tables.next(), config.FILES[md.caps_features])
-    if md.use_prefix:
-        save_affix_features('prefix', iter_tables)
-    if md.use_suffix:
-        save_affix_features('suffix', iter_tables)
-    if md.use_pos: utils.save_features_to_file(iter_tables.next(), config.FILES[md.pos_features])
-    if md.use_chunk: utils.save_features_to_file(iter_tables.next(), config.FILES[md.chunk_features])
-    
 def load_network_train(args, md):
     """Loads and returns a neural network with all the necessary data."""
     nn = taggers.load_network(md)
@@ -290,16 +247,11 @@ if __name__ == '__main__':
         validation_reader = create_reader(args, md, True)
         set_validation_data(nn, args.task, validation_reader)
     
-    nn_file = config.FILES[md.network]
-    nn.saver = saver(nn_file, md)
+    nn.network_filename = config.FILES[md.network]
     
     if args.decay:
         nn.set_learning_rate_decay(args.decay)
+    
     train(nn, text_reader, args)
-    
-    # network saves itself during training after each iteration that raises accuracy
-#     save_features(nn, md)
-#     nn.save(nn_file)
-    
     logger.info("Finished training")
     

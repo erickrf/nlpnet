@@ -6,6 +6,7 @@ Base class for reading NLP tagging data.
 """
 
 import os
+import re
 import logging
 import numpy as np
 from collections import Counter
@@ -247,54 +248,45 @@ class TaggerReader(object):
         self.word_dict.save(filename)
         logger.info("Dictionary saved in %s" % filename)
     
-    def create_suffix_list(self, max_size, min_occurrences):
+    def create_affix_list(self, prefix_or_suffix, max_size, min_occurrences):
         """
-        Check if there exists a suffix list in the data directory. If there isn't,
+        Handle the creation of suffix and prefix lists.
+        
+        Check if there exists an affix list in the data directory. If there isn't,
         create a new one based on the training sentences.
+        
+        :param prefix_or_suffix: string 'prefix' or 'suffix'
         """
-        if os.path.isfile(config.FILES['suffixes']):
+        affix_type = prefix_or_suffix.lower()
+        assert affix_type == 'suffix' or affix_type == 'prefix' 
+        
+        filename = self.md.paths['%ses' % affix_type]
+        if os.path.isfile(filename):
             return
         
         logger = logging.getLogger("Logger")
-        suffixes_all_lengths = []
-        # only get the suffix size n from words with length at least (n+1)
-        types = {token.lower() for sent in self.sentences for token, _ in sent}
+        affixes_all_lengths = []
+        
+        # only get the affix size n from words with length at least (n+1)
+        types = {re.sub(r'\d', '9', token.lower()) 
+                 for sent in self.sentences for token, _ in sent}
+        
         for length in range(1, max_size + 1):
-            c = Counter(type_[-length:]
-                        for type_ in types
-                        if len(type_) > length)
-            suffixes_this_length = [suffix for suffix in c 
-                                    if c[suffix] >= min_occurrences]
-            suffixes_all_lengths.extend(suffixes_this_length)
+            if affix_type == 'suffix':
+                c = Counter(type_[-length:]
+                            for type_ in types
+                            if len(type_) > length)
+            else:
+                c = Counter(type_[:length]
+                            for type_ in types
+                            if len(type_) > length)
+            affixes_this_length = [affix for affix in c 
+                                   if c[affix] >= min_occurrences]
+            affixes_all_lengths.extend(affixes_this_length)
         
-        logger.info('Created a list of %d suffixes.' % len(suffixes_all_lengths))
-        text = '\n'.join(suffixes_all_lengths)
-        with open(config.FILES['suffixes'], 'wb') as f:
-            f.write(text.encode('utf-8'))
-    
-    def create_prefix_list(self, max_size, min_occurrences):
-        """
-        Check if there exists a prefix list in the data directory. If there isn't,
-        create a new one based on the training sentences.
-        """
-        if os.path.isfile(config.FILES['prefixes']):
-            return
-        
-        logger = logging.getLogger("Logger")
-        prefixes_all_lengths = []
-        # only get the prefix size n from words with length at least (n+1)
-        types = {token.lower() for sent in self.sentences for token, _ in sent}
-        for length in range(1, max_size + 1):
-            c = Counter(type_[:length]
-                        for type_ in types
-                        if len(type_) > length)
-            prefixes_this_length = [prefix for prefix in c 
-                                    if c[prefix] >= min_occurrences]
-            prefixes_all_lengths.extend(prefixes_this_length)
-        
-        logger.info('Created a list of %d prefixes.' % len(prefixes_all_lengths))
-        text = '\n'.join(prefixes_all_lengths)
-        with open(config.FILES['prefixes'], 'wb') as f:
+        logger.info('Created a list of %d %ses.' % (len(affixes_all_lengths), affix_type))
+        text = '\n'.join(affixes_all_lengths)
+        with open(filename, 'wb') as f:
             f.write(text.encode('utf-8'))
     
     def create_converter(self):
@@ -320,7 +312,7 @@ class TaggerReader(object):
                 # size=size because if we don't use it, lambda sticks to the last value of 
                 # the loop iterator size
                 def f(word, size=size):
-                    return getter(word, size)
+                    return getter(re.sub(r'\d', '9', word), size)
                 
                 self.converter.add_extractor(f)
         

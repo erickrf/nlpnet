@@ -33,32 +33,6 @@ def load_network(md):
         net_class = Network
     nn = net_class.load_from_file(md.paths[md.network])
     
-    logger.info('Loading features...')
-    type_features = utils.load_features_from_file(md.paths[md.type_features])
-    tables = [type_features]
-    
-    if md.use_caps:
-        caps_features = utils.load_features_from_file(md.paths[md.caps_features])
-        tables.append(caps_features)
-    if md.use_prefix:
-        prefix_features = utils.load_features_from_file(md.paths[md.prefix_features])
-        for table in prefix_features:
-            # one table for each size
-            tables.append(table)
-    if md.use_suffix:
-        suffix_features = utils.load_features_from_file(md.paths[md.suffix_features])
-        for table in suffix_features:
-            # one table for each size
-            tables.append(table)
-    if md.use_pos:
-        pos_features = utils.load_features_from_file(md.paths[md.pos_features])
-        tables.append(pos_features)
-    if md.use_chunk:
-        chunk_features = utils.load_features_from_file(md.paths[md.chunk_features])
-        tables.append(chunk_features)
-        
-    nn.feature_tables = tables
-    
     logger.info('Done')
     return nn
 
