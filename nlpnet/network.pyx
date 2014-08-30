@@ -593,8 +593,7 @@ Output size: %d
             self.validation_tags = tags
         
         for i in xrange(epochs):
-            self.decrease_learning_rates(i)
-            
+            self.decrease_learning_rates(i)            
             self._train_epoch(sentences, tags)
             self._validate()
             
@@ -656,7 +655,6 @@ Output size: %d
         np.random.set_state(random_state)
         np.random.shuffle(tags)
         
-        i = 0
         for sent, sent_tags in izip(sentences, tags):
             try:
                 self._tag_sentence(sent, sent_tags)
@@ -787,7 +785,7 @@ Output size: %d
         self.hidden_bias = data['hidden_bias']
         self.output_weights = data['output_weights']
         self.output_bias = data['output_bias']
-        self.feature_tables = data['feature_tables']
+        self.feature_tables = list(data['feature_tables'])
         
         if 'transitions' in data:
             self.transitions = data['transitions']
