@@ -668,11 +668,8 @@ Output size: %d
         num_tokens = 0
         
         for sent, gold_tags in zip(self.validation_sentences, self.validation_tags):
-            scores = self._tag_sentence(sent)
-            answer = self._viterbi(scores)
-            for pred_tag, gold_tag in izip(answer, gold_tags):
-                if pred_tag == gold_tag:
-                    hits += 1
+            answer = self.tag_sentence(sent)
+            hits += np.count_nonzero(answer == gold_tags)
             num_tokens += len(sent)
         
         self.accuracy = float(hits) / num_tokens
