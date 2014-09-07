@@ -40,7 +40,7 @@ class WordDictionary(dict):
                 minimum_occurrences = 1
             
             words = [key for key, number in c.most_common() 
-                     if number >= minimum_occurrences]
+                     if number >= minimum_occurrences and key]
             
             if size is not None and size < len(words):
                 words = words[:size]
@@ -97,6 +97,20 @@ class WordDictionary(dict):
         text = '\n'.join(sorted_words)
         with open(filename, 'wb') as f:
             f.write(text.encode('utf-8'))
+    
+    @classmethod
+    def load(cls, filename):
+        """
+        Loads a WordDictionary object from a vocabulary file.
+        """
+        words = []
+        with open(filename, 'rb') as f:
+            for word in f:
+                word = unicode(word, 'utf-8').strip()
+                if word:
+                    words.append(word)
+        
+        return cls.init_from_wordlist(words)
     
     def _get_frequency_count(self, token_list):
         """
