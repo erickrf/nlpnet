@@ -49,24 +49,31 @@ class SRLReader(reader.TaggerReader):
         """
         
         if only_boundaries:
-            self.task = 'srl_boundary'
+            self.taskname = 'srl_boundary'
             self._generate_iobes_dictionary()
         elif only_classify:
-            self.task = 'srl_classify'
+            self.taskname = 'srl_classify'
         elif only_predicates:
-            self.task = 'srl_predicates'
+            self.taskname = 'srl_predicates'
             self._generate_predicate_id_dictionary()
         else:
-            self.task = 'srl'
-        
-        self._set_metadata(md)
+            self.taskname = 'srl'
         
         self.rare_tag = 'O'
-        
         if filename is not None:
             self._read_conll(filename)
             self._clean_text()
         
+        super(SRLReader, self).__init__(md)
+        
+    
+    @property
+    def task(self):
+        """
+        Abstract Base Class (ABC) attribute.
+        """
+        return self.taskname
+    
     
     def _read_conll(self, filename):
         '''

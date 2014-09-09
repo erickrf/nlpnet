@@ -62,10 +62,6 @@ def create_reader(md, gold_file=None):
     else:
         raise ValueError("Unknown task: %s" % md.task)
     
-    tr.load_dictionary()
-    tr.load_tag_dict()
-    tr.create_converter()
-    
     logger.info('Done')
     return tr
 

@@ -593,7 +593,7 @@ Output size: %d
             self.validation_tags = tags
         
         for i in xrange(epochs):
-            self.decrease_learning_rates(i)            
+            self.decrease_learning_rates(i)      
             self._train_epoch(sentences, tags)
             self._validate()
             
@@ -665,14 +665,12 @@ Output size: %d
     def _validate(self):
         """Perform validation on validation data and estimate accuracy"""
         hits = 0
-        num_tokens = 0
         
         for sent, gold_tags in zip(self.validation_sentences, self.validation_tags):
             answer = self.tag_sentence(sent)
             hits += np.count_nonzero(answer == gold_tags)
-            num_tokens += len(sent)
         
-        self.accuracy = float(hits) / num_tokens
+        self.accuracy = float(hits) / self.num_tokens
 
     def _backpropagate(self, sentence):
         """
@@ -793,7 +791,7 @@ Output size: %d
         """
         Saves the neural network to a file.
         It will save the weights, biases, sizes, padding, 
-        distance tables and other feature tables.
+        and feature tables.
         """
         np.savez(self.network_filename, hidden_weights=self.hidden_weights,
                  output_weights=self.output_weights,
@@ -809,7 +807,7 @@ Output size: %d
         """
         Loads the neural network from a file.
         It will load weights, biases, sizes, padding, 
-        distance tables and other feature tables.
+        and feature tables.
         """
         data = np.load(filename)
         

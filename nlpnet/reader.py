@@ -7,6 +7,7 @@ Base class for reading NLP tagging data.
 
 import os
 import re
+import abc
 import logging
 import numpy as np
 from collections import Counter
@@ -56,16 +57,29 @@ class TaggerReader(object):
     Abstract class extending TextReader with useful functions
     for tagging tasks. 
     """
+    __metaclass__ = abc.ABCMeta
     
-    def __init__(self, md=None):
+    def __init__(self, md=None, load_dictionaries=True):
         '''
         This class shouldn't be used directly. The constructor only
-        provides method calls for subclasses.
+        provides method calls for subclasses. Subclasses should call
+        this constructor after initializing the `task` attribute.
         '''
-        self.task = None
         self._set_metadata(md)
-        
         self.codified = False
+        
+        if load_dictionaries:
+            self.load_or_create_dictionary()
+            self.load_or_create_tag_dict()
+            self.create_converter()
+    
+    @abc.abstractmethod
+    def task(self):
+        """
+        The task the tagger reads data for.
+        Must be defined in subclasses.
+        """
+        return None
     
     def load_or_create_dictionary(self):
         """

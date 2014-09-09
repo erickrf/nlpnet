@@ -23,27 +23,26 @@ class POSReader(TaggerReader):
     readable by the neural network for the POS tagging task.
     """
     
-    def __init__(self, md=None, sentences=None, filename=None):
+    def __init__(self, md=None, filename=None):
         """
-        :param tagged_text: a sequence of tagged sentences. Each sentence must be a 
-            sequence of (token, tag) tuples. If None, the sentences are read from the 
-            default location.
+        Constructor
         """
-        self.md = md
-        self.task = 'pos'
         self.rare_tag = None
-                
-        self._set_metadata(md)
-                
-        if sentences is not None:
-            self.sentences = sentences
-        else:
-            self.sentences = []
-            if filename is not None:
-                try:
-                    self._read_plain(filename)
-                except:
-                    self._read_conll(filename)
+        self.sentences = []
+        if filename is not None:
+            try:
+                self._read_plain(filename)
+            except:
+                self._read_conll(filename)
+        
+        super(POSReader, self).__init__(md)
+        
+    @property
+    def task(self):
+        """
+        Abstract Base Class (ABC) attribute.
+        """
+        return 'pos'
     
     def _read_plain(self, filename):
         """

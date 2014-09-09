@@ -70,11 +70,7 @@ def create_reader(args, md, validation=False):
     else:
         raise ValueError("Unknown task: %s" % args.task)
     
-    text_reader.load_or_create_dictionary()
-    text_reader.load_or_create_tag_dict()
-    text_reader.create_converter()
     text_reader.codify_sentences()
-    
     return text_reader
     
 
@@ -185,6 +181,21 @@ def set_validation_data(nn, task, reader):
     else:
         raise ValueError('Unknown task: %s' % task)
 
+
+def load_or_create_metadata(args):
+    """
+    Loads or creates a metadata object, depending on command line arguments.
+    """
+    if not args.load_network:
+        # if we are about to create a new network, create the metadata too
+        md = create_metadata(args)
+        md.save_to_file()
+    else:
+        md = metadata.Metadata.load_from_file(args.task)
+    
+    return md
+
+
 def train(nn, reader, args):
     """Trains a neural network for the selected task."""
     num_sents = len(reader.sentences)
@@ -225,14 +236,8 @@ if __name__ == '__main__':
     logger = logging.getLogger("Logger")
 
     config.set_data_dir(args.data)
-    
-    if not args.load_network:
-        # if we are about to create a new network, create the metadata too
-        md = create_metadata(args)
-        md.save_to_file()
-    else:
-        md = metadata.Metadata.load_from_file(args.task)
-        
+
+    md = load_or_create_metadata(args)
     text_reader = create_reader(args, md)
     
     if args.load_network:

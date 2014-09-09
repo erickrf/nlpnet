@@ -143,13 +143,15 @@ Output size: %d
         self.validation_predicates = None
         self.validation_arguments = None
         
-    def save(self, filename):
+        self.use_learning_rate_decay = False
+        
+    def save(self):
         """
         Saves the neural network to a file.
         It will save the weights, biases, sizes, padding and 
-        distance tables, but not other feature tables.
+        distance tables, and other feature tables.
         """
-        np.savez(filename, hidden_weights=self.hidden_weights,
+        np.savez(self.network_filename, hidden_weights=self.hidden_weights,
                  target_dist_table=self.target_dist_table,
                  pred_dist_table=self.pred_dist_table,
                  target_dist_weights=self.target_dist_weights,
@@ -161,14 +163,15 @@ Output size: %d
                  input_size=self.input_size, hidden_size=self.hidden_size,
                  output_size=self.output_size, hidden2_size=self.hidden2_size,
                  hidden2_weights=self.hidden2_weights, hidden2_bias=self.hidden2_bias,
-                 padding_left=self.padding_left, padding_right=self.padding_right)
+                 padding_left=self.padding_left, padding_right=self.padding_right,
+                 feature_tables=self.feature_tables)
 
     @classmethod
     def load_from_file(cls, filename):
         """
         Loads the neural network from a file.
         It will load weights, biases, sizes, padding and 
-        distance tables, but not other feature tables.
+        distance tables, and other feature tables.
         """
         data = np.load(filename)
         
@@ -205,9 +208,28 @@ Output size: %d
         nn.padding_right = data['padding_right']
         nn.pre_padding = np.array((nn.word_window_size / 2) * [nn.padding_left])
         nn.pos_padding = np.array((nn.word_window_size / 2) * [nn.padding_right])
+        nn.feature_tables = list(data['feature_tables'])
+        nn.network_filename = filename
         
         return nn
     
+    def _load_parameters(self):
+        """
+        Loads weights, feature tables, distance tables and 
+        transition tables previously saved.
+        """
+        data = np.load(self.network_filename)
+        self.hidden_weights = data['hidden_weights']
+        self.hidden_bias = data['hidden_bias']
+        self.hidden2_weights = data['hidden2_weights']
+        self.hidden2_bias = data['hidden2_bias']
+        self.output_weights = data['output_weights']
+        self.output_bias = data['output_bias']
+        self.feature_tables = list(data['feature_tables'])
+        self.target_dist_table = data['target_dist_table']
+        self.pred_dist_table = data['pred_dist_table']
+        self.transitions = data['transitions']
+            
     def _average_error(self):
         """
         Update the error atribute with an average over sentences.
@@ -255,15 +277,19 @@ Output size: %d
             self.set_validation_data(sentences, predicates, tags, arguments)
         
         for i in xrange(epochs):
+            self.decrease_learning_rates(i)
             self._train_epoch(sentences, predicates, tags, arguments)
             self._validate()
-            self._average_error()
             
             # Attardi: save model
             if self.accuracy > top_accuracy:
                 top_accuracy = self.accuracy
-                self.saver(self)
+                self.save()
                 logger.debug("Saved model")
+            elif self.use_learning_rate_decay:
+                # this iteration didn't bring improvements; load the last saved model
+                # before continuing training with a lower rate
+                self._load_parameters()
             
             if (epochs_between_reports > 0 and i % epochs_between_reports == 0) \
                 or self.accuracy >= desired_accuracy > 0 \
@@ -556,6 +582,7 @@ Output size: %d
                 num_items += len(predicate_answer)
         
         self.accuracy = float(hits) / num_items
+        self._average_error()
     
     def _calculate_gradients(self, tags, scores):
         """Delegates the call to the appropriate function."""

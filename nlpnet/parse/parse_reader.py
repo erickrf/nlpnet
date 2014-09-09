@@ -52,13 +52,20 @@ class DependencyReader(reader.TaggerReader):
             self._read_conll(filename)
         
         if self.labeled:
-            self.task = 'labeled_dependency'
+            self.taskname = 'labeled_dependency'
         else:
-            self.task = 'unlabeled_dependency'
+            self.taskname = 'unlabeled_dependency'
         
-        self._set_metadata(md)
         self.rare_tag = None
         self.pos_dict = None
+        super(DependencyReader, self).__init__(md)
+        
+    @property
+    def task(self):
+        """
+        Abstract Base Class (ABC) attribute.
+        """
+        return self.taskname
                 
     
     def _read_conll(self, filename): 
