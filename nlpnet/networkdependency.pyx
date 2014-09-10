@@ -241,11 +241,13 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         logger = logging.getLogger("Logger")
         logger.info("%d epochs   Error: %f   Token accuracy: %f   " \
                     "Sentence accuracy: %f    " \
-                    "%d corrections skipped   "  % (num,
-                                                    self.error,
-                                                    self.accuracy,
-                                                    self.sentence_accuracy,
-                                                    self.skips))
+                    "%d corrections skipped   " \
+                    "Learning rate: %f"  % (num,
+                                            self.error,
+                                            self.accuracy,
+                                            self.sentence_accuracy,
+                                            self.skips,
+                                            self.learning_rate))
     
     def tag_sentence(self, np.ndarray sentence, np.ndarray heads=None):
         """
