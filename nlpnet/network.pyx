@@ -782,7 +782,8 @@ Output size: %d
         self.output_bias = data['output_bias']
         self.feature_tables = list(data['feature_tables'])
         
-        if 'transitions' in data:
+        # check if transitions isn't None (numpy saves everything as an array)
+        if data['transitions'] != [None]:
             self.transitions = data['transitions']
         else:
             self.transitions = None

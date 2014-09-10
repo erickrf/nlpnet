@@ -228,7 +228,12 @@ Output size: %d
         self.feature_tables = list(data['feature_tables'])
         self.target_dist_table = data['target_dist_table']
         self.pred_dist_table = data['pred_dist_table']
-        self.transitions = data['transitions']
+        
+        # check if transitions isn't None (numpy saves everything as an array)
+        if data['transitions'] != [None]:
+            self.transitions = data['transitions']
+        else:
+            self.transitions = None
             
     def _average_error(self):
         """
