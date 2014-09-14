@@ -57,6 +57,18 @@ cdef hardtanh(np.ndarray[FLOAT_t, ndim=1] weights):
     
     return out
 
+cdef hardtanh_inplace(np.ndarray[FLOAT_t, ndim=1] weights):
+    """
+    Hard hyperbolic tangent. 
+    Modifies vectors in-place (can't be used in training)
+    """
+    inds_greater = weights > 1
+    inds_lesser = weights < -1
+    weights[inds_greater] = 1
+    weights[inds_lesser] = -1
+    
+    return weights
+
 cdef hardtanhd(np.ndarray[FLOAT_t, ndim=2] weights):
     """derivative of hardtanh"""
     cdef np.ndarray out = np.zeros_like(weights)
@@ -200,7 +212,7 @@ Output size: %d
         return desc
     
     
-    def run(self, np.ndarray indices):
+    def run(self, np.ndarray indices, bool training):
         """
         Runs the network for a given input. 
         
@@ -220,7 +232,10 @@ Output size: %d
         self.input_values = input_data
         # (hidden_size, input_size) . input_size = hidden_size
         self.layer2_values = self.hidden_weights.dot(input_data) + self.hidden_bias
-        self.hidden_values = hardtanh(self.layer2_values)
+        if training:
+            self.hidden_values = hardtanh(self.layer2_values)
+        else:
+            self.hidden_values = hardtanh_inplace(self.layer2_values)
 
         return self.output_weights.dot(self.hidden_values) + self.output_bias
 
@@ -288,7 +303,7 @@ Output size: %d
         # run through all windows in the sentence
         for i in xrange(len(sentence)):
             window = padded_sentence[i: i+self.word_window_size]
-            scores[i] = self.run(window)
+            scores[i] = self.run(window, training)
             if training:
                 self.input_sent_values[i] = self.input_values
                 self.layer2_sent_values[i] = self.layer2_values
