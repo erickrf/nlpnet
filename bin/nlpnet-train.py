@@ -46,16 +46,16 @@ def create_reader(args, md, validation=False):
     
     logger.info("Reading %s data..." % msg)
     if args.task == 'pos':
-        text_reader = pos.pos_reader.POSReader(md, filename=filename)
+        text_reader = pos.POSReader(md, filename=filename)
         if args.suffix:
             text_reader.create_affix_list('suffix', args.suffix_size, 5)
         if args.prefix:
             text_reader.create_affix_list('prefix', args.prefix_size, 5)
             
     elif args.task.startswith('srl'):
-        text_reader = srl.srl_reader.SRLReader(md, filename=filename, only_boundaries=args.identify, 
-                                               only_classify=args.classify,
-                                               only_predicates=args.predicates)
+        text_reader = srl.SRLReader(md, filename=filename, only_boundaries=args.identify, 
+                                    only_classify=args.classify,
+                                    only_predicates=args.predicates)
         if args.identify:
             # only identify arguments
             text_reader.convert_tags('iobes', only_boundaries=True)
@@ -64,19 +64,23 @@ def create_reader(args, md, validation=False):
             # this is SRL as one step, we use IOB
             text_reader.convert_tags('iob', update_tag_dict=False)
     
-    elif args.task.endswith('dependency'):
-        text_reader = parse.parse_reader.DependencyReader(md, filename)
+    elif 'dependency' in args.task:
+        text_reader = parse.DependencyReader(md, filename)
     
     else:
         raise ValueError("Unknown task: %s" % args.task)
     
     text_reader.codify_sentences()
     return text_reader
-    
 
-def create_network(args, text_reader, feature_tables, md=None):
+def create_network(args, text_reader, feature_tables, md):
     """Creates and returns the neural network according to the task at hand."""
     logger = logging.getLogger("Logger")
+    
+    if args.task == 'dependency_filter':
+        model_filename = config.FILES[md.network]
+        return parse.EdgeFilter(feature_tables, args.max_dist, args.dist_features,
+                                filename=model_filename)
     
     convolution_srl =  args.task.startswith('srl') and args.task != 'srl_predicates'
     convolution = convolution_srl or args.task.endswith('dependency')
@@ -102,13 +106,13 @@ def create_network(args, text_reader, feature_tables, md=None):
             
             if args.identify:
                 logger.info("Loading initial transition scores table for argument identification")
-                transitions = srl.train_srl.init_transitions_simplified(text_reader.tag_dict)
+                transitions = srl.init_transitions_simplified(text_reader.tag_dict)
                 nn.transitions = transitions
                 nn.learning_rate_trans = args.learning_rate_transitions
                 
             elif not args.classify:
                 logger.info("Loading initial IOB transition scores table")
-                transitions = srl.train_srl.init_transitions(text_reader.tag_dict, 'iob')
+                transitions = srl.init_transitions(text_reader.tag_dict, 'iob')
                 nn.transitions = transitions
                 nn.learning_rate_trans = args.learning_rate_transitions
                 
@@ -136,10 +140,16 @@ def create_network(args, text_reader, feature_tables, md=None):
     logger.info("Created new network with the following layer sizes: %s"
                 % ', '.join(str(x) for x in layer_sizes))
     
+    nn.network_filename = config.FILES[md.network]
     return nn
 
 def load_network_train(args, md):
     """Loads and returns a neural network with all the necessary data."""
+    if args.taks == 'dependency_filter':
+        logger.error("Loading partially trained model not implemented "\
+                     "for dependency edge filtering.")
+        exit()
+    
     nn = taggers.load_network(md)
     
     logger.info("Loaded network with following parameters:")
@@ -204,12 +214,21 @@ def train(nn, reader, args):
     avg_len = sum(len(x) for x in text_reader.sentences) / float(num_sents)
     logger.debug("Average sentence length is %f tokens" % avg_len)
     
+    if args.task == 'dependency_filter':
+        # dependency filter doesn't use an actual neural network and behaves differently
+        nn.train(reader.sentences, reader.heads)
+        nn.save()
+        return
+    
     logger.debug("Network connection learning rate: %f" % nn.learning_rate)
     logger.debug("Feature vectors learning rate: %f" % nn.learning_rate_features)
     logger.debug("Tag transition matrix learning rate: %f\n" % nn.learning_rate_trans)
     
     intervals = max(args.iterations / 200, 1)
     np.seterr(over='raise')
+    
+    if args.decay:
+        nn.set_learning_rate_decay(args.decay)
     
     if args.task.startswith('srl') and args.task != 'srl_predicates':
         arg_limits = None if args.task != 'srl_classify' else text_reader.arg_limits
@@ -225,8 +244,6 @@ def train(nn, reader, args):
     else:
         nn.train(reader.sentences, reader.tags, 
                  args.iterations, intervals, args.accuracy)
-
-
 
 if __name__ == '__main__':
     args = arguments.get_args()
@@ -251,11 +268,6 @@ if __name__ == '__main__':
     if args.dev is not None:
         validation_reader = create_reader(args, md, True)
         set_validation_data(nn, args.task, validation_reader)
-    
-    nn.network_filename = config.FILES[md.network]
-    
-    if args.decay:
-        nn.set_learning_rate_decay(args.decay)
     
     train(nn, text_reader, args)
     logger.info("Finished training")

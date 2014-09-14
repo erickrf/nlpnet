@@ -1,2 +1,2 @@
-import train_srl
-import srl_reader
+from train_srl import *
+from srl_reader import SRLReader

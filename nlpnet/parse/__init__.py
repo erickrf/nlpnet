@@ -1,1 +1,2 @@
-import parse_reader
+from parse_reader import DependencyReader
+from edge_filter import EdgeFilter

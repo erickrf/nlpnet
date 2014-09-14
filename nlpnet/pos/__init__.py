@@ -1,2 +1,1 @@
-import pos_reader
-import train_pos
+from pos_reader import POSReader

@@ -53,6 +53,14 @@ def get_config_paths(directory):
         ('pos_features_unlabeled_dependency', 'pos-features-udep.npy'),
         ('metadata_unlabeled_dependency', 'metadata-udep.pickle'),
         ('vocabulary_unlabeled_dependency', 'vocabulary-udep.txt'),
+        
+        # dependency filter
+        ('type_features_dependency_filter', 'types-features-filter.npy'),
+        ('caps_features_dependency_filter', 'caps-features-filter.npy'),
+        ('pos_features_dependency_filter', 'pos-features-filter.npy'),
+        ('metadata_dependency_filter', 'metadata-filter.pickle'),
+        ('vocabulary_dependency_filter', 'vocabulary-filter.txt'),
+        ('network_dependency_filter', 'dep-filter.npz'),
                 
         # chunk
         ('chunk_tag_dict'              , 'chunk-tag-dict.pickle'),
