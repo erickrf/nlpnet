@@ -59,11 +59,20 @@ class EdgeFilter(object):
         Create a lookup with the actual feature values for all tokens 
         in a sentence.
         """
-        sentence_lookup = np.vstack([np.concatenate([table[index] 
-                                                     for index, table in zip(token_indices, self.feature_tables)]) 
-                                     for token_indices in sentence])
+        shape = (len(sentence), np.sum(table.shape[1] for table in self.feature_tables))
+        lookup = np.empty(shape)
+        ind_from = 0
         
-        return sentence_lookup
+        for i, table in enumerate(self.feature_tables):
+            # take the values from each feature table for all tokens at a time
+            table_indices = sentence.take(i, axis=1)
+            features = table.take(table_indices, 0)
+            
+            ind_to = ind_from + table.shape[1]
+            lookup[:, ind_from:ind_to] = features
+            ind_from = ind_to
+            
+        return lookup
     
     def _create_instances(self, sentence, heads=None):
         """
@@ -75,7 +84,6 @@ class EdgeFilter(object):
         """
         num_instances = len(sentence) ** 2
         instances = np.empty((num_instances, self.instance_size))
-        instance_counter = 0
         training = heads is not None
         if training:
             classes = np.zeros(num_instances)
@@ -83,24 +91,34 @@ class EdgeFilter(object):
         # lookup for the full representation of each token
         sentence_lookup = self._create_sentence_lookup(sentence)
         
+        ind_from_row = 0
+        features_per_token = np.sum(table.shape[1] for table in self.feature_tables)
+        
+        # we'll take each pair (i, j) from the sentence
+        # (i, j) != (j, i)
         for i in range(len(sentence)):
-            for j in range(len(sentence)):
-                # j: head index
-                # i: modifier index
-                head_features = sentence_lookup[j]
-                modifier_features = sentence_lookup[i]
-                
-                # distance from head to modifier
-                dist = j - i + self.distance_offset
-                dist_features = self.distance_features.take(dist,
-                                                            0, mode='clip')
-                
-                instances[instance_counter] = np.concatenate((head_features, 
-                                                              modifier_features,
-                                                              dist_features))
-                if training and heads[i] == j:
-                    classes[instance_counter] = 1
-                instance_counter += 1
+            # each instance is represented as 
+            # [modifier_features head_features distance_features]
+            
+            # the features for token i will appear len(sent) times
+            # each time together with a different j
+            ind_to_row = ind_from_row + len(sentence)
+            instances[ind_from_row:ind_to_row, 0:features_per_token] = sentence_lookup[i]
+            
+            ind_to_column = 2 * features_per_token
+            instances[ind_from_row:ind_to_row, features_per_token:ind_to_column] = sentence_lookup
+            ind_from_column = ind_to_column
+            
+            # distances from each token to i
+            distances = np.arange(len(sentence)) - i
+            dist_features = self.distance_features.take(distances, 0, mode='clip')
+            instances[ind_from_row:ind_to_row, ind_from_column:] = dist_features
+            ind_from_row = ind_to_row
+            
+            if training:
+                head = heads[i]
+                index_head = len(sentence) * i + head
+                classes[index_head] = 1
         
         if training:
             return (instances, classes)
@@ -133,17 +151,60 @@ class EdgeFilter(object):
         :param threshold: the maximum probability a filtered edge may have
             (i.e., 0.01 means the classifier has 99% certainty that it should
             be filtered out)
-        :return: a 2-dim array where each cell (i, j) has True if the classifier is 
+        :return: a 2-dim array where each cell (i, j) has False if the classifier is 
             confident that it isn't a valid edge with the given error threshold. 
-            Possible edges have value False.
+            Possible edges have value True. (i, j) means token i has head j.
         """
-        log_prob = np.log(threshold)
+        # the probability is determined from the score using the logistic function:
+        # p = 1 / (1 + exp(-score))
+        # the threshold score can be determined as:
+        # threshold_score = log(p) - log(1 - p)
+        p = threshold
+        threshold_score = np.log(p) - np.log(1 - p)
         sentence_size = len(sentence)
         instances = self._create_instances(sentence)
         
         scores = self.classifier.decision_function(instances)
         scores = scores.reshape((sentence_size, sentence_size))
-        return scores > log_prob
+        return scores > threshold_score
+    
+    def test(self, sentences, heads, threshold):
+        """
+        Test the classifier performance on the given data.
+        """
+        # total number of existing edges
+        total_edges = 0
+        # total number of edges filtered out by the classifier
+        total_filtered = 0
+        # number of edges filtered out that shouldn't have been
+        wrongly_filtered = 0
+        
+        for sent, sent_heads in zip(sentences, heads):
+            # False means classifier is confident that there is no edge there
+            # we want no actual edge marked as False, but a few non-edges as True
+            # are no problem
+            answers = self.filter(sent, threshold)
+            
+            # quickly create the gold version of the matrix
+            sent_len = len(sent)
+            gold = np.zeros((sent_len, sent_len), dtype=np.bool)
+            gold[np.arange(sent_len), sent_heads] = True
+            
+            total_filtered += np.count_nonzero(answers == False)
+            mistakes = np.logical_and(np.logical_not(answers), gold)
+            wrongly_filtered += np.count_nonzero(mistakes)
+            total_edges += gold.size
+        
+        filtered_percentage = 100 * float(total_filtered) / total_edges
+        logger = logging.getLogger('Logger')
+        msg = 'Filtered out {:.2f}% of the edges ({:,} out of {:,} edges)'
+        logger.info(msg.format(filtered_percentage, total_filtered, total_edges))
+        
+        # there's one head per token
+        total_correct_edges = np.sum(len(sent) for sent in sentences)
+        # percentage of sentences an oracle could get right
+        oracle = 100.0 * (total_correct_edges - wrongly_filtered) / total_correct_edges
+        logger.info('Maximum oracle score (correct edges left): {:.2f}%'.format(oracle))
     
     def save(self, filename=None):
         """
@@ -157,8 +218,6 @@ class EdgeFilter(object):
             filename = self.filename
         
         with open(filename, 'wb') as f:
-            # not really a network, but we use md.network for consistency
-            #TODO: use a more convenient name instead of network
             cPickle.dump(data, f, 2)
     
     @classmethod
@@ -171,25 +230,18 @@ class EdgeFilter(object):
         
         distance_table = data['distance_table']
         feature_tables = data['feature_tables']
-        edge_filter = cls(feature_tables, distance_table=distance_table, filename=filename)
+        edge_filter = cls(feature_tables, distance_features=distance_table, filename=filename)
         edge_filter.classifier = data['classifier']
         
         return edge_filter
     
-    def test(self, sentences, heads):
-        """
-        Test the classifier performance on the given data.
-        """
-        pass
-        
-    
-    def train(self, sentences, heads):
+    def train(self, sentences, heads, loss_function):
         """
         Train the model to detect unlikely edges.
         """
         batch_size = self._find_batch_size(sentences)
         num_batches = int(np.ceil(len(sentences) / batch_size))
-        self.classifier = SGDClassifier('log', class_weight='auto')
+        self.classifier = SGDClassifier(loss_function, class_weight='auto')
         
         logger = logging.getLogger('Logger')
         logger.info('Starting training with {} sentences in {} batches'.format(len(sentences), 

@@ -30,6 +30,10 @@ class Metadata(object):
         self.network = 'network_%s' % task
         self.tag_dict = '%s_tag_dict' % task
         
+        # dependency edge filter doesn't use an actual neural network, so 
+        # we call it "model" to be more consistent
+        self.model = self.network
+        
         if task == 'srl_boundary':
             self.pred_dist_table = 'pred_dist_table_boundary'
             self.target_dist_table = 'target_dist_table_boundary'

@@ -50,7 +50,7 @@ def create_reader(md, gold_file=None):
     if md.task == 'pos':
         tr = POSReader(md, filename=gold_file)
     
-    elif md.task.endswith('dependency'):
+    elif 'dependency' in md.task:
         labeled = md.task.startswith('labeled')
         tr = DependencyReader(md, filename=gold_file, labeled=labeled)
         

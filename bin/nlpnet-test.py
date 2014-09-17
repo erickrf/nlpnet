@@ -24,6 +24,7 @@ import nlpnet.config as config
 import nlpnet.utils as utils
 import nlpnet.taggers as taggers
 from nlpnet.metadata import Metadata
+from nlpnet.parse import EdgeFilter
 
 def evaluate_pos(gold_file=None, oov=None):
     """
@@ -118,6 +119,19 @@ def evaluate_unlabeled_dependency(gold_file):
     print '%d hits out of %d' % (hits, num_tokens)
     print '%d sentences completely correct (%f%%)' % (sentence_hits, sent_accuracy)
     print 'Accuracy: %f%%' % (100 * accuracy)
+
+def evaluate_dependency_filter(gold_file, threshold):
+    """
+    Evaluate the accuracy for the dependency filter. It computes the 
+    accuracy of dependency edges correctly filtered out (from all the
+    ones filtered) and their proportion among all possible dependencies.
+    """
+    md = Metadata.load_from_file('dependency_filter')
+    edge_filter = EdgeFilter.load(md.paths[md.network])
+    reader = taggers.create_reader(md, gold_file)
+    reader.codify_sentences()
+    edge_filter.test(reader.sentences, reader.heads, threshold)
+    
 
 def evaluate_labeled_dependency(gold_file):
     """
@@ -578,8 +592,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--task', help='Task for which the network should be used.', 
                         type=str, required=True, 
-                        choices=['srl', 'pos', 'labeled_dependency', 'unlabeled_dependency'])
+                        choices=['srl', 'pos', 'labeled-dependency', 'unlabeled-dependency', 'dependency-filter'])
     parser.add_argument('-v', help='Verbose mode', action='store_true', dest='verbose')
+    parser.add_argument('-t', help='Error margin threshold (for dependency filter)', type=float,
+                        default=0.01, dest='threshold')
     parser.add_argument('--id', help='Evaluate only argument identification (SRL only)',
                         action='store_true', dest='identify')
     parser.add_argument('--class', help='Evaluate only argument classification (SRL only)',
@@ -617,11 +633,14 @@ if __name__ == '__main__':
                     
         evaluate_pos(gold_file=args.gold, oov=oov)
     
-    elif args.task == 'labeled_dependency':
+    elif args.task == 'labeled-dependency':
         evaluate_labeled_dependency(args.gold)
     
-    elif args.task == 'unlabeled_dependency':
+    elif args.task == 'unlabeled-dependency':
         evaluate_unlabeled_dependency(args.gold)        
+    
+    elif args.task == 'dependency-filter':
+        evaluate_dependency_filter(args.gold, args.threshold)
     
     elif args.task.startswith('srl'):
         

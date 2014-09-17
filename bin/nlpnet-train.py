@@ -216,7 +216,7 @@ def train(nn, reader, args):
     
     if args.task == 'dependency_filter':
         # dependency filter doesn't use an actual neural network and behaves differently
-        nn.train(reader.sentences, reader.heads)
+        nn.train(reader.sentences, reader.heads, args.loss_function)
         nn.save()
         return
     

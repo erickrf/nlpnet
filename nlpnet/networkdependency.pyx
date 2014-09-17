@@ -76,7 +76,7 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         self._pre_tagging_setup(sentence, training)
         
         num_tokens = len(sentence)
-        # dependency_weights [i, j] has the score for token i having j as a head
+        # dependency_weights [i, j] has the score for token i having j as a head.
         # the main diagonal has the values for dependencies from the root and is 
         # later copied to the last column for easier processing
         self.dependency_weights = np.empty((num_tokens, num_tokens + 1))
