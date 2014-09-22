@@ -429,6 +429,9 @@ class SRLReader(reader.TaggerReader):
         Tags are also encoded. This function takes care of the case of classifying 
         pre-delimited arguments.
         """
+        if self.converter is None:
+            self.create_converter()
+        
         self._codify_sentences()
         self.arg_limits = []
         

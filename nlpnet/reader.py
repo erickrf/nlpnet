@@ -67,11 +67,11 @@ class TaggerReader(object):
         '''
         self._set_metadata(md)
         self.codified = False
+        self.converter = None
         
         if load_dictionaries:
             self.load_or_create_dictionary()
             self.load_or_create_tag_dict()
-            self.create_converter()
     
     @abc.abstractmethod
     def task(self):
@@ -138,6 +138,8 @@ class TaggerReader(object):
         
         :param sentence: a sequence of tokens, already tokenized
         """
+        if self.converter is None:
+            self.create_converter()
         return np.array([self.converter.convert(t) for t in sentence])
     
     def codify_sentences(self):
@@ -145,6 +147,9 @@ class TaggerReader(object):
         Converts each token in each sequence into indices to their feature vectors
         in feature matrices. The previous sentences as text are not accessible anymore.
         """
+        if self.converter is None:
+            self.create_converter()
+        
         new_sentences = []
         self.tags = []
         rare_tag_value = self.tag_dict.get(self.rare_tag)

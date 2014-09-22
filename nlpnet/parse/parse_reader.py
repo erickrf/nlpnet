@@ -214,6 +214,9 @@ class DependencyReader(reader.TaggerReader):
         in feature matrices. The previous sentences as text are not accessible anymore.
         Tags are left as the index of the each token's head.
         """
+        if self.converter is None:
+            self.create_converter()
+        
         self.sentences = [np.array([self.converter.convert(token) for token in sent])
                           for sent in self.sentences]
         
