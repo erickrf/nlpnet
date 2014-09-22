@@ -23,7 +23,7 @@ class POSReader(TaggerReader):
     readable by the neural network for the POS tagging task.
     """
     
-    def __init__(self, md=None, filename=None):
+    def __init__(self, md=None, filename=None, load_dictionaries=True):
         """
         Constructor
         """
@@ -35,7 +35,7 @@ class POSReader(TaggerReader):
             except:
                 self._read_conll(filename)
         
-        super(POSReader, self).__init__(md)
+        super(POSReader, self).__init__(md, load_dictionaries=load_dictionaries)
         
     @property
     def task(self):
