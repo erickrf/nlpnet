@@ -213,12 +213,14 @@ class SRLTagger(Tagger):
         md_boundary = Metadata.load_from_file('srl_boundary', self.paths)
         self.boundary_nn = load_network(md_boundary)
         self.boundary_reader = create_reader(md_boundary)
+        self.boundary_reader.create_converter()
         self.boundary_itd = self.boundary_reader.get_inverse_tag_dictionary()
         
         # same for arg classification
         md_classify = Metadata.load_from_file('srl_classify', self.paths)
         self.classify_nn = load_network(md_classify)
         self.classify_reader = create_reader(md_classify)
+        self.classify_reader.create_converter()
         self.classify_itd = self.classify_reader.get_inverse_tag_dictionary()
         
         # predicate detection
@@ -408,6 +410,7 @@ class POSTagger(Tagger):
         md = Metadata.load_from_file('pos', self.paths)
         self.nn = load_network(md)
         self.reader = create_reader(md)
+        self.reader.create_converter()
         self.itd = self.reader.get_inverse_tag_dictionary()
     
     def tag(self, text):
