@@ -47,27 +47,21 @@ cdef logsumexp(np.ndarray a, axis=None):
     a_max = a.max(axis=0)
     return np.log(np.sum(np.exp(a - a_max), axis=0)) + a_max
 
-cdef hardtanh(np.ndarray[FLOAT_t, ndim=1] weights):
-    """Hard hyperbolic tangent."""
-    cdef np.ndarray out = np.copy(weights)
+cdef hardtanh(np.ndarray[FLOAT_t, ndim=1] weights, inplace=False):
+    """
+    Hard hyperbolic tangent.
+    If inplace is True, modifies the input weights, which will be faster.
+    """
+    if inplace:
+        out = weights
+    else:
+        out = np.copy(weights)
     inds_greater = weights > 1
     inds_lesser = weights < -1
     out[inds_greater] = 1
     out[inds_lesser] = -1
     
     return out
-
-cdef hardtanh_inplace(np.ndarray[FLOAT_t, ndim=1] weights):
-    """
-    Hard hyperbolic tangent. 
-    Modifies vectors in-place (can't be used in training)
-    """
-    inds_greater = weights > 1
-    inds_lesser = weights < -1
-    weights[inds_greater] = 1
-    weights[inds_lesser] = -1
-    
-    return weights
 
 cdef hardtanhd(np.ndarray[FLOAT_t, ndim=2] weights):
     """derivative of hardtanh"""
@@ -86,6 +80,9 @@ cdef class Network:
     cdef public float learning_rate, learning_rate_features
     cdef public float decay_factor
     cdef public bool use_learning_rate_decay
+    
+    # lookup for fast access to all the token embeddings in a sentence
+    cdef np.ndarray sentence_lookup
     
     # padding stuff
     cdef np.ndarray padding_left, padding_right
@@ -211,34 +208,35 @@ Output size: %d
         
         return desc
     
-    
-    def run(self, np.ndarray indices, bool training):
+    def _create_sentence_lookup(self, np.ndarray sentence):
         """
-        Runs the network for a given input. 
+        Create a lookup matrix with the embeddings values for all token in a sentence.
+        """
+        # add padding to the sentence
+        cdef np.ndarray padded_sentence = np.concatenate((self.pre_padding,
+                                                          sentence,
+                                                          self.pos_padding))
+        # make sure it work on 32 bit python installations
+        padded_sentence = padded_sentence.astype(np.int32)
         
-        :param indices: a 2-dim np array of indices into the feature tables.
-            Each row represents a token through its indices into each feature table.
-        """
-        # find the actual input values concatenating the feature vectors
-        # for each input token
-        cdef np.ndarray input_data
-        input_data = np.concatenate([table[index] 
-                                     for token_indices in indices
-                                     for index, table in izip(token_indices, 
-                                                              self.feature_tables)
-                                     ])
-
-        # store the output in self for use in backpropagation
-        self.input_values = input_data
-        # (hidden_size, input_size) . input_size = hidden_size
-        self.layer2_values = self.hidden_weights.dot(input_data) + self.hidden_bias
-        if training:
-            self.hidden_values = hardtanh(self.layer2_values)
-        else:
-            self.hidden_values = hardtanh_inplace(self.layer2_values)
-
-        return self.output_weights.dot(self.hidden_values) + self.output_bias
-
+        self.sentence_lookup = np.empty((len(sentence), self.input_size))
+        features_per_token = np.sum([table.shape[1] for table in self.feature_tables])
+        ind_from = 0
+        
+        for i, table in enumerate(self.feature_tables):
+            num_dims = table.shape[1]
+            ind_to = ind_from + num_dims
+            
+            for j in range(self.word_window_size):
+                # embeddings for each token in the window of the i-th sentence token
+                token_indices = padded_sentence[j:len(sentence) + j, i]
+                
+                embeddings = table.take(token_indices, axis=0)
+                offset = features_per_token * j
+                self.sentence_lookup[:, offset + ind_from:offset + ind_to] = embeddings
+            
+            ind_from += num_dims
+    
     property padding_left:
         """
         The padding element filling the "void" before the beginning
@@ -284,6 +282,7 @@ Output size: %d
         :return: a (len(sentence), output_size) array with the scores for all tokens
         """
         cdef np.ndarray answer
+        cdef np.ndarray input_data
         # scores[t, i] = ftheta_i,t = score for i-th tag, t-th word
         cdef np.ndarray scores = np.empty((len(sentence), self.output_size))
         
@@ -295,17 +294,20 @@ Output size: %d
             # hidden_values at each token in the correct path
             self.hidden_sent_values = np.empty((len(sentence), self.hidden_size))
         
-        # add padding to the sentence
-        cdef np.ndarray padded_sentence = np.concatenate((self.pre_padding,
-                                                          sentence,
-                                                          self.pos_padding))
+        self._create_sentence_lookup(sentence)
 
         # run through all windows in the sentence
         for i in xrange(len(sentence)):
-            window = padded_sentence[i: i+self.word_window_size]
-            scores[i] = self.run(window, training)
+            input_data = self.sentence_lookup[i]
+                    
+            # (hidden_size, input_size) . input_size = hidden_size
+            self.layer2_values = self.hidden_weights.dot(input_data) + self.hidden_bias
+            self.hidden_values = hardtanh(self.layer2_values, inplace=not training)
+            output = self.output_weights.dot(self.hidden_values) + self.output_bias
+            scores[i] = output
+            
             if training:
-                self.input_sent_values[i] = self.input_values
+                self.input_sent_values[i] = input_data
                 self.layer2_sent_values[i] = self.layer2_values
                 self.hidden_sent_values[i] = self.hidden_values
         
