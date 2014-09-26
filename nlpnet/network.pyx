@@ -211,31 +211,27 @@ Output size: %d
     def _create_sentence_lookup(self, np.ndarray sentence):
         """
         Create a lookup matrix with the embeddings values for all token in a sentence.
-        """
-        # add padding to the sentence
+        """        
         cdef np.ndarray padded_sentence = np.concatenate((self.pre_padding,
                                                           sentence,
                                                           self.pos_padding))
-        # make sure it work on 32 bit python installations
+        
+        # make sure it works on 32 bit python installations
         padded_sentence = padded_sentence.astype(np.int32)
         
-        self.sentence_lookup = np.empty((len(sentence), self.input_size))
-        features_per_token = np.sum([table.shape[1] for table in self.feature_tables])
+        feature_per_token = self.input_size / self.word_window_size
+        self.sentence_lookup = np.empty((len(padded_sentence), feature_per_token))
         ind_from = 0
         
         for i, table in enumerate(self.feature_tables):
             num_dims = table.shape[1]
             ind_to = ind_from + num_dims
             
-            for j in range(self.word_window_size):
-                # embeddings for each token in the window of the i-th sentence token
-                token_indices = padded_sentence[j:len(sentence) + j, i]
-                
-                embeddings = table.take(token_indices, axis=0)
-                offset = features_per_token * j
-                self.sentence_lookup[:, offset + ind_from:offset + ind_to] = embeddings
+            token_indices = padded_sentence[:, i]
+            embeddings = table.take(token_indices, axis=0)
+            self.sentence_lookup[:, ind_from:ind_to] = embeddings
             
-            ind_from += num_dims
+            ind_from = ind_to
     
     property padding_left:
         """
@@ -298,8 +294,8 @@ Output size: %d
 
         # run through all windows in the sentence
         for i in xrange(len(sentence)):
-            input_data = self.sentence_lookup[i]
-                    
+            input_data = self.sentence_lookup[i:i + self.word_window_size].flatten()
+            
             # (hidden_size, input_size) . input_size = hidden_size
             self.layer2_values = self.hidden_weights.dot(input_data) + self.hidden_bias
             self.hidden_values = hardtanh(self.layer2_values, inplace=not training)
