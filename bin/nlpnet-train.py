@@ -79,8 +79,7 @@ def create_network(args, text_reader, feature_tables, md):
     
     if args.task == 'dependency_filter':
         model_filename = config.FILES[md.network]
-        return parse.EdgeFilter(feature_tables, args.max_dist, args.dist_features,
-                                filename=model_filename)
+        return parse.EdgeFilter(feature_tables, args.max_dist, filename=model_filename)
     
     convolution_srl =  args.task.startswith('srl') and args.task != 'srl_predicates'
     convolution = convolution_srl or args.task.endswith('dependency')

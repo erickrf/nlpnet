@@ -131,12 +131,9 @@ def get_args():
     
     filter_parser = dep_subparsers.add_parser('filter', parents=[base_parser], 
                                               help='Filtering dependency edge candidates (pre-processing)')
-    filter_parser.add_argument('--dist-features', help='Number of distance features (default 5)',
-                               default=5, dest='dist_features', type=int)
-    filter_parser.add_argument('--max-dist', help='Maximum distance to have a separate feature vector (default 4)',
-                               default=4, dest='max_dist', type=int)
-    filter_parser.add_argument('--pos', help='Use POS. Optionally, supply the number of features (default 5)', 
-                               default=None, nargs='?', const=5, type=int)
+    filter_parser.add_argument('--max-dist', help='Maximum distance to have a separate feature vector (default 3)',
+                               default=3, dest='max_dist', type=int)
+    filter_parser.add_argument('--pos', help='Use POS.', action='store_true')
     filter_parser.add_argument('--loss-function', help='Loss function used by sklearn to train the model. Default log.',
                                choices=['hinge', 'log', 'perceptron', 'squared_hinge', 'modified_huber'], default='log',
                                dest='loss_function')

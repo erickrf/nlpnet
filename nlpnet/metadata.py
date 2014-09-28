@@ -101,7 +101,7 @@ class Metadata(object):
         Reads the file containing the metadata for the given task and returns a 
         Metadata object.
         """
-        # the actual content of the file is the __dict__ member variable, which contain all
+        # the actual content of the file is the __dict__ member variable, which contains all
         # the instance's data
         if paths is None:
             paths = config.FILES

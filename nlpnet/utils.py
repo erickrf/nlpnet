@@ -271,6 +271,9 @@ def create_feature_tables(args, md, text_reader):
             logger.warning("Number of features provided is greater than the number of tokens\
             in the dictionary. The extra features will be ignored.")
     
+    if args.task == 'dependency_filter':
+        return types_table
+    
     feature_tables.append(types_table)
     
     # Capitalization

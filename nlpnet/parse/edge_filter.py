@@ -5,43 +5,47 @@ import logging
 import cPickle
 import numpy as np
 
-import nlpnet
 from sklearn.linear_model import SGDClassifier
-from nlpnet import utils
+from sklearn.preprocessing import OneHotEncoder
 
 
 class EdgeFilter(object):
-    def __init__(self, feature_tables, max_dist=None, num_distance_features=None, 
-                 distance_features=None, filename=None):
+    """
+    Class for filtering out unlikely dependency edges. It encapsulates a fast linear
+    classifier to be used as a pre-processing step.
+    
+    The classifier deals with data instances built as:
+    [modifier head distance]
+    
+    where modifier and head are both represented as the concatenation of a dense
+    embedding vector (for the word itself) and sparse vectors representing discrete
+    attributes (usually, POS).  
+    distance is represented as a sparse vector. 
+    """
+    def __init__(self, feature_table, max_dist, filename=None):
         """
-        Constructor. Either provide max_dist and num_distance_features or the
-        distance_features table.
+        Constructor. Unlike other classifiers in nlpnet, EdgeFilter only 
+        uses embeddings to represent words. Other attributes are 
+        represented as sparse vectors. This is because EdgeFilter doesn't 
+        use neural networks.
         
-        :param feature_tables: list of feature tables representing input tokens
-        :param max_dist: the maximum distance having an own feature vector
-        :param num_distance_features: number of features (vector dimension) 
-            for each distance
-        :param distance_features: distance feature table.
-            if provided, use this feature table for distances
-            instead. Usually, only needed in the load method.
+        :param feature_table: feature with word embeddings
+        :param max_dist: the maximum distance treated as an independent feature
+            (e.g., if 4, there will be a feature for each distance 0-4 and another 
+            for 5+, both positive and negative)
         :param filename: file to save the model on
         """
-        self.feature_tables = feature_tables
-        
-        if distance_features is None:
-            logger = logging.getLogger("Logger")
-            num_vectors = 3 + 2 * max_dist
-            logger.info("Generating distance features...")
-            distance_features = utils.generate_feature_vectors(num_vectors, num_distance_features)
-        else:
-            max_dist = (distance_features.shape[0] - 3) / 2 
-        self.distance_features = distance_features
-        
-        self.instance_size = 2 * np.sum(table.shape[1] for table in self.feature_tables)
-        self.instance_size += self.distance_features.shape[1]
-        
-        self.distance_offset = max_dist / 2
+        self.feature_table = feature_table
+        self.max_dist = max_dist
         self.filename = filename
+        
+        # when determining the representation of the distance between two tokens, we do:
+        # raw_diff = position_token_1 - position_token_2
+        # raw_diff is then clipped to fit inside the maximum distance and added distance_offset,
+        # so that the largest negative distance is mapped to 0, which can be interpreted
+        # as an index to an array 
+        self.num_sparse_dist_features = 2 * max_dist + 3
+        self.distance_offset = max_dist + 1
     
     def _find_batch_size(self, sentences):
         """
@@ -59,18 +63,14 @@ class EdgeFilter(object):
         Create a lookup with the actual feature values for all tokens 
         in a sentence.
         """
-        shape = (len(sentence), np.sum(table.shape[1] for table in self.feature_tables))
+        shape = (len(sentence), self.features_per_token)
         lookup = np.empty(shape)
-        ind_from = 0
+        index = self.feature_table.shape[1]
         
-        for i, table in enumerate(self.feature_tables):
-            # take the values from each feature table for all tokens at a time
-            table_indices = sentence.take(i, axis=1)
-            features = table.take(table_indices, 0)
-            
-            ind_to = ind_from + table.shape[1]
-            lookup[:, ind_from:ind_to] = features
-            ind_from = ind_to
+        # dense vectors for words
+        lookup[:, :index] = self.feature_table.take(sentence[:, 0], axis=0)
+        # sparse vectors for other attributes (not worth to use scipy sparse representation)
+        lookup[:, index:] = self.encoder.transform(sentence[:, 1:]).todense()
             
         return lookup
     
@@ -83,16 +83,15 @@ class EdgeFilter(object):
             and the classes (True and False)
         """
         num_instances = len(sentence) ** 2
-        instances = np.empty((num_instances, self.instance_size))
+        instances = np.zeros((num_instances, self.instance_size))
         training = heads is not None
         if training:
-            classes = np.zeros(num_instances)
+            classes = np.zeros(num_instances, dtype=np.int8)
         
         # lookup for the full representation of each token
         sentence_lookup = self._create_sentence_lookup(sentence)
         
         ind_from_row = 0
-        features_per_token = np.sum(table.shape[1] for table in self.feature_tables)
         
         # we'll take each pair (i, j) from the sentence
         # (i, j) != (j, i)
@@ -103,16 +102,19 @@ class EdgeFilter(object):
             # the features for token i will appear len(sent) times
             # each time together with a different j
             ind_to_row = ind_from_row + len(sentence)
-            instances[ind_from_row:ind_to_row, 0:features_per_token] = sentence_lookup[i]
+            instances[ind_from_row:ind_to_row, 0:self.features_per_token] = sentence_lookup[i]
             
-            ind_to_column = 2 * features_per_token
-            instances[ind_from_row:ind_to_row, features_per_token:ind_to_column] = sentence_lookup
+            ind_to_column = 2 * self.features_per_token
+            instances[ind_from_row:ind_to_row, self.features_per_token:ind_to_column] = sentence_lookup
             ind_from_column = ind_to_column
             
             # distances from each token to i
             distances = np.arange(len(sentence)) - i
-            dist_features = self.distance_features.take(distances, 0, mode='clip')
-            instances[ind_from_row:ind_to_row, ind_from_column:] = dist_features
+            np.clip(distances, -self.distance_offset, self.distance_offset, distances)
+            distances += self.distance_offset
+            
+            distance_submatrix = instances[ind_from_row:ind_to_row, ind_from_column:]
+            distance_submatrix[np.arange(len(sentence)), distances] = 1.0
             ind_from_row = ind_to_row
             
             if training:
@@ -210,15 +212,12 @@ class EdgeFilter(object):
         """
         Save the model to a file. It also saves the feature tables.
         """
-        data = {'classifier': self.classifier,
-                'feature_tables': self.feature_tables,
-                'distance_table': self.distance_features}
-        
         if filename is None:
             filename = self.filename
         
         with open(filename, 'wb') as f:
-            cPickle.dump(data, f, 2)
+            # self.__dict__ contains every attribute in self
+            cPickle.dump(self.__dict__, f, 2)
     
     @classmethod
     def load(cls, filename):
@@ -228,20 +227,41 @@ class EdgeFilter(object):
         with open(filename, 'rb') as f:
             data = cPickle.load(f)
         
-        distance_table = data['distance_table']
-        feature_tables = data['feature_tables']
-        edge_filter = cls(feature_tables, distance_features=distance_table, filename=filename)
-        edge_filter.classifier = data['classifier']
+        # data is the pickled __dict__ attribute 
+        max_dist = data['max_dist']
+        feature_table = data['feature_table']
+        edge_filter = cls(feature_table, max_dist, filename)
+        
+        # just update it, except for "filename", which may be different
+        del data['filename']
+        edge_filter.__dict__.update(data)
         
         return edge_filter
+    
+    def _fit_encoder(self, sentences):
+        """
+        Fit the OneHotEncoder used with discrete attributes.
+        """
+        # use a one-hot encoder for attributes after the word indices 
+        # "sparse" argument in enconder constructor is available in sklearn 0.15
+        attributes_values = np.concatenate([sent[:,1:] for sent in sentences])
+        self.encoder = OneHotEncoder()
+        self.encoder.fit(attributes_values)
+        
+        # get how many extra attributes are there (besides the word index to the feature table)
+        num_sparse_features = self.encoder.feature_indices_[-1]
+        self.features_per_token = self.feature_table.shape[1] + num_sparse_features
+        self.instance_size = 2 * (self.features_per_token) + self.num_sparse_dist_features
     
     def train(self, sentences, heads, loss_function):
         """
         Train the model to detect unlikely edges.
         """
+        self._fit_encoder(sentences)
+        self.classifier = SGDClassifier(loss_function, class_weight='auto')
+        
         batch_size = self._find_batch_size(sentences)
         num_batches = int(np.ceil(len(sentences) / batch_size))
-        self.classifier = SGDClassifier(loss_function, class_weight='auto')
         
         logger = logging.getLogger('Logger')
         logger.info('Starting training with {} sentences in {} batches'.format(len(sentences), 
