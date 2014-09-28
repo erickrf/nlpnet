@@ -16,6 +16,7 @@ evaluated externally.
 import logging
 import argparse
 import re
+import timeit
 from itertools import izip
 import numpy as np
 from collections import Counter, defaultdict
@@ -619,10 +620,12 @@ if __name__ == '__main__':
     elif args.predicates:
         args.task = 'srl_predicates'
     
-    logging_level = logging.DEBUG if args.verbose else logging.WARNING
+    logging_level = logging.DEBUG if args.verbose else logging.INFO
     utils.set_logger(logging_level)
     logger = logging.getLogger("Logger")
     config.set_data_dir(args.data)
+    
+    start_time = timeit.default_timer()
     
     if args.task == 'pos':
         
@@ -657,4 +660,7 @@ if __name__ == '__main__':
             evaluate_srl_predicates(args.gold)
         else:
             evaluate_srl_1step(args.auto_pred, args.gold)
-        
+    
+    end_time = timeit.default_timer()
+    time_diff = end_time - start_time
+    logger.info('Total time (including reading data): {:.2}s'.format(time_diff))
