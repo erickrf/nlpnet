@@ -169,14 +169,16 @@ class WordDictionary(dict):
         """
         Overrides the "in" operator. Case insensitive.
         """
-        return super(WordDictionary, self).__contains__(key.lower())
+        transformed = key.lower().translate(WordDictionary.number_transformation)
+        return super(WordDictionary, self).__contains__(transformed)
     
     def __setitem__(self, key, value):
         """
         Overrides the [] write operator. It converts every key to lower case
         before assignment.
         """
-        super(WordDictionary, self).__setitem__(key.lower(), value)
+        transformed = key.lower().translate(WordDictionary.number_transformation)
+        super(WordDictionary, self).__setitem__(transformed, value)
     
     def __getitem__(self, key):
         """
