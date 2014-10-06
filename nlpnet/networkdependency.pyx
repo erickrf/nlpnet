@@ -18,7 +18,35 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
     
     # validation data
     cdef validation_heads
+    
+    # the filter object, optionally used to filter out unlikely edges
+    cdef public object filter
+    cdef public float filter_threshold
+    
+    def save(self):
+        """
+        Saves the neural network to a file.
+        It will save the weights, biases, sizes, padding and 
+        distance tables, and other feature tables.
+        """
+        data = self._generate_save_dict()
+        data['filter_threshold'] = self.filter_threshold
         
+        np.savez(self.network_filename, **data)
+    
+    @classmethod
+    def load_from_file(cls, filename):
+        """
+        Loads the neural network from a file.
+        It will load weights, biases, sizes, padding and 
+        distance tables, and other feature tables.
+        """
+        data = np.load(filename)
+        nn = cls._load_from_file(data, filename)
+        nn.filter_threshold = data['filter_threshold']
+        
+        return nn
+    
     def train(self, list sentences, list heads, int epochs, 
               int epochs_between_reports=0, float desired_accuracy=0,
               list labels=None):
@@ -42,6 +70,17 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
                                              epochs_between_reports, 
                                              desired_accuracy,
                                              labels)
+        
+    def set_filter(self, filter, threshold):
+        """
+        Sets a filter object to be used by the Network.
+        
+        :param filter: an object with a method filter(sentence, threshold). Its 
+            `sentences` argument must be a numpy array.
+        :param threshold: the threshold to be used with the filter 
+        """
+        self.filter = filter
+        self.filter_threshold = threshold
     
     def set_validation_data(self, list sentences, list heads, list labels=None):
         """
@@ -82,23 +121,33 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         self.dependency_weights = np.empty((num_tokens, num_tokens + 1))
         
         cdef np.ndarray[FLOAT_t, ndim=1] token_scores
+        if self.filter is not None:
+            filter_result = self.filter.filter(sentence)
         
         # in the SRL parlance, each token is treated as a predicate, because all
         # sentence tokens are scored with respect to it (in order to determine the
         # dependency weights)
         for token in range(num_tokens):
+            candidates = None if self.filter is None else filter_result[token]
+            
             # _sentence_convolution returns a 2-dim array. in dep parsing, 
             # we only have one dimension, so reshape it
             token_scores = self._sentence_convolution(sentence, token, 
-                                                      training=training).reshape(num_tokens)
+                                                      training=training,
+                                                      filter=candidates).reshape(num_tokens)
             self.dependency_weights[token, :-1] = token_scores
             
             if training:
                 head = heads[token]
+                if self.filter is not None and not candidates[head]:
+                    # the actual head was filtered out, so the network didn't have a chance
+                    # to output a score for it. no point in adjusting weights.
+                    continue
+                 
                 if self._calculate_gradients(head, token_scores):
                     self._backpropagate()
-                    self._calculate_input_deltas(sentence, token)
-                    self._adjust_weights(token)
+                    self._calculate_input_deltas(sentence, token, filtered=candidates)
+                    self._adjust_weights(token, filtered=candidates)
                     self._adjust_features(sentence, token)
         
         # copy dependency weights from the root to each token to the last column and

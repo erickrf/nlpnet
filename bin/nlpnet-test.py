@@ -101,8 +101,8 @@ def evaluate_unlabeled_dependency(gold_file):
             
             token = sent[i]
             # detect punctuation
-            if token.pos in punctuation:
-                continue
+#             if token.pos in punctuation:
+#                 continue
             
             if net_tag == gold_tag or (gold_tag == i and net_tag == len(sent)):
                 hits += 1
@@ -131,8 +131,7 @@ def evaluate_dependency_filter(gold_file, threshold):
     edge_filter = EdgeFilter.load(md.paths[md.network])
     reader = taggers.create_reader(md, gold_file)
     reader.codify_sentences()
-    edge_filter.test(reader.sentences, reader.heads, threshold)
-    
+    edge_filter.test(reader.sentences, reader.heads, threshold)    
 
 def evaluate_labeled_dependency(gold_file):
     """
@@ -609,7 +608,8 @@ if __name__ == '__main__':
     parser.add_argument('--auto-pred', dest='auto_pred', action='store_true',
                         help='Determines SRL predicates automatically using a POS tagger.')
     parser.add_argument('--gold', help='File with gold standard data', type=str, required=True)
-    parser.add_argument('--data', help='Directory with trained models', type=str, required=True)
+    parser.add_argument('--data', help='Directory with trained models (default: current directory)', 
+                        type=str, default='.')
     parser.add_argument('--oov', help='Analyze performance on OOV data. Not fully functional with numbers.', type=str)
     args = parser.parse_args()
     
@@ -663,4 +663,4 @@ if __name__ == '__main__':
     
     end_time = timeit.default_timer()
     time_diff = end_time - start_time
-    logger.info('Total time (including reading data): {:.2}s'.format(time_diff))
+    logger.info('Total time (including reading data): {:.2f}s'.format(time_diff))

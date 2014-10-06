@@ -145,30 +145,38 @@ class EdgeFilter(object):
                         
         return (instances, classes)
     
-    def filter(self, sentence, threshold=0.001):
+    @property
+    def threshold(self):
         """
-        Apply the learned filter to filter out dependency edges in the sentence.
+        The threshold probability used by the filter.
+        """
+        return self._threshold
+    
+    @threshold.setter
+    def threshold(self, value):
+        self._threshold = value
         
-        :param sentence: a numpy array of tokens
-        :param threshold: the maximum probability a filtered edge may have
-            (i.e., 0.01 means the classifier has 99% certainty that it should
-            be filtered out)
-        :return: a 2-dim array where each cell (i, j) has False if the classifier is 
-            confident that it isn't a valid edge with the given error threshold. 
-            Possible edges have value True. (i, j) means token i has head j.
-        """
         # the probability is determined from the score using the logistic function:
         # p = 1 / (1 + exp(-score))
         # the threshold score can be determined as:
         # threshold_score = log(p) - log(1 - p)
-        p = threshold
-        threshold_score = np.log(p) - np.log(1 - p)
+        self._threshold_score = np.log(value) - np.log(1 - value)
+    
+    def filter(self, sentence):
+        """
+        Apply the learned filter to filter out dependency edges in the sentence.
+        
+        :param sentence: a numpy array of tokens
+        :return: a 2-dim array where each cell (i, j) has False if the classifier is 
+            confident that it isn't a valid edge with the given error threshold. 
+            Possible edges have value True. (i, j) means token i has head j.
+        """
         sentence_size = len(sentence)
         instances = self._create_instances(sentence)
         
         scores = self.classifier.decision_function(instances)
         scores = scores.reshape((sentence_size, sentence_size))
-        return scores > threshold_score
+        return scores > self._threshold_score
     
     def test(self, sentences, heads, threshold):
         """
@@ -181,11 +189,13 @@ class EdgeFilter(object):
         # number of edges filtered out that shouldn't have been
         wrongly_filtered = 0
         
+        self.threshold = threshold
+        
         for sent, sent_heads in zip(sentences, heads):
             # False means classifier is confident that there is no edge there
             # we want no actual edge marked as False, but a few non-edges as True
             # are no problem
-            answers = self.filter(sent, threshold)
+            answers = self.filter(sent)
             
             # quickly create the gold version of the matrix
             sent_len = len(sent)
@@ -236,6 +246,8 @@ class EdgeFilter(object):
         del data['filename']
         edge_filter.__dict__.update(data)
         
+        logger = logging.getLogger('Logger')
+        logger.info('Loaded dependency filter')
         return edge_filter
     
     def _fit_encoder(self, sentences):

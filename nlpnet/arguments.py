@@ -139,8 +139,10 @@ def get_args():
                                dest='loss_function')
     dep_subparsers.add_parser('labeled', help='Labeling dependency edges',
                               parents=[network_parser, conv_parser])
-    dep_subparsers.add_parser('unlabeled', help='Dependency edge detection',
-                              parents=[network_parser, conv_parser])
+    unlabeled_parser = dep_subparsers.add_parser('unlabeled', help='Dependency edge detection',
+                                                 parents=[network_parser, conv_parser])
+    unlabeled_parser.add_argument('--filter', help='Use filter. The saved model must be in the data directory. '\
+                                  'Supply the confidence threshold.', type=float)
     
     defaults['dependency_filter'] = dict()
     defaults['labeled_dependency'] = dict(window=3)

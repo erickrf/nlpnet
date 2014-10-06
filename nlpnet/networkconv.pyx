@@ -144,14 +144,13 @@ Output size: %d
         self.validation_arguments = None
         
         self.use_learning_rate_decay = False
-        
-    def save(self):
+    
+    def _generate_save_dict(self):
         """
-        Saves the neural network to a file.
-        It will save the weights, biases, sizes, padding and 
-        distance tables, and other feature tables.
+        Generates a dictionary with all parameters saved by the model.
+        It is directly used by the numpy savez function.
         """
-        np.savez(self.network_filename, hidden_weights=self.hidden_weights,
+        d = dict(self.network_filename, hidden_weights=self.hidden_weights,
                  target_dist_table=self.target_dist_table,
                  pred_dist_table=self.pred_dist_table,
                  target_dist_weights=self.target_dist_weights,
@@ -165,16 +164,22 @@ Output size: %d
                  hidden2_weights=self.hidden2_weights, hidden2_bias=self.hidden2_bias,
                  padding_left=self.padding_left, padding_right=self.padding_right,
                  feature_tables=self.feature_tables)
-
-    @classmethod
-    def load_from_file(cls, filename):
+        return d
+    
+    def save(self):
         """
-        Loads the neural network from a file.
-        It will load weights, biases, sizes, padding and 
+        Saves the neural network to a file.
+        It will save the weights, biases, sizes, padding and 
         distance tables, and other feature tables.
         """
-        data = np.load(filename)
-        
+        data = self._generate_save_dict()
+        np.savez(self.network_filename, **data)
+
+    @classmethod
+    def _load_from_file(cls, data, filename):
+        """
+        Internal method for setting data read from a npz file.
+        """
         # cython classes don't have the __dict__ attribute
         # so we can't do an elegant self.__dict__.update(data)
         hidden_weights = data['hidden_weights']
@@ -212,6 +217,16 @@ Output size: %d
         nn.network_filename = filename
         
         return nn
+
+    @classmethod
+    def load_from_file(cls, filename):
+        """
+        Loads the neural network from a file.
+        It will load weights, biases, sizes, padding and 
+        distance tables, and other feature tables.
+        """
+        data = np.load(filename)
+        return cls._load_from_file(data, filename)
     
     def _load_parameters(self):
         """
@@ -402,7 +417,8 @@ Output size: %d
     
     @cython.boundscheck(False)
     @cython.wraparound(False)
-    def _sentence_convolution(self, sentence, predicate, argument_blocks=None, training=False):
+    def _sentence_convolution(self, sentence, predicate, argument_blocks=None, 
+                              training=False, filter=None):
         """
         Perform the convolution for a given predicate.
         
@@ -411,6 +427,9 @@ Output size: %d
         :param predicate: the index of the predicate in the sentence
         :param argument_blocks: (used only in SRL argument classification) the
             starting and end positions of all delimited arguments
+        :param filter: (used only in dependency parsing) an array of boolean values
+            with the length of the sentence. False values means that the corresponding
+            token won't be processed and its corresponding value will be -infinity.
         :return: the scores for all tokens with respect to the given predicate
         """        
         # store the values found by each convolution neuron here and then find the max
@@ -428,13 +447,13 @@ Output size: %d
         if training:
             # layer 2: results after applying hidden weights, before tanh
             # hidden sent values: results after tanh
-            self.layer2_sent_values = np.empty((self.num_targets, self.hidden_size))
-            self.hidden_sent_values = np.empty((self.num_targets, self.hidden_size))
+            self.layer2_sent_values = np.zeros((self.num_targets, self.hidden_size))
+            self.hidden_sent_values = np.zeros((self.num_targets, self.hidden_size))
             self.max_indices = np.empty((self.num_targets, self.hidden_size), np.int)
             if self.hidden2_weights is not None:
                 # layer 3: analogous to layer 2
-                self.layer3_sent_values = np.empty((self.num_targets, self.hidden2_size))
-                self.hidden2_sent_values = np.empty((self.num_targets, self.hidden2_size))
+                self.layer3_sent_values = np.zeros((self.num_targets, self.hidden2_size))
+                self.hidden2_sent_values = np.zeros((self.num_targets, self.hidden2_size))
     
         # predicate distances are the same across all targets
         pred_dist_indices = np.arange(len(sentence)) - predicate
@@ -445,6 +464,10 @@ Output size: %d
         
         # add the weighted distance features to each token 
         for target in range(self.num_targets):
+            if filter is not None and not filter[target]:
+                scores[target, 0] = -np.inf
+                    
+                continue
             
             # distance features for each window
             # if we are classifying all tokens, pick the distance to the target
@@ -475,7 +498,14 @@ Output size: %d
                 if training:
                     self.layer3_sent_values[target] = self.hidden2_values
                 
-                self.hidden2_values = hardtanh(self.hidden2_values)
+                try:
+                    self.hidden2_values = hardtanh(self.hidden2_values)
+                except:
+                    print 'Weights range:'
+                    print self.hidden_weights.min(), self.hidden_weights.max() 
+                    print 'Weights 2 range:'
+                    print self.hidden2_weights.min(), self.hidden2_weights.max()
+                    exit()
                 if training:
                     self.hidden2_sent_values[target] = self.hidden2_values
             else:
@@ -486,7 +516,7 @@ Output size: %d
                 if training:
                     self.hidden_sent_values[target] = self.hidden2_values
             
-            scores[target] = self.output_weights.dot(self.hidden2_values)
+            self.output_weights.dot(self.hidden2_values, scores[target])
             scores[target] += self.output_bias
         
         return scores
@@ -657,8 +687,14 @@ Output size: %d
     
     @cython.boundscheck(False)
     @cython.wraparound(False)
-    def _adjust_weights(self, predicate, arguments=None):
-        """Adjusts the network weights after gradients have been calculated."""
+    def _adjust_weights(self, predicate, arguments=None, filtered=None):
+        """
+        Adjusts the network weights after gradients have been calculated.
+
+        :param filtered: (only used in dependency parsing) array of booleans indicating
+            tokens that were filtered out and don't have a corresponding score to adjust.
+            A value of False means the token was filtered out.        
+        """
         cdef int i
         cdef np.ndarray[FLOAT_t, ndim=1] gradients_t
         cdef np.ndarray[FLOAT_t, ndim=2] last_values, deltas, grad_matrix, input_values
@@ -679,7 +715,10 @@ Output size: %d
         # I tried vectorizing this loop but it got a bit slower, probably because
         # of the overhead in building matrices/tensors with the max indices
         for i, neuron_maxes in enumerate(self.max_indices):
-            # i indicates the i-th target 
+            # i indicates the i-th target
+            if filtered is not None and not filtered[i]:
+                continue
+             
             gradients_t = self.hidden_gradients[i] * self.learning_rate
             
             # table containing in each line the input values selected for each convolution neuron
@@ -721,8 +760,15 @@ Output size: %d
             
     @cython.boundscheck(False)
     @cython.wraparound(False)
-    cdef _calculate_input_deltas(self, np.ndarray sentence, int predicate, object arguments=None):
-        """Calculates the input deltas to be applied in the feature tables."""
+    def _calculate_input_deltas(self, np.ndarray sentence, int predicate, 
+                                 object arguments=None, filtered=None):
+        """
+        Calculates the input deltas to be applied in the feature tables.
+        
+        :param filtered: (only used in dependency parsing) array of booleans indicating
+            tokens that were filtered out and don't have a corresponding score to adjust.
+            A value of False means the token was filtered out.
+        """
         cdef np.ndarray[FLOAT_t, ndim=2] hidden_gradients
         cdef np.ndarray[FLOAT_t, ndim=1] gradients
         cdef np.ndarray[INT_t, ndim=1] convolution_max, target_dists
@@ -737,6 +783,12 @@ Output size: %d
         cdef np.ndarray[INT_t, ndim=1] column_numbers = np.arange(self.hidden_size)
         
         for target in range(self.num_targets):
+            
+            if filtered is not None and not filtered[target]:
+                # filtered tokens are treated as if having a score of -np.inf and 
+                # no needed gradient adjustment
+                continue
+            
             # array with the tokens that yielded the maximum value in each neuron
             # for this target
             convolution_max = self.max_indices[target]

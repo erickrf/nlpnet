@@ -96,6 +96,10 @@ def create_network(args, text_reader, feature_tables, md):
             nn = DependencyNetwork.create_new(feature_tables, distance_tables[0], 
                                               distance_tables[1], args.window, 
                                               args.convolution, args.hidden, output_size)
+            if args.task == 'unlabeled_dependency' and args.filter:
+                # load and set the edge filter
+                filter = parse.EdgeFilter.load(config.FILES['dependency_filter'])
+                nn.set_filter(filter, args.filter)
     
         else:
             num_tags = len(text_reader.tag_dict)
@@ -144,7 +148,7 @@ def create_network(args, text_reader, feature_tables, md):
 
 def load_network_train(args, md):
     """Loads and returns a neural network with all the necessary data."""
-    if args.taks == 'dependency_filter':
+    if args.task == 'dependency_filter':
         logger.error("Loading partially trained model not implemented "\
                      "for dependency edge filtering.")
         exit()
@@ -246,6 +250,8 @@ def train(nn, reader, args):
 
 if __name__ == '__main__':
     args = arguments.get_args()
+
+    np.seterr(all='raise')
 
     logging_level = logging.DEBUG if args.verbose else logging.INFO
     utils.set_logger(logging_level)
