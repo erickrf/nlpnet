@@ -63,6 +63,7 @@ def get_config_paths(directory):
         ('metadata_dependency_filter', 'metadata-filter.pickle'),
         ('vocabulary_dependency_filter', 'vocabulary-filter.txt'),
         ('network_dependency_filter', 'dep-filter.npz'),
+        ('dependency_filter', 'dep-filter.npz'),
                 
         # chunk
         ('chunk_tag_dict'              , 'chunk-tag-dict.pickle'),
