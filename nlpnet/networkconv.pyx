@@ -498,14 +498,7 @@ Output size: %d
                 if training:
                     self.layer3_sent_values[target] = self.hidden2_values
                 
-                try:
-                    self.hidden2_values = hardtanh(self.hidden2_values)
-                except:
-                    print 'Weights range:'
-                    print self.hidden_weights.min(), self.hidden_weights.max() 
-                    print 'Weights 2 range:'
-                    print self.hidden2_weights.min(), self.hidden2_weights.max()
-                    exit()
+                self.hidden2_values = hardtanh(self.hidden2_values)
                 if training:
                     self.hidden2_sent_values[target] = self.hidden2_values
             else:
@@ -676,7 +669,6 @@ Output size: %d
         
         if self.hidden2_weights is not None:
             # derivative with respect to the second hidden layer
-            # the derivative of tanh(x) is 1 - tanh^2(x)
             dCd_hidden2 = dCd_tanh * hardtanhd(self.layer3_sent_values) 
             self.hidden2_gradients = dCd_hidden2
                         
