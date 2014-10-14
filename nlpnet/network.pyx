@@ -210,7 +210,7 @@ Output size: %d
     
     def _create_sentence_lookup(self, np.ndarray sentence):
         """
-        Create a lookup matrix with the embeddings values for all token in a sentence.
+        Create a lookup matrix with the embeddings values for all tokens in a sentence.
         """        
         cdef np.ndarray padded_sentence = np.concatenate((self.pre_padding,
                                                           sentence,
@@ -219,8 +219,8 @@ Output size: %d
         # make sure it works on 32 bit python installations
         padded_sentence = padded_sentence.astype(np.int32)
         
-        feature_per_token = self.input_size / self.word_window_size
-        self.sentence_lookup = np.empty((len(padded_sentence), feature_per_token))
+        features_per_token = self.input_size / self.word_window_size
+        self.sentence_lookup = np.empty((len(padded_sentence), features_per_token))
         ind_from = 0
         
         for i, table in enumerate(self.feature_tables):
