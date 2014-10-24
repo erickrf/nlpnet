@@ -625,6 +625,7 @@ if __name__ == '__main__':
     logger = logging.getLogger("Logger")
     config.set_data_dir(args.data)
     
+    np.seterr('raise')
     start_time = timeit.default_timer()
     
     if args.task == 'pos':
