@@ -47,7 +47,7 @@ cdef logsumexp(np.ndarray a, axis=None):
     a_max = a.max(axis=0)
     return np.log(np.sum(np.exp(a - a_max), axis=0)) + a_max
 
-cdef hardtanh(np.ndarray[FLOAT_t, ndim=1] weights, inplace=False):
+cdef hardtanh(np.ndarray weights, inplace=False):
     """
     Hard hyperbolic tangent.
     If inplace is True, modifies the input weights, which will be faster.
@@ -80,6 +80,7 @@ cdef class Network:
     cdef public float learning_rate, learning_rate_features
     cdef public float decay_factor
     cdef public bool use_learning_rate_decay
+    cdef readonly int features_per_token
     
     # lookup for fast access to all the token embeddings in a sentence
     cdef np.ndarray sentence_lookup
@@ -176,6 +177,7 @@ cdef class Network:
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.output_size = output_size
+        self.features_per_token = input_size / word_window
         
         # A_i_j score for jumping from tag i to j
         # A_0_i = transitions[-1]
@@ -219,8 +221,7 @@ Output size: %d
         # make sure it works on 32 bit python installations
         padded_sentence = padded_sentence.astype(np.int32)
         
-        features_per_token = self.input_size / self.word_window_size
-        self.sentence_lookup = np.empty((len(padded_sentence), features_per_token))
+        self.sentence_lookup = np.empty((len(padded_sentence), self.features_per_token))
         ind_from = 0
         
         for i, table in enumerate(self.feature_tables):
@@ -705,12 +706,12 @@ Output size: %d
         # dC / dW_4 = dC / df_4 f_3.T				(22)
         # (len, output_size).T (len, hidden_size) = (output_size, hidden_size)
         cdef np.ndarray[FLOAT_t, ndim=2] output_gradients
-        output_gradients = self.net_gradients.T.dot(self.hidden_sent_values)
+        output_deltas = self.net_gradients.T.dot(self.hidden_sent_values)
 
         # dC / db_4 = dC / df_4					(22)
         # (output_size) += ((len(sentence), output_size))
         # sum by column, i.e. all changes through the sentence
-        output_bias_gradients = self.net_gradients.sum(0)
+        output_bias_deltas = self.net_gradients.sum(0)
 
         # dC / df_3 = M_2.T dC / df_4				(23)
         #  (len, output_size) (output_size, hidden_size) = (len, hidden_size)
@@ -728,13 +729,13 @@ Output size: %d
 
         # layer 2: linear layer
         # dC / dW_2 = dC / df_2 f_1.T				(22)
-        cdef np.ndarray[FLOAT_t, ndim=2] hidden_gradients
+        cdef np.ndarray[FLOAT_t, ndim=2] hidden_deltas
         # (len, hidden_size).T (len, input_size) = (hidden_size, input_size)
-        hidden_gradients = dCdf_2.T.dot(self.input_sent_values)
+        hidden_deltas = dCdf_2.T.dot(self.input_sent_values)
 
         # dC / db_2 = dC / df_2					(22)
         # sum by column contribution by each token
-        hidden_bias_gradients = dCdf_2.sum(0)
+        hidden_bias_deltas = dCdf_2.sum(0)
 
         # dC / df_1 = M_1.T dC / df_2
         cdef np.ndarray[FLOAT_t, ndim=2] input_gradients
@@ -744,10 +745,10 @@ Output size: %d
         """
         Adjust the weights. 
         """
-        self.output_weights += output_gradients * self.learning_rate
-        self.output_bias += output_bias_gradients * self.learning_rate
-        self.hidden_weights += hidden_gradients * self.learning_rate
-        self.hidden_bias += hidden_bias_gradients * self.learning_rate
+        self.output_weights += output_deltas * self.learning_rate
+        self.output_bias += output_bias_deltas * self.learning_rate
+        self.hidden_weights += hidden_deltas * self.learning_rate
+        self.hidden_bias += hidden_bias_deltas * self.learning_rate
 
         """
         Adjust the features indexed by the input window.
@@ -858,4 +859,5 @@ Output size: %d
 # this comes here after the Network class has already been defined
 include "networkconv.pyx"
 include "networkdependency.pyx"
+include "networkdependency2.pyx"
 

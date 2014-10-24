@@ -40,7 +40,7 @@ cdef class ConvolutionalNetwork(Network):
     cdef bool only_classify
     
     # for faster access 
-    cdef int half_window, features_per_token
+    cdef int half_window
     
     # the convolution gradients 
     cdef np.ndarray hidden_gradients, hidden2_gradients
@@ -150,7 +150,7 @@ Output size: %d
         Generates a dictionary with all parameters saved by the model.
         It is directly used by the numpy savez function.
         """
-        d = dict(self.network_filename, hidden_weights=self.hidden_weights,
+        d = dict(hidden_weights=self.hidden_weights,
                  target_dist_table=self.target_dist_table,
                  pred_dist_table=self.pred_dist_table,
                  target_dist_weights=self.target_dist_weights,
@@ -497,8 +497,9 @@ Output size: %d
                 self.hidden2_values = self.hidden2_weights.dot(self.hidden_values) + self.hidden2_bias
                 if training:
                     self.layer3_sent_values[target] = self.hidden2_values
-                
+            
                 self.hidden2_values = hardtanh(self.hidden2_values)
+                
                 if training:
                     self.hidden2_sent_values[target] = self.hidden2_values
             else:
