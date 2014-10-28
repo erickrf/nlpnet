@@ -56,6 +56,13 @@ def get_config_paths(directory):
         ('metadata_unlabeled_dependency', 'metadata-udep.pickle'),
         ('vocabulary_unlabeled_dependency', 'vocabulary-udep.txt'),
         
+        ('metadata_first_order_dependency', 'metadata-fo-dep.pickle'),
+        ('network_first_order_dependency', 'fo-dep-network.npz'),
+        ('type_features_first_order_dependency', 'types-features-fo-dep.npy'),
+        ('caps_features_first_order_dependency', 'caps-features-fo-dep.npy'),
+        ('pos_features_first_order_dependency', 'pos-features-fo-dep.npy'),
+        ('vocabulary_first_order_dependency', 'vocabulary-fo-dep.txt'),
+        
         # dependency filter
         ('type_features_dependency_filter', 'types-features-filter.npy'),
         ('caps_features_dependency_filter', 'caps-features-filter.npy'),

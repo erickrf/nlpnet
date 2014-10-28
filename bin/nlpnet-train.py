@@ -21,7 +21,7 @@ import nlpnet.parse as parse
 import nlpnet.arguments as arguments
 import nlpnet.reader as reader
 import nlpnet.attributes as attributes
-from nlpnet.network import Network, ConvolutionalNetwork, DependencyNetwork
+from nlpnet.network import Network, ConvolutionalNetwork, ConvolutionalDependencyNetwork, FirstOrderDependencyNetwork
 
 
 ############################
@@ -82,7 +82,7 @@ def create_network(args, text_reader, feature_tables, md):
         return parse.EdgeFilter(feature_tables, args.max_dist, filename=model_filename)
     
     convolution_srl =  args.task.startswith('srl') and args.task != 'srl_predicates'
-    convolution = convolution_srl or args.task.endswith('dependency')
+    convolution = convolution_srl or (args.task in ('unlabeled_dependency', 'labeled_dependency'))
     
     if convolution:
         # get some data structures used both by dep parsing and SRL
@@ -93,15 +93,16 @@ def create_network(args, text_reader, feature_tables, md):
     
         if args.task.endswith('dependency'):
             output_size = 1 if not args.labeled else len(text_reader.tag_dict)
-            nn = DependencyNetwork.create_new(feature_tables, distance_tables[0], 
-                                              distance_tables[1], args.window, 
-                                              args.convolution, args.hidden, output_size)
+            nn = ConvolutionalDependencyNetwork.create_new(feature_tables, distance_tables[0], 
+                                                           distance_tables[1], args.window, 
+                                                           args.convolution, args.hidden, output_size)
             if args.task == 'unlabeled_dependency' and args.filter:
                 # load and set the edge filter
                 filter = parse.EdgeFilter.load(config.FILES['dependency_filter'])
                 nn.set_filter(filter, args.filter)
     
         else:
+            # not dependency
             num_tags = len(text_reader.tag_dict)
             nn = ConvolutionalNetwork.create_new(feature_tables, distance_tables[0], 
                                                  distance_tables[1], args.window, 
@@ -120,12 +121,18 @@ def create_network(args, text_reader, feature_tables, md):
                 nn.learning_rate_trans = args.learning_rate_transitions
                 
     else:
-        num_tags = len(text_reader.tag_dict)
-        nn = Network.create_new(feature_tables, args.window, args.hidden, num_tags)
-        if args.learning_rate_transitions > 0:
-            transitions = np.zeros((num_tags + 1, num_tags), np.float)
-            nn.transitions = transitions
-            nn.learning_rate_trans = args.learning_rate_transitions
+        # not convolution
+        if args.task.endswith('dependency'):
+            nn = FirstOrderDependencyNetwork.create_new(feature_tables, args.window, 
+                                                        args.hidden, args.dist_features, 
+                                                        args.max_dist)
+        else:
+            num_tags = len(text_reader.tag_dict)
+            nn = Network.create_new(feature_tables, args.window, args.hidden, num_tags)
+            if args.learning_rate_transitions > 0:
+                transitions = np.zeros((num_tags + 1, num_tags), np.float)
+                nn.transitions = transitions
+                nn.learning_rate_trans = args.learning_rate_transitions
 
         padding_left = text_reader.converter.get_padding_left(args.task == 'pos')
         padding_right = text_reader.converter.get_padding_right(args.task == 'pos')
@@ -188,8 +195,10 @@ def set_validation_data(nn, task, reader):
                                reader.tags, arg_limits)
     
     elif task.endswith('dependency'):
-        labels = None if task.startswith('unlabeled') else reader.labels
-        nn.set_validation_data(reader.sentences, reader.heads, labels)
+        if type(nn) is FirstOrderDependencyNetwork or task.startswith('unlabeled'):
+            nn.set_validation_data(reader.sentences, reader.heads)
+        else:
+            nn.set_validation_data(reader.sentences, reader.heads, reader.labels)
     
     else:
         raise ValueError('Unknown task: %s' % task)
@@ -239,10 +248,13 @@ def train(nn, reader, args):
         nn.train(reader.sentences, reader.predicates, reader.tags, 
                  args.iterations, intervals, args.accuracy, arg_limits)
     
-    elif args.task.endswith('dependency'):
-        labels = None if not args.labeled else text_reader.labels
-        nn.train(reader.sentences, reader.heads, args.iterations, 
-                 intervals, args.accuracy, labels)
+    elif args.task.endswith('dependency'): 
+        if args.labeled:
+            nn.train(reader.sentences, reader.heads, args.iterations, 
+                     intervals, args.accuracy, text_reader.labels)
+        else:
+            nn.train(reader.sentences, reader.heads, args.iterations, 
+                     intervals, args.accuracy)
         
     else:
         nn.train(reader.sentences, reader.tags, 

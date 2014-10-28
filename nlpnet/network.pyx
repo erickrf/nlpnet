@@ -705,7 +705,7 @@ Output size: %d
         # layer 4: output layer
         # dC / dW_4 = dC / df_4 f_3.T				(22)
         # (len, output_size).T (len, hidden_size) = (output_size, hidden_size)
-        cdef np.ndarray[FLOAT_t, ndim=2] output_gradients
+        cdef np.ndarray[FLOAT_t, ndim=2] output_deltas
         output_deltas = self.net_gradients.T.dot(self.hidden_sent_values)
 
         # dC / db_4 = dC / df_4					(22)
@@ -858,6 +858,6 @@ Output size: %d
 # include the files for other networks
 # this comes here after the Network class has already been defined
 include "networkconv.pyx"
-include "networkdependency.pyx"
-include "networkdependency2.pyx"
+include "networkdependencyconv.pyx"
+include "networkdependencyfirstorder.pyx"
 

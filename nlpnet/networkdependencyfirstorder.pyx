@@ -9,7 +9,7 @@ parsing, where each token has another (or root) as a head.
 import numpy as np
 cimport numpy as np
 
-cdef class DependencyNetwork2(Network):
+cdef class FirstOrderDependencyNetwork(Network):
     
     # weights connecting each part of the input to the hidden layers
     cdef readonly np.ndarray head_weights, modifier_weights, distance_weights
@@ -17,21 +17,42 @@ cdef class DependencyNetwork2(Network):
     # lookup for all embeddings in a window
     cdef readonly np.ndarray window_lookup
     
+    # input gradients
+    cdef np.ndarray head_gradients, modifier_gradients, distance_gradients
+    
     # distance
     cdef readonly np.ndarray distance_lookup, distance_table
     cdef int distance_offset
-    
-    # arrays storing the different inputs during training
-    cdef input 
-    
+        
     # the scores of all possible dependency edges among tokens
     cdef readonly np.ndarray dependency_scores
     
+    # validation data
+    cdef validation_heads
+    
+    @classmethod
+    def create_new(cls, feature_tables, word_window, hidden_size, 
+                   num_distance_features, max_distance):
+        """
+        Create a new network.
+        
+        This method could be replaced by a simple call to __init__. It 
+        currently exists for compatibility with other network classes.
+        """
+        return FirstOrderDependencyNetwork(feature_tables, word_window, hidden_size,
+                                           num_distance_features, max_distance)
+    
     def __init__(self, feature_tables, word_window, hidden_size, 
-                 num_distance_features, max_distance):
+                 num_distance_features, max_distance, filename=None):
         """
-        Constructor
+        Constructor.
+        
+        If filename is given, ignore all other arguments and load the data.
         """
+        if filename is not None:
+            self._load(filename)
+            return
+        
         self.word_window_size = word_window
         self.hidden_size = hidden_size
         self.output_size = 1
@@ -60,12 +81,98 @@ cdef class DependencyNetwork2(Network):
         
         high = 2.38 / np.sqrt(hidden_size)
         self.output_weights = np.random.uniform(-high, high, hidden_size)
-        self.output_bias = np.random.uniform(-high, high)
+        self.output_bias = np.random.uniform(-high, high, 1)
         
         self.validation_sentences = None
         self.validation_tags = None
         
         self.use_learning_rate_decay = False
+    
+    def set_validation_data(self, list validation_sentences=None,
+                            list validation_heads=None):
+        """
+        Sets the data to be used during validation. If this function is not
+        called before training, the training data is used to measure performance.
+        
+        :param validation_sentences: sentences to be used in validation.
+        :param validation_heads: head indices for each sentence
+        """
+        self.validation_sentences = validation_sentences
+        self.validation_heads = validation_heads
+    
+    def _load(self, filename):
+        """
+        Internal function.
+        """
+        data = np.load(filename)
+        
+        self.modifier_weights = data['modifier_weights']
+        self.hidden_weights = data['hidden_weights']
+        self.distance_weights = data['distance_weights']
+        self.hidden_bias = data['hidden_bias']
+        
+        self.output_weights = data['output_weights']
+        self.output_bias = data['output_bias']
+        
+        self.word_window_size = data['word_window_size'] 
+        self.input_size = data['input_size']
+         
+        self.hidden_size = data['hidden_size']
+        self.output_size = 1
+        
+        self.padding_left = data['padding_left']
+        self.padding_right = data['padding_right']
+        self.pre_padding = np.array((self.word_window_size / 2) * [self.padding_left])
+        self.pos_padding = np.array((self.word_window_size / 2) * [self.padding_right])
+        
+        self.feature_tables = list(data['feature_tables'])
+        self.distance_table = data['distance_table']
+        
+        self.features_per_token = sum(table.shape[1] for table in self.feature_tables)
+        self.distance_offset = self.distance_table.shape[0] / 1
+        self._create_distance_lookup()
+    
+    def save(self, filename=None):
+        """
+        Saves the neural network to a file, together with feature tables.
+        
+        :param filename: if not given, defaults to the network filename last
+            used to load the network.
+        """
+        if filename is None:
+            filename = self.network_filename
+            
+        np.savez(filename, 
+                 modifier_weights = self.modifier_weights,
+                 hidden_weights = self.hidden_weights,
+                 distance_weights = self.distance_weights,
+                 hidden_bias = self.hidden_bias,
+                 output_weights = self.output_weights,
+                 output_bias = self.output_bias,
+                 word_window_size = self.word_window_size, 
+                 input_size = self.input_size, 
+                 hidden_size = self.hidden_size,
+                 padding_left = self.padding_left,
+                 padding_right = self.padding_right,
+                 feature_tables = self.feature_tables,
+                 distance_table = self.distance_table)
+    
+    @classmethod
+    def load_from_file(cls, filename):
+        """
+        Loads the network and all feature tables from a file.
+        """
+        nn = FirstOrderDependencyNetwork(None, None, None,
+                                         None, None, filename=filename)
+        return nn
+        
+    
+    def _tag_sentence(self, np.ndarray sentence, np.ndarray heads):
+        """
+        Internal function. Only exists to conform to the other network
+        classes.
+        """
+        return self.tag_sentence(sentence, heads)
     
     def tag_sentence(self, np.ndarray sentence, np.ndarray heads=None):
         """
@@ -98,8 +205,8 @@ cdef class DependencyNetwork2(Network):
         for modifier in range(num_tokens):
             
             # run all head candidates at once (faster)
-            dist_indices = np.arange(len(sentence)) - modifier
-            dist_values = self.distance_lookup.take(dist_indices + self.distance_offset,
+            distances = np.arange(len(sentence)) - modifier
+            dist_values = self.distance_lookup.take(distances + self.distance_offset,
                                                     0, mode='clip')
             
             # the hidden layer will output n results, with n = len(sentence)
@@ -107,8 +214,8 @@ cdef class DependencyNetwork2(Network):
             self.hidden_values = hardtanh(hidden_sum, inplace=not training)
             if training:
                 # layer2_sent_values stores the values before non-linearity
-                self.layer2_sent_values[modifier] = hidden_sum
-                self.hidden_sent_values[modifier] = self.hidden_values
+                self.layer2_sent_values = hidden_sum
+                self.hidden_sent_values = self.hidden_values
             
             output = self.hidden_values.dot(self.output_weights) + self.output_bias
             self.dependency_scores[modifier, :-1] = output
@@ -117,9 +224,9 @@ cdef class DependencyNetwork2(Network):
                 head = heads[modifier]
                 if self._calculate_gradients(head, output):
                     self._backpropagate(modifier)
-                    self._calculate_input_deltas(sentence, token, filtered=candidates)
-                    self._adjust_weights(token, filtered=candidates)
-                    self._adjust_features(sentence, token)
+                    self._adjust_token_features(sentence, modifier)
+                    self._adjust_distance_features(modifier)
+                    self._create_distance_lookup()
         
         # copy dependency weights from the root to each token to the last column and
         # effectively ignore the main diagonal (dependency to the token itself)
@@ -130,6 +237,99 @@ cdef class DependencyNetwork2(Network):
         
         return answer
     
+    def train(self, list sentences, list heads, int epochs, 
+              int epochs_between_reports=0, float desired_accuracy=0):
+        """
+        Trains the network for dependency parsing.
+        """
+        if self.validation_sentences is None:
+            self.set_validation_data(sentences, heads)
+        
+        logger = logging.getLogger("Logger")
+        logger.info("Training for up to %d epochs" % epochs)
+        last_accuracy = 0
+        top_accuracy = 0
+        last_error = np.Infinity
+        
+        self._create_distance_lookup()
+                
+        for i in xrange(epochs):
+            self.decrease_learning_rates(i)
+            self._train_epoch(sentences, heads)
+            self._validate()
+            
+            # Attardi: save model
+            if self.accuracy > top_accuracy:
+                top_accuracy = self.accuracy
+                self.save()
+                logger.debug("Saved model")
+            elif self.use_learning_rate_decay:
+                # this iteration didn't bring improvements; load the last saved model
+                # before continuing training with a lower rate
+                self._load_parameters()
+            
+            if (epochs_between_reports > 0 and i % epochs_between_reports == 0) \
+                or self.accuracy >= desired_accuracy > 0 \
+                or (self.accuracy < last_accuracy and self.error > last_error):
+                
+                self._print_epoch_report(i + 1)
+
+                if self.accuracy >= desired_accuracy > 0\
+                        or (self.accuracy < last_accuracy and self.error > last_error):
+                    # accuracy is falling, the network is probably diverging
+                    # or overfitting
+                    break
+            
+            last_accuracy = self.accuracy
+            last_error = self.error
+    
+    def _load_parameters(self):
+        """
+        Loads weights, feature tables and transition tables previously saved.
+        """
+        data = np.load(self.network_filename)
+        self.modifier_weights = data['modifier_weights']
+        self.head_weights = data['head_weights']
+        self.distance_weights = data['distance_weights']
+        self.hidden_bias = data['hidden_bias']
+        
+        self.output_weights = data['output_weights']
+        self.output_bias = data['output_bias']
+        
+        self.feature_tables = list(data['feature_tables'])
+    
+    def _validate(self):
+        """
+        Evaluate the network performance by token hit and whole sentence hit.
+        """
+        hits = 0
+        num_tokens = 0
+        sentence_hits = 0
+        
+        for i in range(len(self.validation_sentences)):
+            sent = self.validation_sentences[i]
+            heads = self.validation_heads[i]
+            sentence_hit = True
+            
+            answer = self.tag_sentence(sent)
+            gold_tags = heads
+                
+            for j in range(len(gold_tags)):
+                net_tag = answer[j]
+                gold_tag = gold_tags[j]
+                
+                if net_tag == gold_tag or (gold_tag == j and net_tag == len(sent)):
+                    hits += 1
+                else:
+                    sentence_hit = False
+            
+            if sentence_hit:
+                sentence_hits += 1
+            num_tokens += len(sent)
+        
+        self.accuracy = float(hits) / num_tokens
+        self.sentence_accuracy = float(sentence_hits) / len(self.validation_sentences)
+        
     def _calculate_gradients(self, gold_head, scores):
         """
         Calculate the gradients to be applied in the backpropagation. Gradients
@@ -164,29 +364,32 @@ cdef class DependencyNetwork2(Network):
         self.net_gradients[gold_head] += 1
         
         # backpropagation expects a 2-dim matrix
-        new_shape = (self.net_gradients.shape[0], 1)
-        self.net_gradients = self.net_gradients.reshape(new_shape)
+#         new_shape = (self.net_gradients.shape[0], 1)
+#         self.net_gradients = self.net_gradients.reshape(new_shape)
         
         return True
     
-    def _backpropagate(self, sentence, modifier):
+    def _backpropagate(self, modifier):
         """
         Backpropagate the gradients of the cost.
         
         :param modifier: the index of the modifier in the sentence. It is assumed
             that adjustments are done w.r.t. all head candidates.
         """
+        # adjust weights from hidden layer to output
         output_deltas = self.net_gradients.dot(self.hidden_sent_values)
         output_bias_delta = self.net_gradients.sum()
         self.output_weights += output_deltas * self.learning_rate
-        self.output_bias += output_bias * self.learning_rate
+        self.output_bias += output_bias_delta * self.learning_rate
         
+        # find the gradients in the hidden layer and adjust weights from the input
         # this is the same as np.outer(x, y), but faster
-        partial_gradient = self.net_gradients.reshape((len(self.net_gradients),1))
-                            .dot(self.output_weights.reshape((1, self.hidden_size)))
+        gradients_reshaped = self.net_gradients.reshape((len(self.net_gradients),1))
+        partial_gradient = gradients_reshaped.dot(self.output_weights.reshape((1, self.hidden_size)))
         # hidden_gradients -> (len, hidden_size)
         hidden_gradients = hardtanhd(self.layer2_sent_values) * partial_gradient
         
+        # the input weights are in three sets: modifier, head and distance
         # the whole window lookup table was the input to the hidden layer
         # deltas -> (head_window_size, hidden_size)
         head_weight_deltas = self.window_lookup.T.dot(hidden_gradients)
@@ -200,20 +403,30 @@ cdef class DependencyNetwork2(Network):
         distance_weights_deltas = dist_input.dot(hidden_gradients)
         hidden_bias_deltas = hidden_gradients.sum(0)
         
-        head_gradients = hidden_gradients.dot(self.head_weights.T) * self.learning_rate_features
-        modifier_gradients = hidden_gradients.dot(self.modifier_weights.T) * self.learning_rate_features
-        distance_gradients = hidden_gradients.dot(self.distance_weights.T) * self.learning_rate_features
+        self.head_gradients = hidden_gradients.dot(self.head_weights.T)
+        self.modifier_gradients = hidden_gradients.dot(self.modifier_weights.T)
+        self.distance_gradients = hidden_gradients.dot(self.distance_weights.T)
         
         self.head_weights += head_weight_deltas * self.learning_rate
         self.modifier_weights += modifier_weights_deltas * self.learning_rate
         self.distance_weights += distance_weights_deltas * self.learning_rate
+    
+    
+    def _adjust_token_features(self, sentence, modifier):
+        """
+        Adjusts the feature tables w.r.t. modifier and head gradients.
         
+        :param sentence: matrix with one token per row
+        :param modifier: the position of the modifier in the sentence
+            (all tokens are considered candidate heads)
+        """
         cdef np.ndarray padded_sentence = np.concatenate((self.pre_padding,
                                                           sentence,
                                                           self.pos_padding))
         
         # modifier gradients refers to adjustments in the same tokens for every line
-        modifier_gradients_sum = modifier_gradients.sum(0)
+        # (i.e., considering all heads)
+        modifier_gradients_sum = self.modifier_gradients.sum(0)
         modifier_gradients_sum = modifier_gradients_sum.reshape(self.word_window_size,
                                                                 self.features_per_token)
         
@@ -223,28 +436,66 @@ cdef class DependencyNetwork2(Network):
         for i in range(self.word_window_size):
             until_token = i + len(sentence)
             until_feature = from_feature + self.features_per_token
-            padded_sentence_deltas[i:until_token] += head_gradients[:, from_feature:until_feature]
+            padded_sentence_deltas[i:until_token] += self.head_gradients[:, from_feature:until_feature]
         
         # combine modifier and head deltas
         half_window = self.word_window_size / 2
-        padded_sentence_deltas[modifier - half_window:modifier + half_window + 1] += modifier_gradients_sum
+        # consider padding in the calculation. 
+        ind_from = modifier
+        ind_to = modifier + (2 * half_window) + 1
+        padded_sentence_deltas[ind_from:ind_to] += modifier_gradients_sum
+        padded_sentence_deltas *= self.learning_rate_features
         
         # apply deltas to feature tables
-        from_feature = 0
-        for i, token in padded_sentence:
+        for i, token in enumerate(padded_sentence):
+            from_feature = 0
             for j, table in enumerate(self.feature_tables):
                 until_feature = from_feature + table.shape[1]
                 index = token[j]
                 table[j] += padded_sentence_deltas[i, from_feature:until_feature]
                 from_feature = until_feature
         
-        # distance features adjustments
-        dists = np.arange(len(sentence)) - modifier
-        clipped_dists = np.clip(dists, 0, len(self.distance_table)) + self.distance_offset
-        # distance_gradients is (num_tokens, num_distance_features)
+    def _adjust_distance_features(self, modifier):
+        """
+        Adjusts the distance features.
         
-                
-            
+        :param modifier: the index of the modifier w.r.t. to which adjustments
+            are being made (considering all tokens as candidate heads)
+        """
+        distances = np.arange(len(self.net_gradients)) - modifier
+        
+        # distance features adjustments
+        clipped_dists = np.clip(distances + self.distance_offset, 
+                                0, len(self.distance_table) - 1) 
+        
+        # distance_gradients is (num_tokens, num_distance_features)
+        self.distance_gradients *= self.learning_rate_features
+        
+        # compress the gradients relative to the same distance
+        # (after clipping, we may have something like dists 0, 0, 0, 1, 2, ...)
+        if len(clipped_dists) > 1 and clipped_dists[0] != clipped_dists[1]:
+            inds = clipped_dists == 0
+            grads_zero = self.distance_gradients[inds].sum(0)
+            self.distance_table[0] += grads_zero
+        else:
+            self.distance_table[clipped_dists[0]] += self.distance_gradients[0]
+            # unlikely, but we must check
+            if len(distances) == 1:
+                return
+        
+        if clipped_dists[-1] != clipped_dists[-2]:
+            inds = clipped_dists == clipped_dists[-1]
+            grads_max = self.distance_gradients[inds].sum(0)
+            self.distance_table[-1] += grads_max
+        else:
+            self.distance_table[clipped_dists[-1]] += self.distance_gradients[-1]
+            if len(distances) == 2:
+                return
+        
+        middle_inds = np.logical_and(clipped_dists != clipped_dists[0], 
+                                     clipped_dists != clipped_dists[-1])
+        grads_middle = self.distance_gradients[middle_inds]
+        self.distance_table[clipped_dists[middle_inds]] += grads_middle
     
     def _create_distance_lookup(self):
         """
@@ -259,7 +510,7 @@ cdef class DependencyNetwork2(Network):
         for the window centered at the token i of the sentence.
         """
         # the Network class creates a lookup table that has each token without its window
-        super(DependencyNetwork2, self)._create_sentence_lookup(sentence)
+        super(FirstOrderDependencyNetwork, self)._create_sentence_lookup(sentence)
         
         window_lookup_size = self.word_window_size * self.features_per_token
         self.window_lookup = np.empty((len(sentence), window_lookup_size))

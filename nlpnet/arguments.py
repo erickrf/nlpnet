@@ -144,9 +144,19 @@ def get_args():
     unlabeled_parser.add_argument('--filter', help='Use filter. The saved model must be in the data directory. '\
                                   'Supply the confidence threshold.', type=float)
     
+    first_order_parser = dep_subparsers.add_parser('first-order', parents=[network_parser],
+                                                   help='First order dependency edge detection')
+    first_order_parser.add_argument('--max-dist', help='Maximum distance to have a separate feature vector (default 4)',
+                                    default=4, dest='max_dist', type=int)
+    first_order_parser.add_argument('--dist-features', default=5, type=int, dest='dist_features',
+                                    help='Number of features associated with each distance (default 5)')
+    first_order_parser.add_argument('--pos', const=5, nargs='?', type=int, default=None,
+                                    help='Use POS as an extra attribute. Optionally, supply the number of features (default 5)',)
+    
     defaults['dependency_filter'] = dict()
     defaults['labeled_dependency'] = dict(window=3)
     defaults['unlabeled_dependency'] = dict(window=3)
+    defaults['first_order_dependency'] = dict(window=3)
     
     # SRL argument parser
     # There is another level of subparsers for predicate detection / 
@@ -214,6 +224,9 @@ Type %(prog)s [SUBTASK] -h to get subtask-specific help.'''
             args.labeled = True
         elif args.subtask == 'unlabeled':
             args.task = 'unlabeled_dependency'
+            args.labeled = False
+        elif args.subtask == 'first-order':
+            args.task = 'first_order_dependency'
             args.labeled = False
         else:
             args.task = 'dependency_filter'

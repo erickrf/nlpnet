@@ -15,7 +15,7 @@ from metadata import Metadata
 from pos.pos_reader import POSReader
 from srl.srl_reader import SRLReader
 from parse.parse_reader import DependencyReader
-from network import Network, ConvolutionalNetwork, DependencyNetwork
+from network import Network, ConvolutionalNetwork, ConvolutionalDependencyNetwork, FirstOrderDependencyNetwork
 
 def load_network(md):
     """

@@ -8,7 +8,7 @@ parsing, where each token has another (or root) as a head.
 import numpy as np
 cimport numpy as np
 
-cdef class DependencyNetwork(ConvolutionalNetwork):
+cdef class ConvolutionalDependencyNetwork(ConvolutionalNetwork):
     
     # proportion of completely correct sentences
     cdef float sentence_accuracy
@@ -65,22 +65,23 @@ cdef class DependencyNetwork(ConvolutionalNetwork):
         if self.validation_sentences is None:
             self.set_validation_data(sentences, heads, labels)
         
-        super(DependencyNetwork, self).train(sentences, predicates, 
-                                             heads, epochs, 
-                                             epochs_between_reports, 
-                                             desired_accuracy,
-                                             labels)
+        super(ConvolutionalDependencyNetwork, self).train(sentences, predicates, 
+                                                          heads, epochs, 
+                                                          epochs_between_reports, 
+                                                          desired_accuracy,
+                                                          labels)
         
     def set_filter(self, filter, threshold):
         """
         Sets a filter object to be used by the Network.
         
-        :param filter: an object with a method filter(sentence, threshold). Its 
+        :param filter: an object with a method filter(sentence). Its 
             `sentences` argument must be a numpy array.
         :param threshold: the threshold to be used with the filter 
         """
         self.filter = filter
         self.filter_threshold = threshold
+        filter.threshold = threshold
     
     def set_validation_data(self, list sentences, list heads, list labels=None):
         """
