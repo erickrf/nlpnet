@@ -139,10 +139,12 @@ def read_skipdep_embeddings(filename):
     vocabulary = clusters.keys()
     matrix = np.array(clusters.values())
     
-    index_rare = vocabulary.index('*unknown*')
-    vocabulary[index_rare] = nlpnet.word_dictionary.WordDictionary.rare
-    return matrix, vocabulary
+    if '*unknown*' in clusters:
+        # symbol used in skipdep
+        index_rare = vocabulary.index('*unknown*')
+        vocabulary[index_rare] = nlpnet.word_dictionary.WordDictionary.rare
     
+    return matrix, vocabulary
 
 def read_gensim_embeddings(filename):
     """
@@ -188,14 +190,16 @@ This script can deal with the following formats:
     word2embeddings - format used by the neural language model from
         word2embeddings (used in polyglot).
     
-    skipdep - format used by Mohit Bansal et al. for vectors based on
-        the skip gram model considering dependency edges as neighborhood.
+    single - a single plain text file containing one word per line, followed 
+        by its vectors. Everything is separated by whitespaces.
+        This format also handles some special tokens used in skipdep by 
+        Mohit Bansal et al. (2014).
         '''
     
     parser = argparse.ArgumentParser(description=__doc__, epilog=epilog,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('type', help='Format of the embeddings. See the description below.', 
-                        choices=['plain', 'senna', 'gensim', 'word2embeddings', 'skipdep'])
+                        choices=['plain', 'senna', 'gensim', 'word2embeddings', 'single'])
     parser.add_argument('embeddings', help='File containing the actual embeddings')
     parser.add_argument('-v', help='Vocabulary file, if applicable. '\
                         'In SENNA, it is hash/words.lst', dest='vocabulary')
@@ -230,7 +234,7 @@ This script can deal with the following formats:
     elif args.type == 'word2embeddings':
         words = read_w2e_vocabulary(args.vocabulary)
         matrix = read_w2e_embeddings(args.embeddings)
-    elif args.type == 'skipdep':
+    elif args.type == 'single':
         matrix, words = read_skipdep_embeddings(args.embeddings)
         
     wd = nlpnet.word_dictionary.WordDictionary.init_from_wordlist(words)
