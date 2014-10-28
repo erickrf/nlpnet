@@ -109,7 +109,7 @@ cdef class Network:
     cdef readonly np.ndarray input_sent_values, hidden_sent_values, layer2_sent_values
     
     # data for statistics during training. 
-    cdef float error, accuracy, float_errors
+    cdef float error, accuracy, float_errors, sentence_accuracy
     cdef int num_tokens, skips
         
     # file where the network is saved

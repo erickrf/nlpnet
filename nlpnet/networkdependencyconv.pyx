@@ -10,9 +10,6 @@ cimport numpy as np
 
 cdef class ConvolutionalDependencyNetwork(ConvolutionalNetwork):
     
-    # proportion of completely correct sentences
-    cdef float sentence_accuracy
-    
     # the weights of all possible dependency among tokens
     cdef readonly np.ndarray dependency_weights
     

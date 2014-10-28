@@ -22,15 +22,11 @@ cdef class ConvolutionalNetwork(Network):
     cdef readonly int hidden2_size
     cdef readonly np.ndarray hidden2_weights, hidden2_bias
     cdef readonly np.ndarray hidden2_values
-    cdef readonly np.ndarray layer3_sent_values
+    cdef readonly np.ndarray hidden2_before_activation, hidden_before_activation
     
     # lookup of convolution values (the same for each sentence, used to save time)
     cdef np.ndarray convolution_lookup
-    
-    # in training, we need to store all the values calculated by each layer during 
-    # the classification of a sentence. 
-    cdef readonly np.ndarray hidden2_sent_values
-    
+        
     # maximum convolution indices
     cdef readonly np.ndarray max_indices
     
@@ -56,20 +52,24 @@ cdef class ConvolutionalNetwork(Network):
     def create_new(cls, feature_tables, target_dist_table, pred_dist_table, 
                    int word_window, int hidden1_size, int hidden2_size, int output_size):
         """Creates a new convolutional neural network."""
-        # sum the number of features in all tables 
+        # sum the number of features in all tables except for distance 
         cdef int input_size = sum(table.shape[1] for table in feature_tables)
         input_size *= word_window
         
+        dist_features_per_token = target_dist_table.shape[1] + pred_dist_table.shape[1]
+        input_size_with_distance = input_size + (word_window * dist_features_per_token)
+        
         # creates the weight matrices
-        high = 2.38 / np.sqrt(input_size) # [Bottou-88]
+        high = 2.38 / np.sqrt(input_size_with_distance) # [Bottou-88]
         hidden_weights = np.random.uniform(-high, high, (hidden1_size, input_size))
-        high = 2.38 / np.sqrt(hidden1_size)
-        hidden_bias = np.random.uniform(-high, high, hidden1_size)
         
         num_dist_features = word_window * target_dist_table.shape[1]
         target_dist_weights = np.random.uniform(-high, high, (num_dist_features, hidden1_size))
         num_dist_features = word_window * pred_dist_table.shape[1]
         pred_dist_weights = np.random.uniform(-high, high, (num_dist_features, hidden1_size))
+        
+        high = 2.38 / np.sqrt(hidden1_size)
+        hidden_bias = np.random.uniform(-high, high, hidden1_size)
         
         if hidden2_size > 0:
             hidden2_weights = np.random.uniform(-high, high, (hidden2_size, hidden1_size))
@@ -442,18 +442,12 @@ Output size: %d
         cdef np.ndarray[FLOAT_t, ndim=2] input_and_pred_dist_values
         
         self.num_targets = len(sentence) if argument_blocks is None else len(argument_blocks)
-        scores = np.empty((self.num_targets, self.output_size))
+        
+        # maximum values found by convolution
+        self.hidden_values = np.zeros((self.num_targets, self.hidden_size))
         
         if training:
-            # layer 2: results after applying hidden weights, before tanh
-            # hidden sent values: results after tanh
-            self.layer2_sent_values = np.zeros((self.num_targets, self.hidden_size))
-            self.hidden_sent_values = np.zeros((self.num_targets, self.hidden_size))
             self.max_indices = np.empty((self.num_targets, self.hidden_size), np.int)
-            if self.hidden2_weights is not None:
-                # layer 3: analogous to layer 2
-                self.layer3_sent_values = np.zeros((self.num_targets, self.hidden2_size))
-                self.hidden2_sent_values = np.zeros((self.num_targets, self.hidden2_size))
     
         # predicate distances are the same across all targets
         pred_dist_indices = np.arange(len(sentence)) - predicate
@@ -462,12 +456,9 @@ Output size: %d
         
         input_and_pred_dist_values = pred_dist_values + self.convolution_lookup
         
-        # add the weighted distance features to each token 
         for target in range(self.num_targets):
-            if filter is not None and not filter[target]:
-                scores[target, 0] = -np.inf
-                    
-                continue
+            # loop over targets and add the weighted distance features to each token
+            # this is necessary for the convolution layer
             
             # distance features for each window
             # if we are classifying all tokens, pick the distance to the target
@@ -487,31 +478,26 @@ Output size: %d
             # now, find the maximum values
             if training:
                 self.max_indices[target] = convolution_values.argmax(0)
+            self.hidden_values[target] = convolution_values.max(0)
             
-            # apply the bias and proceed to the next layer
-            self.hidden_values = convolution_values.max(0) + self.hidden_bias
+        # apply the bias and proceed to the next layer
+        self.hidden_values += self.hidden_bias
+        
+        if self.hidden2_weights is not None:
+            self.hidden2_values = self.hidden_values.dot(self.hidden2_weights.T) + self.hidden2_bias
             if training:
-                self.hidden_sent_values[target] = self.hidden_values
+                self.hidden2_before_activation = self.hidden2_values.copy()
+        
+            hardtanh(self.hidden2_values, inplace=True)
+        else:
+            # apply non-linearity here
+            if training:
+                self.hidden_before_activation = self.hidden_values.copy()
             
-            if self.hidden2_weights is not None:
-                self.hidden2_values = self.hidden2_weights.dot(self.hidden_values) + self.hidden2_bias
-                if training:
-                    self.layer3_sent_values[target] = self.hidden2_values
-            
-                self.hidden2_values = hardtanh(self.hidden2_values)
-                
-                if training:
-                    self.hidden2_sent_values[target] = self.hidden2_values
-            else:
-                # apply non-linearity here
-                if training:
-                    self.layer2_sent_values[target] = self.hidden_values
-                self.hidden2_values = hardtanh(self.hidden_values)
-                if training:
-                    self.hidden_sent_values[target] = self.hidden2_values
-            
-            self.output_weights.dot(self.hidden2_values, scores[target])
-            scores[target] += self.output_bias
+            hardtanh(self.hidden_values, inplace=True)
+            self.hidden2_values = self.hidden_values
+        
+        scores = self.hidden2_values.dot(self.output_weights.T) + self.output_bias
         
         return scores
     
@@ -670,13 +656,13 @@ Output size: %d
         
         if self.hidden2_weights is not None:
             # derivative with respect to the second hidden layer
-            dCd_hidden2 = dCd_tanh * hardtanhd(self.layer3_sent_values) 
+            dCd_hidden2 = dCd_tanh * hardtanhd(self.hidden2_before_activation)
             self.hidden2_gradients = dCd_hidden2
                         
             self.hidden_gradients = self.hidden2_gradients.dot(self.hidden2_weights)
         else:
             # the non-linearity appears right after the convolution max
-            self.hidden_gradients = dCd_tanh * hardtanhd(self.layer2_sent_values)
+            self.hidden_gradients = dCd_tanh * hardtanhd(self.hidden_before_activation)
     
     @cython.boundscheck(False)
     @cython.wraparound(False)
@@ -692,13 +678,13 @@ Output size: %d
         cdef np.ndarray[FLOAT_t, ndim=1] gradients_t
         cdef np.ndarray[FLOAT_t, ndim=2] last_values, deltas, grad_matrix, input_values
         
-        last_values = self.hidden2_sent_values if self.hidden2_weights is not None else self.hidden_sent_values
+        last_values = self.hidden2_values if self.hidden2_weights is not None else self.hidden_values
         deltas = self.net_gradients.T.dot(last_values) * self.learning_rate
         self.output_weights += deltas
         self.output_bias += self.net_gradients.sum(0) * self.learning_rate
         
         if self.hidden2_weights is not None:
-            deltas = self.hidden2_gradients.T.dot(self.hidden_sent_values) * self.learning_rate
+            deltas = self.hidden2_gradients.T.dot(self.hidden_values) * self.learning_rate
             self.hidden2_weights += deltas
             self.hidden2_bias += self.hidden2_gradients.sum(0) * self.learning_rate
         

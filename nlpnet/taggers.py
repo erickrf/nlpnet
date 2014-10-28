@@ -27,8 +27,10 @@ def load_network(md):
     logger.info('Loading network')
     if is_srl:
         net_class = ConvolutionalNetwork
+    elif md.task == 'first_order_dependency':
+        net_class = FirstOrderDependencyNetwork
     elif md.task.endswith('dependency'):
-        net_class = DependencyNetwork
+        net_class = ConvolutionalDependencyNetwork
     else:
         net_class = Network
     nn = net_class.load_from_file(md.paths[md.network])

@@ -107,7 +107,7 @@ cdef class FirstOrderDependencyNetwork(Network):
         data = np.load(filename)
         
         self.modifier_weights = data['modifier_weights']
-        self.hidden_weights = data['hidden_weights']
+        self.head_weights = data['head_weights']
         self.distance_weights = data['distance_weights']
         self.hidden_bias = data['hidden_bias']
         
@@ -116,7 +116,6 @@ cdef class FirstOrderDependencyNetwork(Network):
         
         self.word_window_size = data['word_window_size'] 
         self.input_size = data['input_size']
-         
         self.hidden_size = data['hidden_size']
         self.output_size = 1
         
@@ -144,7 +143,7 @@ cdef class FirstOrderDependencyNetwork(Network):
             
         np.savez(filename, 
                  modifier_weights = self.modifier_weights,
-                 hidden_weights = self.hidden_weights,
+                 head_weights = self.head_weights,
                  distance_weights = self.distance_weights,
                  hidden_bias = self.hidden_bias,
                  output_weights = self.output_weights,
@@ -258,7 +257,6 @@ cdef class FirstOrderDependencyNetwork(Network):
             self._train_epoch(sentences, heads)
             self._validate()
             
-            # Attardi: save model
             if self.accuracy > top_accuracy:
                 top_accuracy = self.accuracy
                 self.save()
