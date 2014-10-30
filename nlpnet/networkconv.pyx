@@ -447,6 +447,8 @@ Output size: %d
         self.hidden_values = np.zeros((self.num_targets, self.hidden_size))
         
         if training:
+            # hidden sent values: results after tanh
+            self.hidden_values = np.zeros((self.num_targets, self.hidden_size))
             self.max_indices = np.empty((self.num_targets, self.hidden_size), np.int)
     
         # predicate distances are the same across all targets
@@ -459,6 +461,10 @@ Output size: %d
         for target in range(self.num_targets):
             # loop over targets and add the weighted distance features to each token
             # this is necessary for the convolution layer
+            
+#             if filter is not None and not filter[target]:
+#                 scores[target, 0] = -np.inf
+#                 continue
             
             # distance features for each window
             # if we are classifying all tokens, pick the distance to the target
@@ -482,21 +488,22 @@ Output size: %d
             
         # apply the bias and proceed to the next layer
         self.hidden_values += self.hidden_bias
-        
+    
         if self.hidden2_weights is not None:
             self.hidden2_values = self.hidden_values.dot(self.hidden2_weights.T) + self.hidden2_bias
+        
             if training:
                 self.hidden2_before_activation = self.hidden2_values.copy()
-        
+    
             hardtanh(self.hidden2_values, inplace=True)
         else:
             # apply non-linearity here
             if training:
                 self.hidden_before_activation = self.hidden_values.copy()
             
-            hardtanh(self.hidden_values, inplace=True)
             self.hidden2_values = self.hidden_values
-        
+            hardtanh(self.hidden_values, inplace=True)
+            
         scores = self.hidden2_values.dot(self.output_weights.T) + self.output_bias
         
         return scores
@@ -748,14 +755,16 @@ Output size: %d
             tokens that were filtered out and don't have a corresponding score to adjust.
             A value of False means the token was filtered out.
         """
-        cdef np.ndarray[FLOAT_t, ndim=2] hidden_gradients
+        cdef np.ndarray[FLOAT_t, ndim=2] hidden_gradients, input_gradients
+        cdef np.ndarray[FLOAT_t, ndim=2] target_dist_gradients, pred_dist_gradients
         cdef np.ndarray[FLOAT_t, ndim=1] gradients
         cdef np.ndarray[INT_t, ndim=1] convolution_max, target_dists
         
-        # this gradient matrix has a whole window in each line
-        self.input_deltas = np.zeros((len(sentence), self.input_size))
-        self.target_dist_deltas = np.zeros_like(self.target_dist_lookup, np.float)
-        self.pred_dist_deltas = np.zeros_like(self.pred_dist_lookup, np.float)
+        # matrices accumulating gradients over each target
+        # each matrix has a whole window in each line
+        input_gradients = np.zeros((len(sentence), self.hidden_size))
+        target_dist_gradients = np.zeros((self.target_dist_lookup.shape[0], self.hidden_size))
+        pred_dist_gradients = np.zeros((self.pred_dist_lookup.shape[0], self.hidden_size))
         
         # avoid multiplying by the learning rate multiple times
         hidden_gradients = self.hidden_gradients * self.learning_rate_features
@@ -763,10 +772,10 @@ Output size: %d
         
         for target in range(self.num_targets):
             
-            if filtered is not None and not filtered[target]:
-                # filtered tokens are treated as if having a score of -np.inf and 
-                # no needed gradient adjustment
-                continue
+#             if filtered is not None and not filtered[target]:
+#                 # filtered tokens are treated as if having a score of -np.inf and 
+#                 # no needed gradient adjustment
+#                 continue
             
             # array with the tokens that yielded the maximum value in each neuron
             # for this target
@@ -788,18 +797,15 @@ Output size: %d
             
             # sparse matrix with gradients to be applied over the input
             # line i has the gradients for the i-th token in the sentence
-            grad_matrix = np.zeros((len(sentence), self.hidden_size))
-            grad_matrix[convolution_max, np.arange(self.hidden_size)] = gradients
-            self.input_deltas += grad_matrix.dot(self.hidden_weights) 
+            input_gradients[convolution_max, np.arange(self.hidden_size)] += gradients
             
             # distance deltas
-            grad_matrix = np.zeros((self.target_dist_lookup.shape[0], self.hidden_size))
-            grad_matrix[target_dists, np.arange(self.hidden_size)] = gradients
-            self.target_dist_deltas += grad_matrix.dot(self.target_dist_weights.T)
-            
-            grad_matrix = np.zeros((self.pred_dist_lookup.shape[0], self.hidden_size))
-            grad_matrix[pred_dists, np.arange(self.hidden_size)] = gradients
-            self.pred_dist_deltas += grad_matrix.dot(self.pred_dist_weights.T)
+            target_dist_gradients[target_dists, np.arange(self.hidden_size)] += gradients
+            pred_dist_gradients[pred_dists, np.arange(self.hidden_size)] += gradients
+        
+        self.input_deltas = input_gradients.dot(self.hidden_weights)
+        self.target_dist_deltas = target_dist_gradients.dot(self.target_dist_weights.T)
+        self.pred_dist_deltas = pred_dist_gradients.dot(self.pred_dist_weights.T)
             
         
     def _adjust_features(self, sentence, predicate):
