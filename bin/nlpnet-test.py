@@ -589,36 +589,42 @@ def read_oov_words(oov_file):
 
 if __name__ == '__main__':
     
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--task', help='Task for which the network should be used.', 
-                        type=str, required=True, 
-                        choices=['srl', 'pos', 'labeled-dependency', 'unlabeled-dependency', 'dependency-filter'])
-    parser.add_argument('-v', help='Verbose mode', action='store_true', dest='verbose')
-    parser.add_argument('-t', help='Error margin threshold (for dependency filter)', type=float,
-                        default=0.01, dest='threshold')
-    parser.add_argument('--id', help='Evaluate only argument identification (SRL only)',
-                        action='store_true', dest='identify')
-    parser.add_argument('--class', help='Evaluate only argument classification (SRL only)',
-                        action='store_true', dest='classify')
-    parser.add_argument('--preds', help='Evaluate only predicate identification (SRL only)',
-                        action='store_true', dest='predicates')
-    parser.add_argument('--2steps', help='Execute SRL with two separate steps', action='store_true', dest='two_steps')
-    parser.add_argument('--no-repeat', dest='no_repeat', action='store_true',
-                        help='Forces the classification step to avoid repeated argument labels (2 step SRL only).')
-    parser.add_argument('--auto-pred', dest='auto_pred', action='store_true',
-                        help='Determines SRL predicates automatically using a POS tagger.')
-    parser.add_argument('--gold', help='File with gold standard data', type=str, required=True)
-    parser.add_argument('--data', help='Directory with trained models (default: current directory)', 
-                        type=str, default='.')
-    parser.add_argument('--oov', help='Analyze performance on OOV data. Not fully functional with numbers.', type=str)
-    args = parser.parse_args()
+    parser = argparse.ArgumentParser(description='Test nlpnet model perfomance')
+    subparsers = parser.add_subparsers(title='Tasks',
+                                       dest='task',
+                                       description='Task to test performance. '\
+                                       'Type %(prog)s [TASK] -h to get task-specific help.')
     
-    if args.identify:
-        args.task = 'srl_boundary'
-    elif args.classify:
-        args.task = 'srl_classify'
-    elif args.predicates:
-        args.task = 'srl_predicates'
+    # base parser with arguments not related to any model
+    base_parser = argparse.ArgumentParser(add_help=False)    
+    base_parser.add_argument('-v', help='Verbose mode', action='store_true', dest='verbose')
+    base_parser.add_argument('--gold', help='File with gold standard data', type=str, required=True)
+    base_parser.add_argument('--data', help='Directory with trained models (default: current directory)', 
+                             type=str, default='.')
+    
+    parser_pos = subparsers.add_parser('pos', help='POS tagging', parents=[base_parser])
+    parser_srl = subparsers.add_parser('srl', help='Semantic Role Labeling', parents=[base_parser])
+    parser_dep = subparsers.add_parser('dependency', help='Dependency parsing', parents=[base_parser])
+
+    parser_srl.add_argument('--id', help='Evaluate only argument identification (SRL only)',
+                            action='store_true', dest='identify')
+    parser_srl.add_argument('--class', help='Evaluate only argument classification (SRL only)',
+                            action='store_true', dest='classify')
+    parser_srl.add_argument('--preds', help='Evaluate only predicate identification (SRL only)',
+                            action='store_true', dest='predicates')
+    parser_srl.add_argument('--2steps', help='Execute SRL with two separate steps', action='store_true', dest='two_steps')
+    parser_srl.add_argument('--no-repeat', dest='no_repeat', action='store_true',
+                            help='Forces the classification step to avoid repeated argument labels (2 step SRL only).')
+    parser_srl.add_argument('--auto-pred', dest='auto_pred', action='store_true',
+                            help='Determines SRL predicates automatically (instead of gold annotation)')
+    
+    parser_dep.add_argument('type', help='Whether to test labeled or unlabeled performance',
+                            choices=['labeled', 'unlabeled', 'filter'])
+    parser_dep.add_argument('-t', help='Error margin threshold (for dependency filter, if used)', type=float,
+                             default=0.01, dest='threshold')
+    
+    parser_pos.add_argument('--oov', help='Analyze performance on OOV data. Not fully functional with numbers.', type=str)
+    args = parser.parse_args()
     
     logging_level = logging.DEBUG if args.verbose else logging.INFO
     utils.set_logger(logging_level)
@@ -637,19 +643,18 @@ if __name__ == '__main__':
                     
         evaluate_pos(gold_file=args.gold, oov=oov)
     
-    elif args.task == 'labeled-dependency':
-        evaluate_labeled_dependency(args.gold)
-    
-    elif args.task == 'unlabeled-dependency':
-        evaluate_unlabeled_dependency(args.gold)        
-    
-    elif args.task == 'dependency-filter':
-        evaluate_dependency_filter(args.gold, args.threshold)
-    
-    elif args.task.startswith('srl'):
+    elif args.task == 'dependency':
         
-        if args.oov:
-            logger.error('OOV not implemented for SRL.')
+        if args.type == 'labeled':
+            evaluate_labeled_dependency(args.gold)
+    
+        elif args.type == 'unlabeled':
+            evaluate_unlabeled_dependency(args.gold)        
+    
+        elif args.type == 'filter':
+            evaluate_dependency_filter(args.gold, args.threshold)
+    
+    elif args.task == 'srl':
         
         if args.two_steps:
             evaluate_srl_2_steps(args.no_repeat, args.auto_pred, args.gold)
