@@ -684,7 +684,9 @@ Output size: %d
             answer = self.tag_sentence(sent)
             hits += np.count_nonzero(answer == gold_tags)
         
-        self.accuracy = float(hits) / self.num_tokens
+        # self.num_tokens stores number of tokens in training sentences
+        num_tokens = sum(len(sent) for sent in self.validation_sentences)
+        self.accuracy = float(hits) / num_tokens
 
     def _backpropagate(self, sentence):
         """
