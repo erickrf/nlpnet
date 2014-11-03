@@ -246,13 +246,13 @@ Output size: %d
         self.pred_dist_table = data['pred_dist_table']
         
         # check if transitions isn't None (numpy saves everything as an array)
-        if data['transitions'] != [None]:
+        if data['transitions'].shape != ():
             self.transitions = data['transitions']
         else:
             self.transitions = None
             
         # same for second hidden layer weights
-        if data['hidden2_weights'] != [None]:
+        if data['hidden2_weights'].shape != ():
             self.hidden2_weights = data['hidden2_weights']
             self.hidden2_bias = data['hidden2_bias']
         else:

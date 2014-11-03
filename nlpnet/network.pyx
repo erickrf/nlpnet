@@ -797,7 +797,7 @@ Output size: %d
         self.feature_tables = list(data['feature_tables'])
         
         # check if transitions isn't None (numpy saves everything as an array)
-        if data['transitions'] != [None]:
+        if data['transitions'].shape != ():
             self.transitions = data['transitions']
         else:
             self.transitions = None
