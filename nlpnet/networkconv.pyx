@@ -186,9 +186,6 @@ Output size: %d
         hidden_bias = data['hidden_bias']
         hidden2_weights = data['hidden2_weights']
         
-        # numpy stores None as an array containing None and with empty shape
-        if hidden2_weights.shape == (): hidden2_weights = None
-        
         hidden2_bias = data['hidden2_bias']
         output_weights = data['output_weights']
         output_bias = data['output_bias']
@@ -198,6 +195,12 @@ Output size: %d
         hidden_size = data['hidden_size']
         hidden2_size = data['hidden2_size']
         output_size = data['output_size']
+        
+        # numpy stores None as an array containing None and with empty shape
+        if hidden2_weights.shape == (): 
+            hidden2_weights = None
+            hidden2_size = 0
+            hidden2_bias = None
         
         nn = cls(word_window, input_size, hidden_size, hidden2_size, 
                  output_size, hidden_weights, hidden_bias, 
@@ -236,8 +239,6 @@ Output size: %d
         data = np.load(self.network_filename)
         self.hidden_weights = data['hidden_weights']
         self.hidden_bias = data['hidden_bias']
-        self.hidden2_weights = data['hidden2_weights']
-        self.hidden2_bias = data['hidden2_bias']
         self.output_weights = data['output_weights']
         self.output_bias = data['output_bias']
         self.feature_tables = list(data['feature_tables'])
@@ -249,6 +250,13 @@ Output size: %d
             self.transitions = data['transitions']
         else:
             self.transitions = None
+            
+        # same for second hidden layer weights
+        if data['hidden2_weights'] != [None]:
+            self.hidden2_weights = data['hidden2_weights']
+            self.hidden2_bias = data['hidden2_bias']
+        else:
+            self.hidden2_weights = None
             
     def _average_error(self):
         """
