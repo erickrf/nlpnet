@@ -17,6 +17,7 @@ import logging
 import argparse
 import re
 import timeit
+import unicodedata as ud
 from itertools import izip
 import numpy as np
 from collections import Counter, defaultdict
@@ -71,10 +72,26 @@ def evaluate_pos(gold_file=None, oov=None):
     accuracy = float(hits) / total
     print 'Accuracy: %f%%' % (100 * accuracy)
 
+def is_punctuation(token):
+    '''
+    Returns whether a given word is punctuation according to 
+    unicode punctuation categories.     
+    '''
+    # codes for unicode punctuation categories 
+    unicode_punctuation = set(['Pc', 'Pd', 'Pe', 'Pf', 'Pi', 'Po', 'Ps'])
+    for char in token.word:
+        if ud.category(char) in unicode_punctuation:
+            return False
+    
+    return True
+        
+
 def evaluate_unlabeled_dependency(gold_file):
     """
     Evaluate unlabeled accuracy per token.
     """
+    
+    
     md = Metadata.load_from_file('unlabeled_dependency')
     nn = taggers.load_network(md)
     reader = taggers.create_reader(md, gold_file)
@@ -89,8 +106,6 @@ def evaluate_unlabeled_dependency(gold_file):
     sentence_hits = 0
     num_sentences = 0
     
-    punctuation = set(['.', ',', "''", ':', '(', ')', '#', '``'])
-    
     for sent, heads in zip(reader.sentences, reader.heads):
         
         sent_codified = reader.codify_sentence(sent)
@@ -101,8 +116,8 @@ def evaluate_unlabeled_dependency(gold_file):
             
             token = sent[i]
             # detect punctuation
-#             if token.pos in punctuation:
-#                 continue
+            if is_punctuation(token):
+                continue
             
             if net_tag == gold_tag or (gold_tag == i and net_tag == len(sent)):
                 hits += 1
