@@ -72,6 +72,7 @@ def evaluate_pos(gold_file=None, oov=None):
     accuracy = float(hits) / total
     print 'Accuracy: %f%%' % (100 * accuracy)
 
+
 def is_punctuation(token):
     '''
     Returns whether a given word is punctuation according to 
@@ -80,7 +81,7 @@ def is_punctuation(token):
     # codes for unicode punctuation categories 
     unicode_punctuation = set(['Pc', 'Pd', 'Pe', 'Pf', 'Pi', 'Po', 'Ps'])
     for char in token.word:
-        if ud.category(char) in unicode_punctuation:
+        if ud.category(char) not in unicode_punctuation:
             return False
     
     return True
