@@ -116,10 +116,41 @@ def read_polyglot_embeddings(filename):
     
     WD = nlpnet.word_dictionary.WordDictionary
     words = [WD.rare, WD.padding_left] + list(words[4:])
-    words.append(WD.padding_right)
     
-    return matrix, words
+    model = dict(zip(words, matrix))
+    clusters = clusterize_words(model)
     
+    vocabulary = clusters.keys()
+    vocabulary.append(WD.padding_right)
+    matrix = np.array(clusters.values())
+    
+    return matrix, vocabulary
+    
+def clusterize_words(model, filter_=None):
+    """
+    Group words in equivalent forms (e.g., with lower and uppercase letters)
+    in clusters, then average out the vectors for each cluster.
+    
+    :param model: dictionary mapping words to vectors
+    :param filter_: function that filters out words to be ignored
+    """
+    if filter_ is None:
+        filter_ = lambda x: False
+    
+    # group vectors by their corresponding words' normalized form
+    clusters = defaultdict(list)
+    for word, vector in model.iteritems():
+        if filter_(word) or word.strip() == '':
+            continue
+        
+        normalized_word = re.sub(r'\d', '9', word.lower())
+        clusters[normalized_word].append(vector)
+    
+    # now, average out each cluster
+    for word, vectors in clusters.iteritems():
+        clusters[word] = np.mean(vectors, 0)
+    
+    return clusters
 
 def read_skipdep_embeddings(filename):
     """
@@ -135,20 +166,10 @@ def read_skipdep_embeddings(filename):
                                  dtype=np.float)
             model[word] = vector
     
-    # group vectors by their corresponding words' normalized form
-    clusters = defaultdict(list)
-    for word, vector in model.iteritems():
-        if '_<CH>' in word or word == '</s>' or word == '<ROOT>':
-            # dependency relations; we're not interested in them
-            # or apparently sentence end 
-            continue
-        
-        if word.strip() == '':
-            # there was a unicode control char in the vocabulary
-            continue
-        
-        normalized_word = re.sub(r'\d', '9', word.lower())
-        clusters[normalized_word].append(vector)
+    def dep_filter(word):
+        return '_<CH>' in word or word == '</s>' or word == '<ROOT>'
+    
+    clusters = clusterize_words(model, filter_)    
     
     # now, average out each cluster
     for word, vectors in clusters.iteritems():
