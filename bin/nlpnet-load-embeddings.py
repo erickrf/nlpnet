@@ -115,7 +115,7 @@ def read_polyglot_embeddings(filename):
     matrix = np.delete(matrix, [1, 2], 0)
     
     WD = nlpnet.word_dictionary.WordDictionary
-    words = [WD.index_rare, WD.index_padding_left] + list(words[4:])
+    words = [WD.rare, WD.padding_left] + list(words[4:])
     words.append(WD.padding_right)
     
     return matrix, words
@@ -209,7 +209,8 @@ This script can deal with the following formats:
     word2embeddings - format used by the neural language model from
         word2embeddings (used in polyglot).
     
-    polyglot - format of the files available from polyglot.
+    polyglot - format of the files available from polyglot. It doesn't
+        have a separate vocabulary file.
     
     single - a single plain text file containing one word per line, followed 
         by its vectors. Everything is separated by whitespaces.
