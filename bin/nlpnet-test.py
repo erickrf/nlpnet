@@ -87,7 +87,7 @@ def is_punctuation(token):
     return True
         
 
-def evaluate_unlabeled_dependency(gold_file):
+def evaluate_unlabeled_dependency(gold_file, punctuation):
     """
     Evaluate unlabeled accuracy per token.
     """
@@ -117,7 +117,7 @@ def evaluate_unlabeled_dependency(gold_file):
             
             token = sent[i]
             # detect punctuation
-            if is_punctuation(token):
+            if punctuation and is_punctuation(token):
                 continue
             
             if net_tag == gold_tag or (gold_tag == i and net_tag == len(sent)):
@@ -149,7 +149,7 @@ def evaluate_dependency_filter(gold_file, threshold):
     reader.codify_sentences()
     edge_filter.test(reader.sentences, reader.heads, threshold)    
 
-def evaluate_labeled_dependency(gold_file):
+def evaluate_labeled_dependency(gold_file, punctuation):
     """
     Evaluate the accuracy for dependency labels per token.
     """
@@ -638,6 +638,8 @@ if __name__ == '__main__':
                             choices=['labeled', 'unlabeled', 'filter'])
     parser_dep.add_argument('-t', help='Error margin threshold (for dependency filter, if used)', type=float,
                              default=0.01, dest='threshold')
+    parser_dep.add_argument('-p', help='Score on punctuation (ignored by default)',
+                            action='store_true', dest='punctuation')
     
     parser_pos.add_argument('--oov', help='Analyze performance on OOV data. Not fully functional with numbers.', type=str)
     args = parser.parse_args()
@@ -662,10 +664,10 @@ if __name__ == '__main__':
     elif args.task == 'dependency':
         
         if args.type == 'labeled':
-            evaluate_labeled_dependency(args.gold)
+            evaluate_labeled_dependency(args.gold, args.punctuation)
     
         elif args.type == 'unlabeled':
-            evaluate_unlabeled_dependency(args.gold)        
+            evaluate_unlabeled_dependency(args.gold, args.punctuation)
     
         elif args.type == 'filter':
             evaluate_dependency_filter(args.gold, args.threshold)
