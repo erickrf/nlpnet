@@ -10,7 +10,7 @@ import nltk
 import numpy as np
 
 from nltk.tokenize.regexp import RegexpTokenizer
-import attributes
+from . import attributes
 
 
 # these variables appear at module level for faster access and to avoid

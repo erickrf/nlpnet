@@ -8,12 +8,12 @@ import logging
 import numpy as np
 from itertools import izip
 
-import utils
-import config
-import attributes
-from metadata import Metadata
-from pos.pos_reader import POSReader
-from srl.srl_reader import SRLReader
+from . import utils
+from . import config
+from . import attributes
+from .metadata import Metadata
+from .pos.pos_reader import POSReader
+from .srl.srl_reader import SRLReader
 from network import Network, ConvolutionalNetwork
 
 def load_network(md):

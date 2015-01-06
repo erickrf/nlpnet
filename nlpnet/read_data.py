@@ -9,7 +9,7 @@ and others for simpler formats.
 import re
 from itertools import izip
 
-from attributes import Token
+from .attributes import Token
 
 PRE_CONTRACTIONS = ['em', 'a', 'para', 'por', 'de', 'por', 'com', 'lhe']
 POS_CONTRACTIONS = ['o', 'a', 'os', 'as', 'um', 'uma', 'uns', 'umas', 

@@ -10,11 +10,11 @@ import logging
 import numpy as np
 from collections import Counter
 
-import attributes
-import metadata
-import config
-from word_dictionary import WordDictionary
-from attributes import get_capitalization
+from . import attributes
+from . import metadata
+from . import config
+from .word_dictionary import WordDictionary
+from .attributes import get_capitalization
 
 def load_tag_dict(filename):
     """

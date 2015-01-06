@@ -8,7 +8,7 @@ and save it to a file in the data directory.
 
 import cPickle
 
-import config
+from . import config
 
 class Metadata(object):
     """
