@@ -22,7 +22,7 @@ class EdgeFilter(object):
     attributes (usually, POS).  
     distance is represented as a sparse vector. 
     """
-    def __init__(self, feature_table, max_dist, filename=None):
+    def __init__(self, feature_table, max_dist, window_size=3, filename=None):
         """
         Constructor. Unlike other classifiers in nlpnet, EdgeFilter only 
         uses embeddings to represent words. Other attributes are 
@@ -33,10 +33,13 @@ class EdgeFilter(object):
         :param max_dist: the maximum distance treated as an independent feature
             (e.g., if 4, there will be a feature for each distance 0-4 and another 
             for 5+, both positive and negative)
+        :param window_size: the size of the window containing each head and modifier
+            candidate
         :param filename: file to save the model on
         """
         self.feature_table = feature_table
         self.max_dist = max_dist
+        self.window_size = 3
         self.filename = filename
         
         # when determining the representation of the distance between two tokens, we do:
@@ -253,10 +256,12 @@ class EdgeFilter(object):
     def _fit_encoder(self, sentences):
         """
         Fit the OneHotEncoder used with discrete attributes.
+        
+        :param sentences: matrix containing a token in each row.
         """
         # use a one-hot encoder for attributes after the word indices 
         # "sparse" argument in enconder constructor is available in sklearn 0.15
-        attributes_values = np.concatenate([sent[:,1:] for sent in sentences])
+        attributes_values = np.concatenate([sent[:, 1:] for sent in sentences])
         self.encoder = OneHotEncoder()
         self.encoder.fit(attributes_values)
         
