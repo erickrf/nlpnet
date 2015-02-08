@@ -401,7 +401,7 @@ cdef class ConvolutionalDependencyNetwork(ConvolutionalNetwork):
         # adjustments will be made on incoming and outgoing edges
         # pick the part of the weight matrix that contain them
         
-        # if len(outside) == 1, it means all vertices except for the loop are in a cycle
+        # if len(outside) == 1, it means all vertices except for the root are in a cycle
         if len(outside) > 1:
             # weird index array we need in order to properly use fancy indexing
             # -1 because we can't take the root now
@@ -409,7 +409,7 @@ cdef class ConvolutionalDependencyNetwork(ConvolutionalNetwork):
             outgoing_weights = self.dependency_weights[outside_inds, cycle]
             
             # the cycle should have only one outgoing edge for each vertex outside it
-            # so, search the maximum outgoing edge of each outside vertex
+            # so, search the maximum outgoing edge to each outside vertex
             max_outgoing_inds = outgoing_weights.argmax(1)
             max_outgoing_weights = outgoing_weights.max(1)
             
@@ -459,12 +459,11 @@ cdef class ConvolutionalDependencyNetwork(ConvolutionalNetwork):
     def _find_maximum_spanning_tree(self):
         """
         Run the Chu-Liu / Edmond's algorithm in order to find the highest
-        scoring dependency tree from the given dependency graph weight.
+        scoring dependency tree from the dependency graph weights.
         
-        :param weights: a 2-dim matrix containing at 
         :returns: a 1-dim array with the head of each token in the sentence
         """
-        # pick the highest dependency for each word
+        # pick the highest scoring dependency for each word
         heads = self.dependency_weights.argmax(1)
         
         # check if there are cycles. if there isn't any, we're done
