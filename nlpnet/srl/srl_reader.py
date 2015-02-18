@@ -49,25 +49,31 @@ class SRLReader(reader.TaggerReader):
         """
         
         if only_boundaries:
-            self.task = 'srl_boundary'
+            self.taskname = 'srl_boundary'
             self._generate_iobes_dictionary()
         elif only_classify:
-            self.task = 'srl_classify'
+            self.taskname = 'srl_classify'
         elif only_predicates:
-            self.task = 'srl_predicates'
+            self.taskname = 'srl_predicates'
             self._generate_predicate_id_dictionary()
         else:
-            self.task = 'srl'
-        
-        self._set_metadata(md)
+            self.taskname = 'srl'
         
         self.rare_tag = 'O'
-        
         if filename is not None:
             self._read_conll(filename)
             self._clean_text()
         
-        self.codified = False
+        super(SRLReader, self).__init__(md)
+        
+    
+    @property
+    def task(self):
+        """
+        Abstract Base Class (ABC) attribute.
+        """
+        return self.taskname
+    
     
     def _read_conll(self, filename):
         '''
@@ -206,6 +212,8 @@ class SRLReader(reader.TaggerReader):
             return
         
         self._create_tag_dict(iob)
+        logger = logging.getLogger('Logger')
+        logger.info('Created SRL tag dictionary')
     
     def _create_tag_dict(self, iob=False):
         """
@@ -362,7 +370,7 @@ class SRLReader(reader.TaggerReader):
     
     def generate_tag_dict(self):
         """
-        Generates a tag dictionary, to convert the tag itself
+        Generates a tag dictionary that converts the tag itself
         to an index to be used in the neural network.
         """
         self.tagset = set(tag
@@ -421,6 +429,9 @@ class SRLReader(reader.TaggerReader):
         Tags are also encoded. This function takes care of the case of classifying 
         pre-delimited arguments.
         """
+        if self.converter is None:
+            self.create_converter()
+        
         self._codify_sentences()
         self.arg_limits = []
         

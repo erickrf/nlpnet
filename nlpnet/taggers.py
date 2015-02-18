@@ -30,32 +30,6 @@ def load_network(md):
         net_class = Network
     nn = net_class.load_from_file(md.paths[md.network])
     
-    logger.info('Loading features...')
-    type_features = utils.load_features_from_file(md.paths[md.type_features])
-    tables = [type_features]
-    
-    if md.use_caps:
-        caps_features = utils.load_features_from_file(md.paths[md.caps_features])
-        tables.append(caps_features)
-    if md.use_prefix:
-        prefix_features = utils.load_features_from_file(md.paths[md.prefix_features])
-        for table in prefix_features:
-            # one table for each size
-            tables.append(table)
-    if md.use_suffix:
-        suffix_features = utils.load_features_from_file(md.paths[md.suffix_features])
-        for table in suffix_features:
-            # one table for each size
-            tables.append(table)
-    if md.use_pos:
-        pos_features = utils.load_features_from_file(md.paths[md.pos_features])
-        tables.append(pos_features)
-    if md.use_chunk:
-        chunk_features = utils.load_features_from_file(md.paths[md.chunk_features])
-        tables.append(chunk_features)
-        
-    nn.feature_tables = tables
-    
     logger.info('Done')
     return nn
 
@@ -80,10 +54,6 @@ def create_reader(md, gold_file=None):
             
     else:
         raise ValueError("Unknown task: %s" % md.task)
-    
-    tr.load_dictionary()
-    tr.load_tag_dict()
-    tr.create_converter()
     
     logger.info('Done')
     return tr
@@ -149,29 +119,30 @@ class SRLAnnotatedSentence(object):
         """
         self.tokens = tokens
         self.arg_structures = arg_structures
-        
-
-
+    
 class Tagger(object):
     """
     Base class for taggers. It should not be instantiated.
     """
     
-    def __init__(self, data = None):
+    def __init__(self, data_dir=None, language='en'):
         """Creates a tagger and loads data preemptively"""
         asrt_msg = "nlpnet data directory is not set. \
 If you don't have the trained models, download them from http://nilc.icmc.usp.br/nlpnet/models.html"
-        if data is None:
+        if data_dir is None:
             assert config.data_dir is not None, asrt_msg
             self.paths = config.FILES
         else:
-            self.paths = config.get_config_paths(data)
+            self.paths = config.get_config_paths(data_dir)
         
+        self.data_dir = data_dir
+        self.language = language
         self._load_data()
         
     def _load_data(self):
         """Implemented by subclasses"""
         pass
+
 
 class SRLTagger(Tagger):
     """
@@ -187,18 +158,21 @@ class SRLTagger(Tagger):
         md_boundary = Metadata.load_from_file('srl_boundary', self.paths)
         self.boundary_nn = load_network(md_boundary)
         self.boundary_reader = create_reader(md_boundary)
+        self.boundary_reader.create_converter()
         self.boundary_itd = self.boundary_reader.get_inverse_tag_dictionary()
         
         # same for arg classification
         md_classify = Metadata.load_from_file('srl_classify', self.paths)
         self.classify_nn = load_network(md_classify)
         self.classify_reader = create_reader(md_classify)
+        self.classify_reader.create_converter()
         self.classify_itd = self.classify_reader.get_inverse_tag_dictionary()
         
         # predicate detection
         md_pred = Metadata.load_from_file('srl_predicates', self.paths)
         self.pred_nn = load_network(md_pred)
         self.pred_reader = create_reader(md_pred)
+        self.pred_reader.create_converter()
     
     def find_predicates(self, tokens):
         """
@@ -220,7 +194,7 @@ class SRLTagger(Tagger):
         :param no_repeats: whether to prevent repeated argument labels
         :returns: a list of SRLAnnotatedSentence objects
         """
-        tokens = utils.tokenize(text, clean=False)
+        tokens = utils.tokenize(text, self.language)
         result = []
         for sent in tokens:
             tagged = self.tag_tokens(sent)
@@ -238,7 +212,11 @@ class SRLTagger(Tagger):
             (all_tokens, predicate, arg_structure), where arg_structure is a dictionary 
             mapping argument labels to the words it includes.
         """
-        tokens_obj = [attributes.Token(utils.clean_text(t, False)) for t in tokens]
+        if self.language == 'pt':
+            tokens_obj = [attributes.Token(utils.clean_text(t, False)) for t in tokens]
+        else:
+            tokens_obj = [attributes.Token(t) for t in tokens]
+            
         converted_bound = np.array([self.boundary_reader.converter.convert(t) 
                                     for t in tokens_obj])
         converted_class = np.array([self.classify_reader.converter.convert(t) 
@@ -273,6 +251,7 @@ class POSTagger(Tagger):
         md = Metadata.load_from_file('pos', self.paths)
         self.nn = load_network(md)
         self.reader = create_reader(md)
+        self.reader.create_converter()
         self.itd = self.reader.get_inverse_tag_dictionary()
     
     def tag(self, text):
@@ -283,7 +262,7 @@ class POSTagger(Tagger):
         :returns: a list of lists (sentences with tokens). 
             Each sentence has (token, tag) tuples.
         """
-        tokens = utils.tokenize(text, clean=False)
+        tokens = utils.tokenize(text, self.language)
         result = []
         for sent in tokens:
             tagged = self.tag_tokens(sent, return_tokens=True)
@@ -305,8 +284,9 @@ class POSTagger(Tagger):
         :returns: a list of strings (the tags)
         """
         converter = self.reader.converter
-        converted_tokens = np.array([converter.convert(utils.clean_text(token, False)) 
+        converted_tokens = np.array([converter.convert(token) 
                                      for token in tokens])
+            
         answer = self.nn.tag_sentence(converted_tokens)
         tags = [self.itd[tag] for tag in answer]
         

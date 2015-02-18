@@ -5,16 +5,14 @@ Utility functions
 """
 
 import re
+import os
 import logging
 import nltk
 import numpy as np
 
 from nltk.tokenize.regexp import RegexpTokenizer
+from nltk.tokenize import TreebankWordTokenizer
 import attributes
-
-
-# these variables appear at module level for faster access and to avoid
-# repeated initialization
 
 _tokenizer_regexp = ur'''(?ux)
     # the order of the patterns is important!!
@@ -50,19 +48,40 @@ _clitic_regexp_str = r'''(?ux)
 '''
 _clitic_regexp = re.compile(_clitic_regexp_str)
 
-def tokenize(text, clean=True):
+
+def tokenize(text, language):
+    """
+    Call the tokenizer function for the given language.
+    The returned tokens are in a list of lists, one for each sentence.
+    
+    :param language: two letter code (en, pt)
+    """
+    if not isinstance(text, unicode):
+        text = unicode(text, 'utf-8')
+    
+    if language == 'en':
+        return tokenize_en(text)
+    elif language == 'pt':
+        return tokenize_pt(text, False)
+
+def tokenize_en(text):
+    """
+    Return a list of lists of the tokens in text, separated by sentences.
+    """
+    sent_tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
+    tokenizer = TreebankWordTokenizer()
+    sentences = [tokenizer.tokenize(sentence) 
+                 for sentence in sent_tokenizer.tokenize(text)]
+    return sentences
+    
+def tokenize_pt(text, clean=True):
     """
     Returns a list of lists of the tokens in text, separated by sentences.
     Each line break in the text starts a new list.
     
     :param clean: If True, performs some cleaning action on the text, such as replacing
         all digits for 9 (by calling :func:`clean_text`)
-    """
-    ret = []
-    
-    if type(text) != unicode:
-        text = unicode(text, 'utf-8')
-    
+    """    
     if clean:
         text = clean_text(text, correct=True)
     
@@ -70,22 +89,10 @@ def tokenize(text, clean=True):
     
     # loads trained model for tokenizing Portuguese sentences (provided by NLTK)
     sent_tokenizer = nltk.data.load('tokenizers/punkt/portuguese.pickle')
+    sentences = [_tokenizer.tokenize(sent)
+                 for sent in sent_tokenizer.tokenize(text, realign_boundaries=True)]
     
-    # the sentence tokenizer doesn't consider line breaks as sentence delimiters, so
-    # we split them manually where there are two consecutive line breaks.
-    sentences = []
-    lines = text.split('\n\n')
-    for line in lines:
-        sentences.extend(sent_tokenizer.tokenize(line, realign_boundaries=True))
-    
-    for p in sentences:
-        if p.strip() == '':
-            continue
-        
-        new_sent = _tokenizer.tokenize(p)
-        ret.append(new_sent)
-        
-    return ret
+    return sentences
 
 def clean_text(text, correct=True):
     """
@@ -93,8 +100,7 @@ def clean_text(text, correct=True):
     replacing digits for 9 and simplifying quotation marks.
     
     :param correct: If True, tries to correct punctuation misspellings. 
-    """
-    
+    """    
     # replaces different kinds of quotation marks with "
     # take care not to remove apostrophes
     text = re.sub(ur"(?u)(^|\W)[‘’′`']", r'\1"', text)
@@ -248,7 +254,14 @@ def create_feature_tables(args, md, text_reader):
         types_table = generate_feature_vectors(table_size, args.num_features)
     else:
         logger.info("Loading word type features...")
-        types_table = load_features_from_file(md.paths[md.type_features])
+        # check if there is a word feature file specific for the task
+        # if not, load a generic one
+        filename = md.paths[md.type_features]
+        if os.path.exists(filename):
+            types_table = load_features_from_file(filename)
+        else:
+            filename = md.paths['type_features']
+            types_table = load_features_from_file(filename)
         
         if len(types_table) < len(text_reader.word_dict):
             # the type dictionary provided has more types than
@@ -285,7 +298,7 @@ def create_feature_tables(args, md, text_reader):
     # POS tags
     if md.use_pos:
         logger.info("Generating POS features...")
-        num_pos_tags = count_lines(md.paths['pos_tags'])
+        num_pos_tags = text_reader.get_num_pos_tags()
         pos_table = generate_feature_vectors(num_pos_tags, args.pos)
         feature_tables.append(pos_table)
     

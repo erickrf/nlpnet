@@ -16,7 +16,7 @@ class Metadata(object):
     parameter files.
     """
     
-    def __init__(self, task, paths = None, use_caps=True, use_suffix=False, use_prefix=False,
+    def __init__(self, task, paths=None, use_caps=True, use_suffix=False, use_prefix=False,
                  use_pos=False, use_chunk=False, use_lemma=False):
         self.task = task
         self.paths = paths if paths else config.FILES
@@ -29,6 +29,10 @@ class Metadata(object):
         self.metadata = 'metadata_%s' % task
         self.network = 'network_%s' % task
         self.tag_dict = '%s_tag_dict' % task
+        
+        # dependency edge filter doesn't use an actual neural network, so 
+        # we call it "model" to be more consistent
+        self.model = self.network
         
         if task == 'srl_boundary':
             self.pred_dist_table = 'pred_dist_table_boundary'
@@ -85,12 +89,14 @@ class Metadata(object):
         to the task.
         """
         save_data = self.__dict__.copy()
+        filename = self.paths['metadata_%s' % self.task]
         del(save_data['paths'])
-        with open(self.paths['metadata_%s' % self.task], 'wb') as f:
+        
+        with open(filename, 'wb') as f:
             cPickle.dump(save_data, f, 2)
     
     @classmethod
-    def load_from_file(cls, task, paths = None):
+    def load_from_file(cls, task, paths=None):
         """
         Reads the file containing the metadata for the given task and returns a 
         Metadata object.

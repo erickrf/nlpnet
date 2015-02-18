@@ -33,49 +33,59 @@ def get_args():
     
     defaults = {}
     
-    # parser with arguments shared among all tasks
-    # each task-specific parser may define defaults
+    # base parser with arguments not related to any model
     base_parser = argparse.ArgumentParser(add_help=False)
-    
-    base_parser.add_argument('-w', '--window', type=int,
-                             help='Size of the word window',
-                             dest='window')
     base_parser.add_argument('-f', '--num_features', type=int,
                              help='Number of features per word '\
                              '(used to generate random vectors)',
                              default=50, dest='num_features')
+    base_parser.add_argument('--load_network', action='store_true',
+                             help='Load previously saved network')
     base_parser.add_argument('--load_features', action='store_true',
                              help="Load previously saved word type features "\
                              "(overrides -f and must also load a vocabulary file)", 
                              dest='load_types')
-    base_parser.add_argument('--load_network', action='store_true',
-                             help='Load previously saved network')
-    base_parser.add_argument('-e', '--epochs', type=int, dest='iterations',
-                             help='Number of training epochs')
-    base_parser.add_argument('-l', '--learning_rate', type=float, 
-                             help='Learning rate for network connections',
-                             dest='learning_rate')
-    base_parser.add_argument('--lf', type=float, 
-                             help='Learning rate for features',
-                             dest='learning_rate_features')
-    base_parser.add_argument('--lt', type=float, 
-                             help='Learning rate for tag transitions',
-                             dest='learning_rate_transitions')
-    base_parser.add_argument('-a', '--accuracy', type=float,
-                             help='Maximum desired accuracy per token.',
-                             default=0, dest='accuracy')
-    base_parser.add_argument('-n', '--hidden', type=int,
-                             help='Number of hidden neurons',
-                             dest='hidden')
     base_parser.add_argument('-v', '--verbose', help='Verbose mode',
                              action="store_true")
-    base_parser.add_argument('--caps', const=5, nargs='?', type=int, default=None,
-                             help='Include capitalization features. '\
-                             'Optionally, supply the number of features (default 5)')
     base_parser.add_argument('--gold', help='File with annotated data for training.', 
                              type=str, required=True)
     base_parser.add_argument('--data', help='Directory to save new models and load '\
-                             'partially trained ones', type=str, required=True)
+                             'partially trained ones (default: current directory)', type=str, 
+                             default='.')
+    base_parser.add_argument('--dev', help='Development (validation) data. If not given, '\
+                             'training data will be used to evaluate performance.',
+                             default=None)
+    
+    # parser with network arguments shared among most tasks
+    # each task-specific parser may define defaults
+    network_parser = argparse.ArgumentParser(add_help=False, parents=[base_parser])
+    
+    network_parser.add_argument('-w', '--window', type=int,
+                                help='Size of the word window',
+                                dest='window')    
+    network_parser.add_argument('-e', '--epochs', type=int, dest='iterations',
+                                help='Number of training epochs')
+    network_parser.add_argument('-l', '--learning_rate', type=float,
+                                help='Learning rate for network connections',
+                                dest='learning_rate')
+    network_parser.add_argument('--lf', type=float,
+                                help='Learning rate for features',
+                                dest='learning_rate_features')
+    network_parser.add_argument('--lt', type=float,
+                                help='Learning rate for tag transitions',
+                                dest='learning_rate_transitions')
+    network_parser.add_argument('--decay', type=float, const=1, nargs='?', default=None,
+                                help='Use learning rate decay. Optionally, '\
+                                'supply decay factor (default 1)')
+    network_parser.add_argument('-a', '--accuracy', type=float,
+                                help='Maximum desired accuracy per token.',
+                                default=0, dest='accuracy')
+    network_parser.add_argument('-n', '--hidden', type=int,
+                                help='Number of hidden neurons',
+                                dest='hidden')
+    network_parser.add_argument('--caps', const=5, nargs='?', type=int, default=None,
+                                help='Include capitalization features. '\
+                                'Optionally, supply the number of features (default 5)')
     
         
     # parser with arguments shared among convolutional-based tasks
@@ -96,7 +106,7 @@ def get_args():
     
     # POS argument parser
     parser_pos = subparsers.add_parser('pos', help='POS tagging', 
-                                       parents=[base_parser])
+                                       parents=[network_parser])
     parser_pos.add_argument('--suffix', const=2, nargs='?', type=int, default=None,
                             help='Include suffix features. Optionally, '\
                             'supply the number of features (default 2)')
@@ -112,6 +122,7 @@ def get_args():
     defaults['pos'] = dict(window=5, hidden=100, iterations=15, 
                            learning_rate=0.001, learning_rate_features=0.001,
                            learning_rate_transitions=0.001)
+    
     
     # SRL argument parser
     # There is another level of subparsers for predicate detection / 
@@ -134,26 +145,26 @@ Type %(prog)s [SUBTASK] -h to get subtask-specific help.'''
                                                dest='subtask',
                                                description=desc)
     srl_subparsers.add_parser('pred', help='Predicate identification',
-                              parents=[base_parser])
+                              parents=[network_parser])
     defaults['srl_predicates'] = dict(window=5, hidden=50, iterations=1, 
                                       learning_rate=0.01, learning_rate_features=0.01,
                                       learning_rate_transitions=0.01,
                                       predicates=True)
     
     srl_subparsers.add_parser('id', help='Argument identification',
-                              parents=[base_parser, conv_parser])
+                              parents=[network_parser, conv_parser])
     defaults['srl_boundary'] = dict(window=3, hidden=150, convolution=150, 
                                     identify=True, iterations=15,
                                     learning_rate=0.001, learning_rate_features=0.001,
                                     learning_rate_transitions=0.001)
     
     srl_subparsers.add_parser('class', help='Argument classification',
-                              parents=[base_parser, conv_parser])
+                              parents=[network_parser, conv_parser])
     defaults['srl_classify'] = dict(window=3, hidden=0, convolution=100, 
                                     classify=True, iterations=3,
                                     learning_rate=0.01, learning_rate_features=0.01,
                                     learning_rate_transitions=0.01)
-    srl_subparsers.add_parser('1step', parents=[base_parser, conv_parser],
+    srl_subparsers.add_parser('1step', parents=[network_parser, conv_parser],
                               help='Argument identification and '\
                               'classification together')
     defaults['srl'] = dict(window=3, hidden=150, convolution=200, iterations=15,

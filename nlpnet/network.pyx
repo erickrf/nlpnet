@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 #cython: embedsignature=True
+#cython: profile=True
 
 """
 A neural network for NLP tagging tasks.
@@ -46,28 +47,28 @@ cdef logsumexp(np.ndarray a, axis=None):
     a_max = a.max(axis=0)
     return np.log(np.sum(np.exp(a - a_max), axis=0)) + a_max
 
-cdef hardtanh(np.ndarray[FLOAT_t, ndim=1] weights):
-    """Hard hyperbolic tangent."""
-    cdef np.ndarray out = np.empty_like(weights)
-    cdef int i
-    cdef float w
-    for i, w in enumerate(weights):
-        if w < -1:
-            out[i] = -1
-        elif w > 1:
-            out[i] = 1
-        else:
-            out[i] = w
+cdef hardtanh(np.ndarray weights, inplace=False):
+    """
+    Hard hyperbolic tangent.
+    If inplace is True, modifies the input weights, which will be faster.
+    """
+    if inplace:
+        out = weights
+    else:
+        out = np.copy(weights)
+    inds_greater = weights > 1
+    inds_lesser = weights < -1
+    out[inds_greater] = 1
+    out[inds_lesser] = -1
+    
     return out
 
 cdef hardtanhd(np.ndarray[FLOAT_t, ndim=2] weights):
     """derivative of hardtanh"""
     cdef np.ndarray out = np.zeros_like(weights)
-    cdef int i
-    cdef float w
-    for i, w in enumerate(weights.flat):
-        if -1.0 <= w <= 1.0:
-            out.flat[i] = 1.0
+    inds = np.logical_and(-1.0 <= weights, weights <= 1.0)
+    out[inds] = 1.0
+    
     return out
 
 # ----------------------------------------------------------------------
@@ -77,6 +78,12 @@ cdef class Network:
     # sizes and learning rates
     cdef readonly int word_window_size, input_size, hidden_size, output_size
     cdef public float learning_rate, learning_rate_features
+    cdef public float decay_factor
+    cdef public bool use_learning_rate_decay
+    cdef readonly int features_per_token
+    
+    # lookup for fast access to all the token embeddings in a sentence
+    cdef np.ndarray sentence_lookup
     
     # padding stuff
     cdef np.ndarray padding_left, padding_right
@@ -102,11 +109,15 @@ cdef class Network:
     cdef readonly np.ndarray input_sent_values, hidden_sent_values, layer2_sent_values
     
     # data for statistics during training. 
-    cdef float error, accuracy, float_errors
-    cdef int train_items, skips
+    cdef float error, accuracy, float_errors, sentence_accuracy
+    cdef int num_tokens, skips
+        
+    # file where the network is saved
+    cdef public str network_filename
     
-    # function to save periodically
-    cdef public object saver
+    # validation
+    cdef list validation_sentences
+    cdef list validation_tags
 
     @classmethod
     def create_new(cls, feature_tables, int word_window, int hidden_size, 
@@ -166,6 +177,7 @@ cdef class Network:
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.output_size = output_size
+        self.features_per_token = input_size / word_window
         
         # A_i_j score for jumping from tag i to j
         # A_0_i = transitions[-1]
@@ -175,10 +187,12 @@ cdef class Network:
         self.hidden_bias = hidden_bias
         self.output_weights = output_weights
         self.output_bias = output_bias
+        
+        self.validation_sentences = None
+        self.validation_tags = None
+        
+        self.use_learning_rate_decay = False
 
-        # Attardi: saver fuction
-        self.saver = lambda nn: None
-    
     def description(self):
         """
         Returns a textual description of the network.
@@ -196,31 +210,30 @@ Output size: %d
         
         return desc
     
-    
-    def run(self, np.ndarray indices):
+    def _create_sentence_lookup(self, np.ndarray sentence):
         """
-        Runs the network for a given input. 
+        Create a lookup matrix with the embeddings values for all tokens in a sentence.
+        """        
+        cdef np.ndarray padded_sentence = np.concatenate((self.pre_padding,
+                                                          sentence,
+                                                          self.pos_padding))
         
-        :param indices: a 2-dim np array of indices into the feature tables.
-            Each row represents a token through its indices into each feature table.
-        """
-        # find the actual input values concatenating the feature vectors
-        # for each input token
-        cdef np.ndarray input_data
-        input_data = np.concatenate([table[index] 
-                                     for token_indices in indices
-                                     for index, table in izip(token_indices, 
-                                                              self.feature_tables)
-                                     ])
-
-        # store the output in self for use in backpropagation
-        self.input_values = input_data
-        # (hidden_size, input_size) . input_size = hidden_size
-        self.layer2_values = self.hidden_weights.dot(input_data) + self.hidden_bias
-        self.hidden_values = hardtanh(self.layer2_values)
-
-        return self.output_weights.dot(self.hidden_values) + self.output_bias
-
+        # make sure it works on 32 bit python installations
+        padded_sentence = padded_sentence.astype(np.int32)
+        
+        self.sentence_lookup = np.empty((len(padded_sentence), self.features_per_token))
+        ind_from = 0
+        
+        for i, table in enumerate(self.feature_tables):
+            num_dims = table.shape[1]
+            ind_to = ind_from + num_dims
+            
+            token_indices = padded_sentence[:, i]
+            embeddings = table.take(token_indices, axis=0)
+            self.sentence_lookup[:, ind_from:ind_to] = embeddings
+            
+            ind_from = ind_to
+    
     property padding_left:
         """
         The padding element filling the "void" before the beginning
@@ -252,48 +265,51 @@ Output size: %d
         
         :param sentence: a 2-dim numpy array, where each item encodes a token.
         """
-        scores = self._tag_sentence(sentence, train=False)
+        scores = self._tag_sentence(sentence)
         # computes full score, combining ftheta and A (if SLL)
         return self._viterbi(scores)
 
-    def _tag_sentence(self, np.ndarray sentence, bool train=False, tags=None):
+    def _tag_sentence(self, np.ndarray sentence, tags=None):
         """
         Runs the network for each element in the sentence and returns 
         the sequence of tags.
         
         :param sentence: a 2-dim numpy array, where each item encodes a token.
-        :param train: if True, perform weight and feature correction.
         :param tags: the correct tags (needed when training)
         :return: a (len(sentence), output_size) array with the scores for all tokens
         """
         cdef np.ndarray answer
+        cdef np.ndarray input_data
         # scores[t, i] = ftheta_i,t = score for i-th tag, t-th word
         cdef np.ndarray scores = np.empty((len(sentence), self.output_size))
         
-        if train:
+        training = tags is not None
+        if training:
             self.input_sent_values = np.empty((len(sentence), self.input_size))
             # layer2_values at each token in the correct path
             self.layer2_sent_values = np.empty((len(sentence), self.hidden_size))
             # hidden_values at each token in the correct path
             self.hidden_sent_values = np.empty((len(sentence), self.hidden_size))
         
-        # add padding to the sentence
-        cdef np.ndarray padded_sentence = np.concatenate((self.pre_padding,
-                                                          sentence,
-                                                          self.pos_padding))
+        self._create_sentence_lookup(sentence)
 
         # run through all windows in the sentence
         for i in xrange(len(sentence)):
-            window = padded_sentence[i: i+self.word_window_size]
-            scores[i] = self.run(window)
-            if train:
-                self.input_sent_values[i] = self.input_values
+            input_data = self.sentence_lookup[i:i + self.word_window_size].flatten()
+            
+            # (hidden_size, input_size) . input_size = hidden_size
+            self.layer2_values = self.hidden_weights.dot(input_data) + self.hidden_bias
+            self.hidden_values = hardtanh(self.layer2_values, inplace=not training)
+            output = self.output_weights.dot(self.hidden_values) + self.output_bias
+            scores[i] = output
+            
+            if training:
+                self.input_sent_values[i] = input_data
                 self.layer2_sent_values[i] = self.layer2_values
                 self.hidden_sent_values[i] = self.hidden_values
         
-        if train:
+        if training:
             if self._calculate_gradients_sll(tags, scores):
-#            if self._calculate_gradients_wll(tags, scores):
                 self._backpropagate(sentence)
 
         return scores
@@ -309,10 +325,9 @@ Output size: %d
         # it turns out that logadd = log(exp(score)) = score
         # (use long double because taking exp's leads to very very big numbers)
         # scores[t][k] = ftheta_k,t
-        # No longer needed, since we use logsumexp
-        #delta = np.longdouble(scores)
         delta = scores
-        # transitions[len(sentence)] represents initial transition, A_0,i in paper (mispelled as A_i,0)
+        
+        # transitions[-1] represents initial transition, A_0,i in paper (mispelled as A_i,0)
         # delta_0(k) = ftheta_k,0 + A_0,i
         delta[0] += self.transitions[-1]
         
@@ -320,12 +335,12 @@ Output size: %d
         # delta_t(k) = ftheta_k,t + logadd_i(delta_t-1(i) + A_i,k)
         #            = ftheta_k,t + log(Sum_i(exp(delta_t-1(i) + A_i,k)))
         transitions = self.transitions[:-1].T # A_k,i
+        
         for token in xrange(1, len(delta)):
             # sum by rows
-            #logadd = np.log(np.sum(np.exp(delta[token - 1] + transitions), 1))
             logadd = logsumexp(delta[token - 1] + transitions, 1)
             delta[token] += logadd
-            
+        
         return delta
 
     @cython.boundscheck(False)
@@ -521,6 +536,46 @@ Output size: %d
         answer[0] = previous_tag
         return answer
     
+    def set_validation_data(self, list validation_sentences=None,
+                            list validation_tags=None):
+        """
+        Sets the data to be used during validation. If this function is not
+        called before training, the training data is used to measure performance.
+        
+        :param validation_sentences: sentences to be used in validation.
+        :param validation_tags: tags for the validation sentences.
+        """
+        self.validation_sentences = validation_sentences
+        self.validation_tags = validation_tags 
+    
+    def set_learning_rate_decay(self, float decay_factor=1.0):
+        """
+        Sets the network to use learning rate decay. 
+        
+        The learning rate at each iteration t is determined as:
+        initial_rate / (1 + t * decay_factor)
+        
+        with t starting from 0
+        """
+        self.use_learning_rate_decay = True
+        self.decay_factor = decay_factor
+    
+    def decrease_learning_rates(self, epoch):
+        """
+        Apply the learning rate decay, if the network was configured to use it.
+        """
+        if not self.use_learning_rate_decay or epoch == 0:
+            return
+        
+        # multiplying the last rate by this adjustment is equivalent to
+        # initial_rate / (1 + t * decay_factor)
+        # and we don't need to store the initial rates
+        factor = (1.0 + (epoch - 1) * self.decay_factor) / (1 + epoch * self.decay_factor)
+        self.learning_rate *= factor
+        self.learning_rate_features *= factor
+        if self.transitions is not None:
+            self.learning_rate_trans *= factor
+    
     def train(self, list sentences, list tags, 
               int epochs, int epochs_between_reports=0,
               float desired_accuracy=0):
@@ -542,36 +597,45 @@ Output size: %d
         logger.info("Training for up to %d epochs" % epochs)
         top_accuracy = 0
         last_accuracy = 0
-        min_error = np.Infinity 
-        last_error = np.Infinity 
+        last_error = np.Infinity
+        self.num_tokens = sum(len(sent) for sent in sentences)
         
-        np.seterr(all='raise')
-
+        if self.validation_sentences is None:
+            self.validation_sentences = sentences
+            self.validation_tags = tags
+        
         for i in xrange(epochs):
+            self.decrease_learning_rates(i)      
             self._train_epoch(sentences, tags)
+            self._validate()
             
             # normalize error
-            self.error = self.error / self.train_items if self.train_items else np.Infinity
+            self.error = self.error / self.num_tokens if self.num_tokens else np.Infinity
+            
             # Attardi: save model
-            if self.error < min_error:
-                min_error = self.error
-                self.saver(self)
-
             if self.accuracy > top_accuracy:
                 top_accuracy = self.accuracy
-            
+                self.save()
+                logger.debug("Saved model")
+            elif self.use_learning_rate_decay:
+                # this iteration didn't bring improvements; load the last saved model
+                # before continuing training with a lower rate
+                self._load_parameters()
+                        
             if (epochs_between_reports > 0 and i % epochs_between_reports == 0) \
                 or self.accuracy >= desired_accuracy > 0 \
                 or (self.accuracy < last_accuracy and self.error > last_error):
                 
                 self._print_epoch_report(i + 1)
                 
-                if self.accuracy >= desired_accuracy > 0 \
+                if self.accuracy >= desired_accuracy > 0\
                         or (self.error > last_error and self.accuracy < last_accuracy):
                     break
                 
             last_accuracy = self.accuracy
             last_error = self.error
+        
+        self.num_tokens = 0
             
     def _print_epoch_report(self, int num):
         """
@@ -581,11 +645,11 @@ Output size: %d
         logger = logging.getLogger("Logger")
         logger.info("%d epochs   Error: %f   Accuracy: %f   " \
             "%d corrections skipped   " \
-            "%d floating point errors" % (num,
-                                          self.error,
-                                          self.accuracy,
-                                          self.skips,
-                                          self.float_errors))
+            "learning rate: %f" % (num,
+                                   self.error,
+                                   self.accuracy,
+                                   self.skips,
+                                   self.learning_rate))
     
     def _train_epoch(self, list sentences, list tags):
         """
@@ -594,7 +658,6 @@ Output size: %d
         self.error = 0
         self.skips = 0
         self.float_errors = 0
-        self.train_items = 0
         
         # shuffle data
         # get the random number generator state in order to shuffle
@@ -604,37 +667,24 @@ Output size: %d
         np.random.set_state(random_state)
         np.random.shuffle(tags)
         
-        # keep last 2% for validation
-        validation = int(len(sentences) * 0.98)
-
-        i = 0
         for sent, sent_tags in izip(sentences, tags):
             try:
-                self._tag_sentence(sent, True, sent_tags)
-                self.train_items += len(sent)
+                self._tag_sentence(sent, sent_tags)
             except FloatingPointError:
                 # just ignore the sentence in case of an overflow
                 self.float_errors += 1
-            i += 1
-            if i == validation:
-                break
 
-        self._validate(sentences, tags, validation)
-
-    def _validate(self, sentences, tags, idx):
-        """Perform validation on held out data and estimate accuracy"""
-        tokens = 0
+    def _validate(self):
+        """Perform validation on validation data and estimate accuracy"""
         hits = 0
-        for i in xrange(idx, len(sentences)):
-            sent = sentences[i]
-            gold_tags = tags[i]
-            scores = self._tag_sentence(sent, False)
-            answer = self._viterbi(scores)
-            for pred_tag, gold_tag in izip(answer, gold_tags):
-                if pred_tag == gold_tag:
-                    hits += 1
-                tokens += 1
-        self.accuracy = float(hits) / tokens
+        
+        for sent, gold_tags in zip(self.validation_sentences, self.validation_tags):
+            answer = self.tag_sentence(sent)
+            hits += np.count_nonzero(answer == gold_tags)
+        
+        # self.num_tokens stores number of tokens in training sentences
+        num_tokens = sum(len(sent) for sent in self.validation_sentences)
+        self.accuracy = float(hits) / num_tokens
 
     def _backpropagate(self, sentence):
         """
@@ -655,13 +705,13 @@ Output size: %d
         # layer 4: output layer
         # dC / dW_4 = dC / df_4 f_3.T				(22)
         # (len, output_size).T (len, hidden_size) = (output_size, hidden_size)
-        cdef np.ndarray[FLOAT_t, ndim=2] output_gradients
-        output_gradients = self.net_gradients.T.dot(self.hidden_sent_values)
+        cdef np.ndarray[FLOAT_t, ndim=2] output_deltas
+        output_deltas = self.net_gradients.T.dot(self.hidden_sent_values)
 
         # dC / db_4 = dC / df_4					(22)
         # (output_size) += ((len(sentence), output_size))
         # sum by column, i.e. all changes through the sentence
-        output_bias_gradients = self.net_gradients.sum(0)
+        output_bias_deltas = self.net_gradients.sum(0)
 
         # dC / df_3 = M_2.T dC / df_4				(23)
         #  (len, output_size) (output_size, hidden_size) = (len, hidden_size)
@@ -679,13 +729,13 @@ Output size: %d
 
         # layer 2: linear layer
         # dC / dW_2 = dC / df_2 f_1.T				(22)
-        cdef np.ndarray[FLOAT_t, ndim=2] hidden_gradients
+        cdef np.ndarray[FLOAT_t, ndim=2] hidden_deltas
         # (len, hidden_size).T (len, input_size) = (hidden_size, input_size)
-        hidden_gradients = dCdf_2.T.dot(self.input_sent_values)
+        hidden_deltas = dCdf_2.T.dot(self.input_sent_values)
 
         # dC / db_2 = dC / df_2					(22)
         # sum by column contribution by each token
-        hidden_bias_gradients = dCdf_2.sum(0)
+        hidden_bias_deltas = dCdf_2.sum(0)
 
         # dC / df_1 = M_1.T dC / df_2
         cdef np.ndarray[FLOAT_t, ndim=2] input_gradients
@@ -693,12 +743,12 @@ Output size: %d
         input_gradients = dCdf_2.dot(self.hidden_weights)
 
         """
-        Adjust the weights
+        Adjust the weights. 
         """
-        self.output_weights += output_gradients * self.learning_rate
-        self.output_bias += output_bias_gradients * self.learning_rate
-        self.hidden_weights += hidden_gradients * self.learning_rate
-        self.hidden_bias += hidden_bias_gradients * self.learning_rate
+        self.output_weights += output_deltas * self.learning_rate
+        self.output_bias += output_bias_deltas * self.learning_rate
+        self.hidden_weights += hidden_deltas * self.learning_rate
+        self.hidden_bias += hidden_bias_deltas * self.learning_rate
 
         """
         Adjust the features indexed by the input window.
@@ -735,26 +785,44 @@ Output size: %d
         if self.transitions is not None:
             self.transitions += self.trans_gradients * self.learning_rate_trans
 
-    def save(self, filename):
+    def _load_parameters(self):
+        """
+        Loads weights, feature tables and transition tables previously saved.
+        """
+        data = np.load(self.network_filename)
+        self.hidden_weights = data['hidden_weights']
+        self.hidden_bias = data['hidden_bias']
+        self.output_weights = data['output_weights']
+        self.output_bias = data['output_bias']
+        self.feature_tables = list(data['feature_tables'])
+        
+        # check if transitions isn't None (numpy saves everything as an array)
+        if data['transitions'].shape != ():
+            self.transitions = data['transitions']
+        else:
+            self.transitions = None
+    
+    def save(self):
         """
         Saves the neural network to a file.
-        It will save the weights, biases, sizes, padding and 
-        distance tables, but not other feature tables.
+        It will save the weights, biases, sizes, padding, 
+        and feature tables.
         """
-        np.savez(filename, hidden_weights=self.hidden_weights,
+        np.savez(self.network_filename, hidden_weights=self.hidden_weights,
                  output_weights=self.output_weights,
                  hidden_bias=self.hidden_bias, output_bias=self.output_bias,
                  word_window_size=self.word_window_size, 
                  input_size=self.input_size, hidden_size=self.hidden_size,
                  output_size=self.output_size, padding_left=self.padding_left,
-                 padding_right=self.padding_right, transitions=self.transitions)
+                 padding_right=self.padding_right, transitions=self.transitions,
+                 feature_tables=self.feature_tables)
     
     @classmethod
     def load_from_file(cls, filename):
         """
         Loads the neural network from a file.
-        It will load weights, biases, sizes, padding and 
-        distance tables, but not other feature tables.
+        It will load weights, biases, sizes, padding, 
+        and feature tables.
         """
         data = np.load(filename)
         
@@ -782,6 +850,8 @@ Output size: %d
         nn.padding_right = data['padding_right']
         nn.pre_padding = np.array((nn.word_window_size / 2) * [nn.padding_left])
         nn.pos_padding = np.array((nn.word_window_size / 2) * [nn.padding_right])
+        nn.feature_tables = list(data['feature_tables'])
+        nn.network_filename = filename
         
         return nn
         

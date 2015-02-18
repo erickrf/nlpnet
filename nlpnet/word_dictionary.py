@@ -10,9 +10,11 @@ class WordDictionary(dict):
     maps rare words to a special index.
     """
     
-    padding_left = '*LEFT*'
-    padding_right = '*RIGHT*'
-    rare = '*RARE*'
+    padding_left = u'*LEFT*'
+    padding_right = u'*RIGHT*'
+    rare = u'*RARE*'
+    
+    number_transformation = {ord(c): u'9' for c in u'012345678'}
     
     def __init__(self, tokens, size=None, minimum_occurrences=None, wordlist=None):
         """
@@ -38,14 +40,15 @@ class WordDictionary(dict):
                 minimum_occurrences = 1
             
             words = [key for key, number in c.most_common() 
-                     if number >= minimum_occurrences]
+                     if number >= minimum_occurrences and key]
             
             if size is not None and size < len(words):
                 words = words[:size]
         else:
             # using ordered dict as an ordered set
             # (we need to keep the order and eliminate duplicates)
-            words = [word.lower() for word in wordlist]
+            words = [word.lower().translate(WordDictionary.number_transformation)
+                     for word in wordlist]
             values = [None] * len(words)
             words = OD(zip(words, values)).keys()
         
@@ -95,6 +98,20 @@ class WordDictionary(dict):
         with open(filename, 'wb') as f:
             f.write(text.encode('utf-8'))
     
+    @classmethod
+    def load(cls, filename):
+        """
+        Loads a WordDictionary object from a vocabulary file.
+        """
+        words = []
+        with open(filename, 'rb') as f:
+            for word in f:
+                word = unicode(word, 'utf-8').strip()
+                if word:
+                    words.append(word)
+        
+        return cls.init_from_wordlist(words)
+    
     def _get_frequency_count(self, token_list):
         """
         Returns a token counter for tokens in token_list.
@@ -103,9 +120,11 @@ class WordDictionary(dict):
             of lists of tokens.
         """
         if type(token_list[0]) == list:
-            c = Counter(t.lower() for sent in token_list for t in sent)
+            c = Counter(t.lower().translate(WordDictionary.number_transformation) 
+                        for sent in token_list for t in sent)
         else:
-            c = Counter(t.lower() for t in token_list)
+            c = Counter(t.lower().translate(WordDictionary.number_transformation)
+                        for t in token_list)
         return c
     
     
@@ -150,24 +169,29 @@ class WordDictionary(dict):
         """
         Overrides the "in" operator. Case insensitive.
         """
-        return super(WordDictionary, self).__contains__(key.lower())
+        transformed = key.lower().translate(WordDictionary.number_transformation)
+        return super(WordDictionary, self).__contains__(transformed)
     
     def __setitem__(self, key, value):
         """
         Overrides the [] write operator. It converts every key to lower case
         before assignment.
         """
-        super(WordDictionary, self).__setitem__(key.lower(), value)
+        transformed = key.lower().translate(WordDictionary.number_transformation)
+        super(WordDictionary, self).__setitem__(transformed, value)
     
     def __getitem__(self, key):
         """
         Overrides the [] read operator. 
         
-        Two differences from the original:
+        Three differences from the original:
         1) when given a word without an entry, it returns the value for the *RARE* key.
         2) all entries are converted to lower case before verification.
+        3) digits are mapped to 9
         """
-        return super(WordDictionary, self).get(key.lower(), self.index_rare)
+        # faster than regexp
+        transformed = key.lower().translate(WordDictionary.number_transformation)
+        return super(WordDictionary, self).get(transformed, self.index_rare)
     
     def get(self, key):
         """
@@ -175,7 +199,9 @@ class WordDictionary(dict):
         the value for the *RARE* key. Note that it is not possible to supply a default value as 
         in the dict class.
         """
-        return super(WordDictionary, self).get(key.lower(), self.index_rare)
+        # faster than regexp
+        transformed = key.lower().translate(WordDictionary.number_transformation)
+        return super(WordDictionary, self).get(transformed, self.index_rare)
         
     def check(self):
         """

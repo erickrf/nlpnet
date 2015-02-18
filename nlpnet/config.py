@@ -16,8 +16,9 @@ def get_config_paths(directory):
     return { key: os.path.join(directory, value) for key, value in [ 
         # cross-task data
         ('.', '.'), #for data_dir access
+        
+        # vocabulary file used as a fallback if a reader doesn't have a specific one
         ('vocabulary'                  , 'vocabulary.txt'),
-        ('word_dict_dat'               , 'vocabulary.txt'), # deprecated
         ('type_features'               , 'types-features.npy'),
         ('termvectors'                 , 'termvectors.txt'),
 
@@ -25,14 +26,17 @@ def get_config_paths(directory):
         ('network_pos'                 , 'pos-network.npz'),
         ('pos_tags'                    , 'pos-tags.txt'),
         ('pos_tag_dict'                , 'pos-tags.txt'),
+        ('suffix'                      , 'suffixes.txt'),
         ('suffixes'                    , 'suffixes.txt'),
+        ('prefix'                      , 'prefixes.txt'),
         ('prefixes'                    , 'prefixes.txt'),
         ('metadata_pos'                , 'metadata-pos.pickle'),
         ('type_features_pos'           , 'types-features-pos.npy'),
         ('caps_features_pos'           , 'caps-features-pos.npy'),
         ('suffix_features_pos'         , 'suffix-features-pos.npy'),
         ('prefix_features_pos'         , 'prefix-features-pos.npy'),
-
+        ('vocabulary_pos'              , 'vocabulary-pos.txt'),
+                
         # chunk
         ('chunk_tag_dict'              , 'chunk-tag-dict.pickle'),
         ('chunk_tags'                  , 'chunk-tags.txt'),
@@ -68,14 +72,17 @@ def get_config_paths(directory):
         ('metadata_srl_boundary'       , 'metadata-srl-boundary.pickle'),
         ('metadata_srl_classify'       , 'metadata-srl-classify.pickle'),
         ('metadata_srl_predicates'     , 'metadata-srl-predicates.pickle'),
+        ('vocabulary_srl', 'vocabulary-srl.txt'),
+        ('vocabulary_srl_boundary', 'vocabulary-srl-boundary.txt'),
+        ('vocabulary_srl_classify', 'vocabulary-srl-classify.txt'),
+        ('vocabulary_srl_predicates', 'vocabulary-srl-predicates.txt'),
         ]
     }
+
 
 def set_data_dir(directory):
     """Sets the global data directory containing the data for the models."""
     global data_dir, FILES
     data_dir = directory
     FILES = get_config_paths(directory)
-
-
 

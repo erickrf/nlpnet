@@ -11,12 +11,12 @@ import logging
 import numpy as np
 
 import nlpnet.config as config
-import nlpnet.read_data as read_data
 import nlpnet.utils as utils
 import nlpnet.taggers as taggers
 import nlpnet.metadata as metadata
 import nlpnet.srl as srl
 import nlpnet.pos as pos
+import nlpnet.parse as parse
 import nlpnet.arguments as arguments
 import nlpnet.reader as reader
 import nlpnet.attributes as attributes
@@ -27,22 +27,34 @@ from nlpnet.network import Network, ConvolutionalNetwork
 ### FUNCTION DEFINITIONS ###
 ############################
 
-def create_reader(args, md):
+def create_reader(args, md, validation=False):
     """
     Creates and returns a TextReader object according to the task at hand.
+    
+    :param args: the object containing the program arguments 
+    :param md: metadata for the task
+    :param validation: whether the reader should read the validation data
+        from `args`
     """
-    logger.info("Reading text...")
+    if validation:
+        msg = "validation"
+        filename = args.dev
+    else:
+        msg = "training"
+        filename = args.gold
+    
+    logger.info("Reading %s data..." % msg)
     if args.task == 'pos':
-        text_reader = pos.pos_reader.POSReader(md, filename=args.gold)
+        text_reader = pos.POSReader(md, filename=filename)
         if args.suffix:
-            text_reader.create_suffix_list(args.suffix_size, 5)
+            text_reader.create_affix_list('suffix', args.suffix_size, 5)
         if args.prefix:
-            text_reader.create_prefix_list(args.prefix_size, 5)
+            text_reader.create_affix_list('prefix', args.prefix_size, 5)
             
     elif args.task.startswith('srl'):
-        text_reader = srl.srl_reader.SRLReader(md, filename=args.gold, only_boundaries=args.identify, 
-                                               only_classify=args.classify,
-                                               only_predicates=args.predicates)
+        text_reader = srl.SRLReader(md, filename=filename, only_boundaries=args.identify, 
+                                    only_classify=args.classify,
+                                    only_predicates=args.predicates)
         if args.identify:
             # only identify arguments
             text_reader.convert_tags('iobes', only_boundaries=True)
@@ -54,37 +66,42 @@ def create_reader(args, md):
     else:
         raise ValueError("Unknown task: %s" % args.task)
     
-    text_reader.load_or_create_dictionary()
-    text_reader.load_or_create_tag_dict()
+    text_reader.codify_sentences()
     return text_reader
-    
 
-def create_network(args, text_reader, feature_tables, md=None):
+def create_network(args, text_reader, feature_tables, md):
     """Creates and returns the neural network according to the task at hand."""
     logger = logging.getLogger("Logger")
     
-    if args.task.startswith('srl') and args.task != 'srl_predicates':
-        num_tags = len(text_reader.tag_dict)
+    convolution_srl =  args.task.startswith('srl') and args.task != 'srl_predicates'
+    convolution = convolution_srl
+    
+    if convolution:
+        # get some data structures used by convolutional networks
         distance_tables = utils.set_distance_features(args.max_dist, args.target_features,
                                                       args.pred_features)
+        padding_left = text_reader.converter.get_padding_left(False)
+        padding_right = text_reader.converter.get_padding_right(False)
+    
+        num_tags = len(text_reader.tag_dict)
         nn = ConvolutionalNetwork.create_new(feature_tables, distance_tables[0], 
                                              distance_tables[1], args.window, 
                                              args.convolution, args.hidden, num_tags)
-        padding_left = text_reader.converter.get_padding_left(False)
-        padding_right = text_reader.converter.get_padding_right(False)
+        
         if args.identify:
             logger.info("Loading initial transition scores table for argument identification")
-            transitions = srl.train_srl.init_transitions_simplified(text_reader.tag_dict)
+            transitions = srl.init_transitions_simplified(text_reader.tag_dict)
             nn.transitions = transitions
             nn.learning_rate_trans = args.learning_rate_transitions
             
         elif not args.classify:
             logger.info("Loading initial IOB transition scores table")
-            transitions = srl.train_srl.init_transitions(text_reader.tag_dict, 'iob')
+            transitions = srl.init_transitions(text_reader.tag_dict, 'iob')
             nn.transitions = transitions
             nn.learning_rate_trans = args.learning_rate_transitions
-        
+                
     else:
+        # not convolution
         num_tags = len(text_reader.tag_dict)
         nn = Network.create_new(feature_tables, args.window, args.hidden, num_tags)
         if args.learning_rate_transitions > 0:
@@ -108,44 +125,9 @@ def create_network(args, text_reader, feature_tables, md=None):
     logger.info("Created new network with the following layer sizes: %s"
                 % ', '.join(str(x) for x in layer_sizes))
     
+    nn.network_filename = config.FILES[md.network]
     return nn
-        
-def save_features(nn, md):
-    """
-    Receives a sequence of feature tables and saves each one in the appropriate file.
-    
-    :param nn: the neural network
-    :param md: a Metadata object describing the network
-    """
-    def save_affix_features(affix, iter_tables):
-        """
-        Helper function for both suffixes and affixes.
-        affix should be either 'suffix' or 'affix'
-        """
-        # there can be an arbitrary number of tables, one for each length
-        affix_features = []
-        codes = getattr(attributes.Affix, '%s_codes' % affix)
-        num_sizes = len(codes)
-        for _ in range(num_sizes):
-            affix_features.append(iter_tables.next())
-        
-        filename_key = getattr(md, '%s_features' % affix)
-        filename = config.FILES[filename_key]
-        utils.save_features_to_file(affix_features, filename)
-        
-    # type features
-    utils.save_features_to_file(nn.feature_tables[0], config.FILES[md.type_features])
-    
-    # other features - the order is important!
-    iter_tables = iter(nn.feature_tables[1:])
-    if md.use_caps: utils.save_features_to_file(iter_tables.next(), config.FILES[md.caps_features])
-    if md.use_prefix:
-        save_affix_features('prefix', iter_tables)
-    if md.use_suffix:
-        save_affix_features('suffix', iter_tables)
-    if md.use_pos: utils.save_features_to_file(iter_tables.next(), config.FILES[md.pos_features])
-    if md.use_chunk: utils.save_features_to_file(iter_tables.next(), config.FILES[md.chunk_features])
-    
+
 def load_network_train(args, md):
     """Loads and returns a neural network with all the necessary data."""
     nn = taggers.load_network(md)
@@ -155,6 +137,8 @@ def load_network_train(args, md):
     
     nn.learning_rate = args.learning_rate
     nn.learning_rate_features = args.learning_rate_features
+    if md.task.startswith('srl') or md.task == 'pos':
+        nn.learning_rate_trans = args.learning_rate_transitions
     
     return nn
 
@@ -169,22 +153,60 @@ def create_metadata(args):
     
     return metadata.Metadata(args.task, None, use_caps, use_suffix, use_prefix, 
                                use_pos, use_chunk)
+
+def set_validation_data(nn, task, reader):
+    """Sets the neural network validation data."""
+    if task == 'pos' or task == 'srl_predicates':
+        nn.set_validation_data(reader.sentences, reader.tags)
     
-def train(reader, args):
+    elif task.startswith('srl') and task != 'srl_predicates':
+        arg_limits = None if task != 'srl_classify' else reader.arg_limits
+        nn.set_validation_data(reader.sentences, reader.predicates,
+                               reader.tags, arg_limits)
+    else:
+        raise ValueError('Unknown task: %s' % task)
+
+
+def load_or_create_metadata(args):
+    """
+    Loads or creates a metadata object, depending on command line arguments.
+    """
+    if not args.load_network:
+        # if we are about to create a new network, create the metadata too
+        md = create_metadata(args)
+        md.save_to_file()
+    else:
+        md = metadata.Metadata.load_from_file(args.task)
+    
+    return md
+
+
+def train(nn, reader, args):
     """Trains a neural network for the selected task."""
+    num_sents = len(reader.sentences)
+    logger.info("Starting training with %d sentences" % num_sents)
+    
+    avg_len = sum(len(x) for x in text_reader.sentences) / float(num_sents)
+    logger.debug("Average sentence length is %f tokens" % avg_len)
+    
+    logger.debug("Network connection learning rate: %f" % nn.learning_rate)
+    logger.debug("Feature vectors learning rate: %f" % nn.learning_rate_features)
+    logger.debug("Tag transition matrix learning rate: %f\n" % nn.learning_rate_trans)
+    
     intervals = max(args.iterations / 200, 1)
     np.seterr(over='raise')
+    
+    if args.decay:
+        nn.set_learning_rate_decay(args.decay)
     
     if args.task.startswith('srl') and args.task != 'srl_predicates':
         arg_limits = None if args.task != 'srl_classify' else text_reader.arg_limits
         
-        nn.train(text_reader.sentences, text_reader.predicates, text_reader.tags, 
+        nn.train(reader.sentences, reader.predicates, reader.tags, 
                  args.iterations, intervals, args.accuracy, arg_limits)
     else:
-        nn.train(text_reader.sentences, text_reader.tags, 
+        nn.train(reader.sentences, reader.tags, 
                  args.iterations, intervals, args.accuracy)
-
-
 
 if __name__ == '__main__':
     args = arguments.get_args()
@@ -194,17 +216,9 @@ if __name__ == '__main__':
     logger = logging.getLogger("Logger")
 
     config.set_data_dir(args.data)
-    
-    if not args.load_network:
-        # if we are about to create a new network, create the metadata too
-        md = create_metadata(args)
-        md.save_to_file()
-    else:
-        md = metadata.Metadata.load_from_file(args.task)
-        
+
+    md = load_or_create_metadata(args)
     text_reader = create_reader(args, md)
-    text_reader.create_converter()
-    text_reader.codify_sentences()
     
     if args.load_network:
         logger.info("Loading provided network...")
@@ -214,16 +228,10 @@ if __name__ == '__main__':
         feature_tables = utils.create_feature_tables(args, md, text_reader)
         nn = create_network(args, text_reader, feature_tables, md)
     
-    logger.info("Starting training with %d sentences" % len(text_reader.sentences))
-    logger.info("Network connection learning rate: %f" % nn.learning_rate)
-    logger.info("Feature vectors learning rate: %f" % nn.learning_rate_features)
-    logger.info("Tag transition matrix learning rate: %f" % nn.learning_rate_trans)
-    train(text_reader, args)
+    if args.dev is not None:
+        validation_reader = create_reader(args, md, True)
+        set_validation_data(nn, args.task, validation_reader)
     
-    logger.info("Saving trained models...")
-    save_features(nn, md)
-    
-    nn_file = config.FILES[md.network]
-    nn.save(nn_file)
-    logger.info("Saved network to %s" % nn_file)
+    train(nn, text_reader, args)
+    logger.info("Finished training")
     

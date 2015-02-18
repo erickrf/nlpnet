@@ -11,22 +11,22 @@ cimport numpy as np
 cdef class ConvolutionalNetwork(Network):
     
     # transition and distance feature tables
-    cdef readonly np.ndarray target_dist_table, pred_dist_table
+    cdef public np.ndarray target_dist_table, pred_dist_table
     cdef readonly np.ndarray target_dist_weights, pred_dist_weights
     cdef readonly int target_dist_offset, pred_dist_offset
     cdef readonly np.ndarray target_dist_lookup, pred_dist_lookup
+    cdef readonly np.ndarray target_convolution_lookup, pred_convolution_lookup
     cdef readonly np.ndarray target_dist_deltas, pred_dist_deltas
     
     # the second hidden layer
     cdef readonly int hidden2_size
     cdef readonly np.ndarray hidden2_weights, hidden2_bias
     cdef readonly np.ndarray hidden2_values
-    cdef readonly np.ndarray layer3_sent_values
+    cdef readonly np.ndarray hidden2_before_activation, hidden_before_activation
     
-    # in training, we need to store all the values calculated by each layer during 
-    # the classification of a sentence. 
-    cdef readonly np.ndarray hidden2_sent_values
-    
+    # lookup of convolution values (the same for each sentence, used to save time)
+    cdef np.ndarray convolution_lookup
+        
     # maximum convolution indices
     cdef readonly np.ndarray max_indices
     
@@ -36,33 +36,40 @@ cdef class ConvolutionalNetwork(Network):
     cdef bool only_classify
     
     # for faster access 
-    cdef int half_window, features_per_token
+    cdef int half_window
     
     # the convolution gradients 
     cdef np.ndarray hidden_gradients, hidden2_gradients
     cdef np.ndarray input_deltas
     
     # keeping statistics
-    cdef int train_hits, total_items
+    cdef int num_sentences
+    
+    # validation
+    cdef list validation_predicates, validation_arguments
     
     @classmethod
     def create_new(cls, feature_tables, target_dist_table, pred_dist_table, 
                    int word_window, int hidden1_size, int hidden2_size, int output_size):
         """Creates a new convolutional neural network."""
-        # sum the number of features in all tables 
+        # sum the number of features in all tables except for distance 
         cdef int input_size = sum(table.shape[1] for table in feature_tables)
         input_size *= word_window
         
+        dist_features_per_token = target_dist_table.shape[1] + pred_dist_table.shape[1]
+        input_size_with_distance = input_size + (word_window * dist_features_per_token)
+        
         # creates the weight matrices
-        high = 2.38 / np.sqrt(input_size) # [Bottou-88]
+        high = 2.38 / np.sqrt(input_size_with_distance) # [Bottou-88]
         hidden_weights = np.random.uniform(-high, high, (hidden1_size, input_size))
-        high = 2.38 / np.sqrt(hidden1_size)
-        hidden_bias = np.random.uniform(-high, high, hidden1_size)
         
         num_dist_features = word_window * target_dist_table.shape[1]
         target_dist_weights = np.random.uniform(-high, high, (num_dist_features, hidden1_size))
         num_dist_features = word_window * pred_dist_table.shape[1]
         pred_dist_weights = np.random.uniform(-high, high, (num_dist_features, hidden1_size))
+        
+        high = 2.38 / np.sqrt(hidden1_size)
+        hidden_bias = np.random.uniform(-high, high, hidden1_size)
         
         if hidden2_size > 0:
             hidden2_weights = np.random.uniform(-high, high, (hidden2_size, hidden1_size))
@@ -79,11 +86,11 @@ cdef class ConvolutionalNetwork(Network):
         high = 2.38 / np.sqrt(output_size)
         output_bias = np.random.uniform(-high, high, output_size)
         
-        net = ConvolutionalNetwork(word_window, input_size, hidden1_size, hidden2_size, 
-                                   output_size, hidden_weights, hidden_bias, 
-                                   target_dist_weights, pred_dist_weights,
-                                   hidden2_weights, hidden2_bias, 
-                                   output_weights, output_bias)
+        net = cls(word_window, input_size, hidden1_size, hidden2_size, 
+                  output_size, hidden_weights, hidden_bias, 
+                  target_dist_weights, pred_dist_weights,
+                  hidden2_weights, hidden2_bias, 
+                  output_weights, output_bias)
         net.feature_tables = feature_tables
         net.target_dist_table = target_dist_table
         net.pred_dist_table = pred_dist_table
@@ -133,13 +140,17 @@ Output size: %d
         self.hidden2_weights = hidden2_weights
         self.hidden2_bias = hidden2_bias
         
-    def save(self, filename):
+        self.validation_predicates = None
+        self.validation_arguments = None
+        
+        self.use_learning_rate_decay = False
+    
+    def _generate_save_dict(self):
         """
-        Saves the neural network to a file.
-        It will save the weights, biases, sizes, padding and 
-        distance tables, but not other feature tables.
+        Generates a dictionary with all parameters saved by the model.
+        It is directly used by the numpy savez function.
         """
-        np.savez(filename, hidden_weights=self.hidden_weights,
+        d = dict(hidden_weights=self.hidden_weights,
                  target_dist_table=self.target_dist_table,
                  pred_dist_table=self.pred_dist_table,
                  target_dist_weights=self.target_dist_weights,
@@ -151,25 +162,29 @@ Output size: %d
                  input_size=self.input_size, hidden_size=self.hidden_size,
                  output_size=self.output_size, hidden2_size=self.hidden2_size,
                  hidden2_weights=self.hidden2_weights, hidden2_bias=self.hidden2_bias,
-                 padding_left=self.padding_left, padding_right=self.padding_right)
+                 padding_left=self.padding_left, padding_right=self.padding_right,
+                 feature_tables=self.feature_tables)
+        return d
+    
+    def save(self):
+        """
+        Saves the neural network to a file.
+        It will save the weights, biases, sizes, padding and 
+        distance tables, and other feature tables.
+        """
+        data = self._generate_save_dict()
+        np.savez(self.network_filename, **data)
 
     @classmethod
-    def load_from_file(cls, filename):
+    def _load_from_file(cls, data, filename):
         """
-        Loads the neural network from a file.
-        It will load weights, biases, sizes, padding and 
-        distance tables, but not other feature tables.
+        Internal method for setting data read from a npz file.
         """
-        data = np.load(filename)
-        
         # cython classes don't have the __dict__ attribute
         # so we can't do an elegant self.__dict__.update(data)
         hidden_weights = data['hidden_weights']
         hidden_bias = data['hidden_bias']
         hidden2_weights = data['hidden2_weights']
-        
-        # numpy stores None as an array containing None and with empty shape
-        if hidden2_weights.shape == (): hidden2_weights = None
         
         hidden2_bias = data['hidden2_bias']
         output_weights = data['output_weights']
@@ -181,11 +196,17 @@ Output size: %d
         hidden2_size = data['hidden2_size']
         output_size = data['output_size']
         
-        nn = ConvolutionalNetwork(word_window, input_size, hidden_size, hidden2_size, 
-                                  output_size, hidden_weights, hidden_bias, 
-                                  data['target_dist_weights'], data['pred_dist_weights'],
-                                  hidden2_weights, hidden2_bias, 
-                                  output_weights, output_bias)
+        # numpy stores None as an array containing None and with empty shape
+        if hidden2_weights.shape == (): 
+            hidden2_weights = None
+            hidden2_size = 0
+            hidden2_bias = None
+        
+        nn = cls(word_window, input_size, hidden_size, hidden2_size, 
+                 output_size, hidden_weights, hidden_bias, 
+                 data['target_dist_weights'], data['pred_dist_weights'],
+                 hidden2_weights, hidden2_bias, 
+                 output_weights, output_bias)
         
         nn.target_dist_table = data['target_dist_table']
         nn.pred_dist_table = data['pred_dist_table']
@@ -195,8 +216,61 @@ Output size: %d
         nn.padding_right = data['padding_right']
         nn.pre_padding = np.array((nn.word_window_size / 2) * [nn.padding_left])
         nn.pos_padding = np.array((nn.word_window_size / 2) * [nn.padding_right])
+        nn.feature_tables = list(data['feature_tables'])
+        nn.network_filename = filename
         
         return nn
+
+    @classmethod
+    def load_from_file(cls, filename):
+        """
+        Loads the neural network from a file.
+        It will load weights, biases, sizes, padding and 
+        distance tables, and other feature tables.
+        """
+        data = np.load(filename)
+        return cls._load_from_file(data, filename)
+    
+    def _load_parameters(self):
+        """
+        Loads weights, feature tables, distance tables and 
+        transition tables previously saved.
+        """
+        data = np.load(self.network_filename)
+        self.hidden_weights = data['hidden_weights']
+        self.hidden_bias = data['hidden_bias']
+        self.output_weights = data['output_weights']
+        self.output_bias = data['output_bias']
+        self.feature_tables = list(data['feature_tables'])
+        self.target_dist_table = data['target_dist_table']
+        self.pred_dist_table = data['pred_dist_table']
+        
+        # check if transitions isn't None (numpy saves everything as an array)
+        if data['transitions'].shape != ():
+            self.transitions = data['transitions']
+        else:
+            self.transitions = None
+            
+        # same for second hidden layer weights
+        if data['hidden2_weights'].shape != ():
+            self.hidden2_weights = data['hidden2_weights']
+            self.hidden2_bias = data['hidden2_bias']
+        else:
+            self.hidden2_weights = None
+        
+    def set_validation_data(self, list validation_sentences,
+                            list validation_predicates,
+                            list validation_tags,
+                            list validation_arguments=None):
+        """
+        Sets the data to be used in validation during training. If this function
+        is not called before training, the training data itself is used to 
+        measure the model's performance.
+        """
+        self.validation_sentences = validation_sentences
+        self.validation_predicates = validation_predicates
+        self.validation_tags = validation_tags
+        self.validation_arguments = validation_arguments
     
     def train(self, list sentences, list predicates, list tags,  
               int epochs, int epochs_between_reports=0,
@@ -210,26 +284,33 @@ Output size: %d
         :param arguments: (only for argument classifying) a list of 2-dim
             numpy arrays indicating the start and end of each argument. 
         """
+        self.num_sentences = len(sentences)
+        self.num_tokens = sum(len(sent) for sent in sentences)
         self.only_classify = arguments is not None
         
         logger = logging.getLogger("Logger")
         logger.info("Training for up to %d epochs" % epochs)
-        top_accuracy = 0
         last_accuracy = 0
-        min_error = np.Infinity 
+        top_accuracy = 0
         last_error = np.Infinity
         
+        if self.validation_sentences is None:
+            self.set_validation_data(sentences, predicates, tags, arguments)
+        
         for i in xrange(epochs):
+            self.decrease_learning_rates(i)
             self._train_epoch(sentences, predicates, tags, arguments)
+            self._validate()
             
-            self.error = self.error / self.train_items
-            self.accuracy = float(self.train_hits) / self.total_items
-            
+            # Attardi: save model
             if self.accuracy > top_accuracy:
                 top_accuracy = self.accuracy
-            
-            if self.error < min_error:
-                min_error = self.error
+                self.save()
+                logger.debug("Saved model")
+            elif self.use_learning_rate_decay:
+                # this iteration didn't bring improvements; load the last saved model
+                # before continuing training with a lower rate
+                self._load_parameters()
             
             if (epochs_between_reports > 0 and i % epochs_between_reports == 0) \
                 or self.accuracy >= desired_accuracy > 0 \
@@ -237,29 +318,32 @@ Output size: %d
                 
                 self._print_epoch_report(i + 1)
 
-                if self.accuracy >= desired_accuracy > 0:
-                    break
-                
-                if self.accuracy < last_accuracy and self.error > last_error:
+                if self.accuracy >= desired_accuracy > 0\
+                        or (self.accuracy < last_accuracy and self.error > last_error):
                     # accuracy is falling, the network is probably diverging
+                    # or overfitting
                     break
             
             last_accuracy = self.accuracy
             last_error = self.error
         
+        self.num_sentences = 0
+        self.num_tokens = 0
+        self._reset_counters()
+    
+    def _reset_counters(self):
+        """
+        Reset the performance statistics counters. They are updated during
+        each epoch. 
+        """
         self.error = 0
-        self.train_hits = 0
-        self.total_items = 0
-
-    def _train_epoch(self, sentences, predicates, tags, arguments):
-        """Trains for one epoch with all examples."""
-        self.train_hits = 0
-        self.error = 0
-        self.total_items = 0
         self.skips = 0
         self.float_errors = 0
-        
-        # shuffle data
+    
+    def _shuffle_data(self, sentences, predicates, tags, arguments=None):
+        """
+        Shuffle the given training data in place.
+        """
         # get the random number generator state in order to shuffle
         # sentences and their tags in the same order
         random_state = np.random.get_state()
@@ -271,20 +355,24 @@ Output size: %d
         if arguments is not None:
             np.random.set_state(random_state)
             np.random.shuffle(arguments)
+        
+        
+    def _train_epoch(self, sentences, predicates, tags, arguments):
+        """Trains for one epoch with all examples."""
+        
+        self._reset_counters()
+        self._shuffle_data(sentences, predicates, tags, arguments)
+        if arguments is not None:
             i_args = iter(arguments)
         else:
             sent_args = None
-        
-        # keep last 2% for validation
-        validation = int(len(sentences) * 0.98)
         
         for sent, sent_preds, sent_tags in izip(sentences, predicates, tags):
             if arguments is not None:
                 sent_args = i_args.next()
             
             try:
-                self._tag_sentence(sent, sent_preds, True, sent_tags, sent_args)
-                self.train_items += 1
+                self._tag_sentence(sent, sent_preds, sent_tags, sent_args)
             except FloatingPointError:
                 # just ignore the sentence in case of an overflow
                 self.float_errors += 1
@@ -305,7 +393,7 @@ Output size: %d
             argument classes (only for separate argument classification).
         """
         self.only_classify = arguments is not None
-        return self._tag_sentence(sentence, predicates, train=False, arguments=arguments, 
+        return self._tag_sentence(sentence, predicates, argument_blocks=arguments, 
                                   logprob=logprob, allow_repeats=allow_repeats)
     
     cdef np.ndarray argument_distances(self, positions, argument):
@@ -327,11 +415,114 @@ Output size: %d
         
         return distances
     
+    
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    def _sentence_convolution(self, sentence, predicate, argument_blocks=None, 
+                              training=False):
+        """
+        Perform the convolution for a given predicate.
+        
+        :param sentence: a sequence of tokens, each represented as an array of 
+            indices
+        :param predicate: the index of the predicate in the sentence
+        :param argument_blocks: (used only in SRL argument classification) the
+            starting and end positions of all delimited arguments
+        :return: the scores for all tokens with respect to the given predicate
+        """        
+        # store the values found by each convolution neuron here and then find the max
+        cdef np.ndarray[FLOAT_t, ndim=2] convolution_values
+        
+        # a priori scores for all tokens
+        cdef np.ndarray[FLOAT_t, ndim=2] scores
+        
+        # intermediate storage
+        cdef np.ndarray[FLOAT_t, ndim=2] input_and_pred_dist_values
+        
+        self.num_targets = len(sentence) if argument_blocks is None else len(argument_blocks)
+        
+        # maximum values found by convolution
+        self.hidden_values = np.zeros((self.num_targets, self.hidden_size))
+        
+        if training:
+            # hidden sent values: results after tanh
+            self.hidden_values = np.zeros((self.num_targets, self.hidden_size))
+            self.max_indices = np.empty((self.num_targets, self.hidden_size), np.int)
+    
+        # predicate distances are the same across all targets
+        pred_dist_indices = np.arange(len(sentence)) - predicate
+        pred_dist_values = self.pred_convolution_lookup.take(pred_dist_indices + self.pred_dist_offset,
+                                                             0, mode='clip')
+        
+        input_and_pred_dist_values = pred_dist_values + self.convolution_lookup
+        
+        for target in range(self.num_targets):
+            # loop over targets and add the weighted distance features to each token
+            # this is necessary for the convolution layer
+            
+            # distance features for each window
+            # if we are classifying all tokens, pick the distance to the target
+            # if we are classifying arguments, pick the distance to the closest boundary 
+            # of the argument (beginning or end)
+            if argument_blocks is None:
+                target_dist_indices = np.arange(len(sentence)) - target
+            else:
+                argument = argument_blocks[target]
+                target_dist_indices = self.argument_distances(np.arange(len(sentence)), argument)
+            
+            target_dist_values = self.target_convolution_lookup.take(target_dist_indices + self.target_dist_offset,
+                                                                     0, mode='clip')
+
+            convolution_values = target_dist_values + input_and_pred_dist_values
+            
+            # now, find the maximum values
+            if training:
+                self.max_indices[target] = convolution_values.argmax(0)
+            self.hidden_values[target] = convolution_values.max(0)
+            
+        # apply the bias and proceed to the next layer
+        self.hidden_values += self.hidden_bias
+    
+        if self.hidden2_weights is not None:
+            self.hidden2_values = self.hidden_values.dot(self.hidden2_weights.T) + self.hidden2_bias
+        
+            if training:
+                self.hidden2_before_activation = self.hidden2_values.copy()
+    
+            hardtanh(self.hidden2_values, inplace=True)
+        else:
+            # apply non-linearity here
+            if training:
+                self.hidden_before_activation = self.hidden_values.copy()
+            
+            self.hidden2_values = self.hidden_values
+            hardtanh(self.hidden_values, inplace=True)
+            
+        scores = self.hidden2_values.dot(self.output_weights.T) + self.output_bias
+        
+        return scores
+    
+    def _pre_tagging_setup(self, np.ndarray sentence, bool training):
+        """
+        Perform some initialization actions before the actual tagging.
+        """
+        if training:
+            # this table will store the values of the neurons for each input token
+            # they will be needed during weight adjustments
+            self.input_sent_values = np.empty((len(sentence), self.input_size))
+        
+        # store the convolution values to save time
+        self._create_convolution_lookup(sentence, training)
+        
+        if self.target_dist_lookup is None: self._create_target_lookup()
+        if self.pred_dist_lookup is None: self._create_pred_lookup()
+        
+    
     @cython.boundscheck(False)
     @cython.wraparound(False)
     def _tag_sentence(self, np.ndarray sentence, np.ndarray predicates, 
-                      bool train=False, list tags=None, list arguments=None, 
-                      bool logprob=False, bool allow_repeats=True):
+                      list tags=None, list argument_blocks=None, 
+                      bool allow_repeats=True, bool logprob=False):
         """
         Runs the network for every predicate in the sentence.
         Refer to the Network class for more information.
@@ -339,140 +530,75 @@ Output size: %d
         :param tags: this is a list rather than a numpy array because in
             argument classification, each predicate may have a differente number
             of arguments.
+        :param argument_blocks: (used only in SRL argument classification) a list
+            with the starting and end positions of all delimited arguments (one for 
+            each predicate)
         :param predicates: a numpy array with the indices of the predicates in the sentence.
         """
-        cdef list answer = []
-        cdef np.ndarray[FLOAT_t, ndim=2] convolution_lookup
+        answer = []
+        training = tags is not None
+        self._pre_tagging_setup(sentence, training)
+        cdef np.ndarray[FLOAT_t, ndim=2] token_scores
         
-        if train:
-            # this table will store the values of the neurons for each input token
-            # they will be needed during weight adjustments
-            self.input_sent_values = np.empty((len(sentence), self.input_size))
+        for i, predicate in enumerate(predicates):
+            pred_arguments = None if not self.only_classify else argument_blocks[i]
             
-        # store the convolution values to save time
-        convolution_lookup = self._convolution_lookup(sentence, train)
-        cdef np.ndarray[FLOAT_t, ndim=2] target_dist_features, pred_dist_features
+            token_scores = self._sentence_convolution(sentence, predicate, pred_arguments, training)
+            pred_answer = self._viterbi(token_scores, allow_repeats)
         
-        # store the values found by each convolution neuron here and then find the max
-        cdef np.ndarray[FLOAT_t, ndim=2] convolution_values
-        
-        # store the a priori scores for each token
-        cdef np.ndarray[FLOAT_t, ndim=2] scores
-        cdef np.ndarray[FLOAT_t, ndim=1] token_scores
-        
-        if self.target_dist_lookup is None: self._create_target_lookup()
-        if self.pred_dist_lookup is None: self._create_pred_lookup()
-        if train: iter_tags = iter(tags)
-        if self.only_classify:
-            iter_args = iter(arguments)
-        else:
-            pred_arguments = None
-        
-        for predicate in predicates:
-            
-            if self.only_classify: pred_arguments = iter_args.next()
-            
-            self.num_targets = len(sentence) if arguments is None else len(pred_arguments)
-            scores = np.empty((self.num_targets, self.output_size))
-            
-            if train: 
-                pred_tags = iter_tags.next()
-                # layer 2: results after applying hidden weights, before tanh
-                # hidden sent values: results after tanh
-                self.layer2_sent_values = np.empty((self.num_targets, self.hidden_size))
-                self.hidden_sent_values = np.empty((self.num_targets, self.hidden_size))
-                self.max_indices = np.empty((self.num_targets, self.hidden_size), np.int)
-                if self.hidden2_weights is not None:
-                    # layer 3: analogous to layer 2
-                    self.layer3_sent_values = np.empty((self.num_targets, self.hidden2_size))
-                    self.hidden2_sent_values = np.empty((self.num_targets, self.hidden2_size))
-        
-            # predicate distances are the same across all targets
-            pred_dist_indices = np.arange(len(sentence)) - predicate
-            pred_dist_features = self.pred_dist_lookup.take(pred_dist_indices + self.pred_dist_offset,
-                                                            0, mode='clip')
-            pred_dist_values = pred_dist_features.dot(self.pred_dist_weights)
-            
-            # add the weighted distance features to each token 
-            for target in range(self.num_targets):
-                
-                # distance features for each window
-                # if we are classifying all tokens, pick the distance to the target
-                # if we are classifying arguments, pick the distance to the closest boundary 
-                # of the argument (beginning or end)
-                if arguments is None:
-                    target_dist_indices = np.arange(len(sentence)) - target
-                else:
-                    argument = pred_arguments[target]
-                    target_dist_indices = self.argument_distances(np.arange(len(sentence)), argument)
-                
-                target_dist_features = self.target_dist_lookup.take(target_dist_indices + self.target_dist_offset,
-                                                                    0, mode='clip')
-
-                convolution_values = target_dist_features.dot(self.target_dist_weights) \
-                                     + pred_dist_values + convolution_lookup
-                
-                # now, find the maximum values
-                if train:
-                    self.max_indices[target] = convolution_values.argmax(0)
-                
-                # apply the bias and proceed to the next layer
-                self.hidden_values = convolution_values.max(0) + self.hidden_bias
-                if train:
-                    self.hidden_sent_values[target] = self.hidden_values
-                
-                if self.hidden2_weights is not None:
-                    self.hidden2_values = self.hidden2_weights.dot(self.hidden_values) + self.hidden2_bias
-                    if train:
-                        self.layer3_sent_values[target] = self.hidden2_values
-                    
-                    self.hidden2_values = hardtanh(self.hidden2_values)
-                    if train:
-                        self.hidden2_sent_values[target] = self.hidden2_values
-                else:
-                    # apply non-linearity here
-                    if train:
-                        self.layer2_sent_values[target] = self.hidden_values
-                    self.hidden2_values = hardtanh(self.hidden_values)
-                    if train:
-                        self.hidden_sent_values[target] = self.hidden2_values
-                
-                token_scores = self.output_weights.dot(self.hidden2_values)
-                token_scores += self.output_bias
-                scores[target] = token_scores
-            
-            pred_answer = self._viterbi(scores, allow_repeats)
-            
-            if train:
-                self._evaluate(pred_answer, pred_tags)
-                if self._calculate_gradients(pred_tags, scores):
-                    self._backpropagate(sentence)
+            if training:
+                pred_tags = tags[i]
+                if self._calculate_gradients(pred_tags, token_scores):
+                    self._backpropagate()
                     self._calculate_input_deltas(sentence, predicate, pred_arguments)
                     self._adjust_weights(predicate, pred_arguments)
                     self._adjust_features(sentence, predicate)
-                
+            
             if logprob:
                 if self.only_classify:
                     raise NotImplementedError('Confidence measure not implemented for argument classifying')
                 
-                all_scores = self._calculate_all_scores(scores)
+                all_scores = self._calculate_all_scores(token_scores)
                 last_token = len(sentence) - 1
                 logadd = np.log(np.sum(np.exp(all_scores[last_token])))
                 confidence = self.answer_score - logadd
                 pred_answer = (pred_answer, confidence)
             
             answer.append(pred_answer)
-            
+        
         return answer
-    
-    def _evaluate(self, answer, tags):
+        
+    def _validate(self):
         """
         Evaluates the network performance, updating its hits count.
         """
-        for net_tag, gold_tag in zip(answer, tags):
-            if net_tag == gold_tag:
-                self.train_hits += 1
-        self.total_items += len(tags)
+        # call it "item" instead of token because the same token may be counted
+        # more than once (sentences with multiple predicates)
+        num_items = 0
+        hits = 0
+        
+        if self.validation_arguments is not None:
+            i_args = iter(self.validation_arguments)
+        else:
+            sent_args = None
+        
+        for sent, sent_preds, sent_tags in izip(self.validation_sentences, 
+                                                self.validation_predicates, 
+                                                self.validation_tags):
+            if self.validation_arguments is not None:
+                sent_args = i_args.next()
+            
+            answer = self._tag_sentence(sent, sent_preds, None, sent_args)
+            for predicate_answer, predicate_tags in zip(answer, sent_tags):                
+                for net_tag, gold_tag in zip(predicate_answer, predicate_tags):
+                    if net_tag == gold_tag:
+                        hits += 1
+                
+                num_items += len(predicate_answer)
+        
+        self.accuracy = float(hits) / num_items
+        # normalize error
+        self.error /= num_items
     
     def _calculate_gradients(self, tags, scores):
         """Delegates the call to the appropriate function."""
@@ -517,7 +643,7 @@ Output size: %d
     
         return correction
 
-    def _backpropagate(self, sentence):
+    def _backpropagate(self):
         """Backpropagates the error gradient."""
         
         # this function only determines the gradients at each layer, without 
@@ -531,31 +657,31 @@ Output size: %d
         
         if self.hidden2_weights is not None:
             # derivative with respect to the second hidden layer
-            # the derivative of tanh(x) is 1 - tanh^2(x)
-            dCd_hidden2 = dCd_tanh * hardtanhd(self.layer3_sent_values) 
+            dCd_hidden2 = dCd_tanh * hardtanhd(self.hidden2_before_activation)
             self.hidden2_gradients = dCd_hidden2
                         
             self.hidden_gradients = self.hidden2_gradients.dot(self.hidden2_weights)
         else:
             # the non-linearity appears right after the convolution max
-            self.hidden_gradients = dCd_tanh * hardtanhd(self.layer2_sent_values)
+            self.hidden_gradients = dCd_tanh * hardtanhd(self.hidden_before_activation)
     
     @cython.boundscheck(False)
     @cython.wraparound(False)
     def _adjust_weights(self, predicate, arguments=None):
-        """Adjusts the network weights after gradients have been calculated."""
+        """
+        Adjusts the network weights after gradients have been calculated.        
+        """
         cdef int i
         cdef np.ndarray[FLOAT_t, ndim=1] gradients_t
         cdef np.ndarray[FLOAT_t, ndim=2] last_values, deltas, grad_matrix, input_values
         
-        last_values = self.hidden2_sent_values if self.hidden2_weights is not None else self.hidden_sent_values
-        
+        last_values = self.hidden2_values if self.hidden2_weights is not None else self.hidden_values
         deltas = self.net_gradients.T.dot(last_values) * self.learning_rate
         self.output_weights += deltas
         self.output_bias += self.net_gradients.sum(0) * self.learning_rate
         
         if self.hidden2_weights is not None:
-            deltas = self.hidden2_gradients.T.dot(self.hidden_sent_values) * self.learning_rate
+            deltas = self.hidden2_gradients.T.dot(self.hidden_values) * self.learning_rate
             self.hidden2_weights += deltas
             self.hidden2_bias += self.hidden2_gradients.sum(0) * self.learning_rate
         
@@ -565,7 +691,8 @@ Output size: %d
         # I tried vectorizing this loop but it got a bit slower, probably because
         # of the overhead in building matrices/tensors with the max indices
         for i, neuron_maxes in enumerate(self.max_indices):
-            # i indicates the i-th target 
+            # i indicates the i-th target
+                         
             gradients_t = self.hidden_gradients[i] * self.learning_rate
             
             # table containing in each line the input values selected for each convolution neuron
@@ -607,20 +734,30 @@ Output size: %d
             
     @cython.boundscheck(False)
     @cython.wraparound(False)
-    def _calculate_input_deltas(self, sentence, predicate, arguments=None):
-        """Calculates the input deltas to be applied in the feature tables."""
-        cdef np.ndarray[FLOAT_t, ndim=2] grad_matrix, hidden_gradients
+    def _calculate_input_deltas(self, np.ndarray sentence, int predicate, 
+                                 object arguments=None):
+        """
+        Calculates the input deltas to be applied in the feature tables.
+        """
+        cdef np.ndarray[FLOAT_t, ndim=2] hidden_gradients, input_gradients
+        cdef np.ndarray[FLOAT_t, ndim=2] target_dist_gradients, pred_dist_gradients
+        cdef np.ndarray[FLOAT_t, ndim=1] gradients
+        cdef np.ndarray[INT_t, ndim=1] convolution_max, target_dists
         
-        # this gradient matrix has a whole window in each line
-        self.input_deltas = np.zeros((len(sentence), self.input_size))
-        self.target_dist_deltas = np.zeros_like(self.target_dist_lookup, np.float)
-        self.pred_dist_deltas = np.zeros_like(self.pred_dist_lookup, np.float)
+        # matrices accumulating gradients over each target
+        # each matrix has a whole window in each line
+        input_gradients = np.zeros((len(sentence), self.hidden_size))
+        target_dist_gradients = np.zeros((self.target_dist_lookup.shape[0], self.hidden_size))
+        pred_dist_gradients = np.zeros((self.pred_dist_lookup.shape[0], self.hidden_size))
         
         # avoid multiplying by the learning rate multiple times
         hidden_gradients = self.hidden_gradients * self.learning_rate_features
+        cdef np.ndarray[INT_t, ndim=1] column_numbers = np.arange(self.hidden_size)
         
         for target in range(self.num_targets):
-            # the token that yielded the maximum value in each neuron
+            
+            # array with the tokens that yielded the maximum value in each neuron
+            # for this target
             convolution_max = self.max_indices[target]
             
             if not self.only_classify:
@@ -639,19 +776,15 @@ Output size: %d
             
             # sparse matrix with gradients to be applied over the input
             # line i has the gradients for the i-th token in the sentence
-            grad_matrix = np.zeros((len(sentence), self.hidden_size)) 
-            grad_matrix[convolution_max, np.arange(self.hidden_size)] = gradients
-            
-            self.input_deltas += grad_matrix.dot(self.hidden_weights) 
+            input_gradients[convolution_max, np.arange(self.hidden_size)] += gradients
             
             # distance deltas
-            grad_matrix = np.zeros((self.target_dist_lookup.shape[0], self.hidden_size))
-            grad_matrix[target_dists, np.arange(self.hidden_size)] = gradients
-            self.target_dist_deltas += grad_matrix.dot(self.target_dist_weights.T)
-            
-            grad_matrix = np.zeros((self.pred_dist_lookup.shape[0], self.hidden_size))
-            grad_matrix[pred_dists, np.arange(self.hidden_size)] = gradients
-            self.pred_dist_deltas += grad_matrix.dot(self.pred_dist_weights.T)
+            target_dist_gradients[target_dists, np.arange(self.hidden_size)] += gradients
+            pred_dist_gradients[pred_dists, np.arange(self.hidden_size)] += gradients
+        
+        self.input_deltas = input_gradients.dot(self.hidden_weights)
+        self.target_dist_deltas = target_dist_gradients.dot(self.target_dist_weights.T)
+        self.pred_dist_deltas = pred_dist_gradients.dot(self.pred_dist_weights.T)
             
         
     def _adjust_features(self, sentence, predicate):
@@ -703,7 +836,6 @@ Output size: %d
             pos_dist += 1
             dist_pred_from += self.pred_dist_table.shape[1]
             
-        
         self._create_target_lookup()
         self._create_pred_lookup()
     
@@ -782,7 +914,8 @@ Output size: %d
     def _create_target_lookup(self):
         """
         Creates a lookup table with the window value for each different distance
-        to the target token. 
+        to the target token (target_dist_lookup) and one with the precomputed
+        values in the convolution layer (target_convolution_lookup). 
         """
         # consider padding. if the table has 10 entries, with a word window of 3,
         # we would have to consider up to the distance of 11, because of the padding.
@@ -802,12 +935,16 @@ Output size: %d
             self.target_dist_lookup[:,window_from : window_to] = self.target_dist_table[inds,]
             
             window_from = window_to
-            window_to += self.target_dist_table.shape[1] 
+            window_to += self.target_dist_table.shape[1]
+        
+        self.target_convolution_lookup = self.target_dist_lookup.dot(self.target_dist_weights)
+        
     
     def _create_pred_lookup(self):
         """
         Creates a lookup table with the window value for each different distance
-        to the predicate token. 
+        to the predicate token (pred_dist_lookup) and one with the precomputed
+        values in the convolution layer (pred_convolution_lookup). 
         """
         # consider padding. if the table has 10 entries, with a word window of 3,
         # we would have to consider up to the distance of 11, because of the padding.
@@ -828,8 +965,10 @@ Output size: %d
             
             window_from = window_to
             window_to += self.pred_dist_table.shape[1] 
+        
+        self.pred_convolution_lookup = self.pred_dist_lookup.dot(self.pred_dist_weights)
     
-    def _convolution_lookup(self, sentence, train):
+    def _create_convolution_lookup(self, sentence, training):
         """
         Creates a lookup table storing the values found by each
         convolutional neuron before summing distance features.
@@ -846,7 +985,7 @@ Output size: %d
         else:
             padded_sentence = sentence
         
-        cdef np.ndarray[FLOAT_t, ndim=2] lookup = np.empty((len(sentence), self.hidden_size))
+        self.convolution_lookup = np.empty((len(sentence), self.hidden_size))
         
         # first window
         cdef np.ndarray window = padded_sentence[:self.word_window_size]
@@ -859,8 +998,8 @@ Output size: %d
                                      ]
                                     )
         
-        lookup[0] = self.hidden_weights.dot(input_data)
-        if train:
+        self.convolution_lookup[0] = self.hidden_weights.dot(input_data)
+        if training:
             # store the values of each input -- needed when adjusting features
             self.input_sent_values[0] = input_data
         
@@ -873,8 +1012,7 @@ Output size: %d
             input_data = np.concatenate((input_data[self.features_per_token:], 
                                          new_data))
             
-            lookup[i] = self.hidden_weights.dot(input_data)
-            if train:
+            self.convolution_lookup[i] = self.hidden_weights.dot(input_data)
+            if training:
                 self.input_sent_values[i] = input_data
         
-        return lookup
