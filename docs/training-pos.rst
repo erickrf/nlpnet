@@ -6,36 +6,55 @@ POS Training
 Training data
 -------------
 
-First of all, the training data (aka gold standard data). For POS tagging, :mod:`nlpnet` expects files with one sentence per line, having tokens and tags concatenated by an underscore character:
+First of all, the training data (aka gold standard data). For POS tagging, :mod:`nlpnet` can read data in two formats:
 
-::
+* Files with one sentence per line, having tokens and tags concatenated by an underscore character:
 
-    Token_TAG token_TAG token_TAG (...)
+  ::
 
-Tags can be lower or uppercase, and also have accents or other special characters. If your training file is not pure ASCII text, it must be encoded in UTF-8. 
+    This_DT is_VBZ an_DT example_NN (...)
+  
+* CoNLL format, with one token per line, and lines formed of at least for columns (separated by tabs os whitespace): token number, token itself, lemma (not needed) and the actual tag. Sentences are separated by a blank line.
+  
+  ::
+  
+    1 This _ DT
+    2 is _ VBZ
+    3 an _ DT
+    4 example _ NN
+    
+    1 It _ PRP
+    2 is _ VBZ
+    3 easy _ JJ
+  
+:mod:`nlpnet` automatically understands the format used (actually, it first tries to read as the first format and, if it can't, it tries the second one). Tags can be lower or uppercase, and also have accents or other special characters. If your training file is not pure ASCII text, it must be encoded in UTF-8. 
 
 Invoking the training script
 ----------------------------
 
-In order to train a POS tagger, you have to supply ``nlpnet-train.py`` with at least the training data file (``--gold``) and the directory where the trained models should be saved (``--data``): 
+In order to train a POS tagger, you have to supply ``nlpnet-train.py`` with at least the training data file (``--gold``):
 
 .. code-block:: bash
 
-    $ nlpnet-train.py pos --gold /path/to/training-data.txt --data pos-model/
+    $ nlpnet-train.py pos --gold /path/to/training-data.txt
 
-If you are using previously trained word representations, they must already be in the data directory, and you must include ``--load_features``:
+If you are using previously trained word representations, they must already be in the directory, and you must include ``--load_features`` (if you use ``--data`` to set a different directory for your model, the features file must be there instead):
 
 .. code-block:: bash
 
-    $ nlpnet-train.py pos --gold /path/to/training-data.txt --data pos-model/ --load_features
+    $ nlpnet-train.py pos --gold /path/to/training-data.txt --load_features
 
 If you don't tell :mod:`nlpnet` to load existing embeddings, it will create random vectors for each word type appearing at least twice in your training data. However, if there is file named ``vocabulary.txt`` in the data directory, only vectors for those word types will be created. Use it if you to control which words get their own vectors.
+
+.. note::
+
+  If you load pre-trained word embeddings to initialize your model, the embeddings file is *NOT* changed. Its contents will be copied to the new network.
 
 You can also use additional attributes for POS tagging: capitalization, suffixes and prefixes. These are toggled by ``--caps``, ``--suffix`` and ``--prefix``. Each may be optionally followed by the desired size of the feature vector associated with that attribute (with a default of 2). You may also supply ``--suffix_size`` and ``--prefix_size`` to inform the maximum suffix/prefix size that should be examined in each word (defaults to 5). So, you could use:
 
 .. code-block:: bash
     
-    $ nlpnet-train.py pos --gold /path/to/training-data.txt --data pos-model/ --load_features --suffix --caps 10
+    $ nlpnet-train.py pos --gold /path/to/training-data.txt --load_features --suffix --caps 10
     
 This would mean that each word is represented as a concatenation of:
 
@@ -51,9 +70,13 @@ With this minimal setup, :mod:`nlpnet` will use default parameters for POS taggi
 
 The model architecture for POS tagging is relatively simple. It consists of a multilayer perceptron neural network, a tag transition score matrix, and word embeddings. The input window default size is 5, and this seems a very good number in experiments with Portuguese and English.
 
-The number of hidden neurons (``-n``) defaults to 100. It is difficult to tell how many are ideal, but this number yielded state-of-the-art performance in a Portuguese corpus with 26 tokens. SENNA, trained on the Penn Treebank with 45, uses 300. As a rule of thumb, the more tags you have, the more neurons you need.
+The number of hidden neurons (``-n``) defaults to 100. It is difficult to tell how many are ideal, but this number yielded state-of-the-art performance in a Portuguese corpus with 26 tags. SENNA, trained on the Penn Treebank with 45, uses 300. As a rule of thumb, the more tags you have, the more neurons you need.
 
-:mod:`nlpnet` allows the learning rate of network connections (``-l``), transition scores (``--lt``) and feature values (``--lf``) to be set separately. However, I found that the best results were obtained with all three being equal, and they all default to 0.001. The number of epochs (``-e``) is set to 15. One possibility is to train the network for a few epochs with a given learning rate and then train it further with lower rates.
+:mod:`nlpnet` allows the learning rate of network connections (``-l``), transition scores (``--lt``) and feature values (``--lf``) to be set separately. However, I found that the best results were obtained with all three being equal. 
+
+The learning rates may be decreased with each epoch using the decay option (``--decay``). The best results obtained in Portuguese initialized all rates to 0.01 and used a decay of 1, which means that in each epoch *i*, the learning rate was equal to :math:`0.01 / i`.
+
+The number of epochs (``-e``) is set to 15. 
 
 If the network seems to overfit the data, there is the "desired accuracy" option (``-a``), which sets a value between 0 and 1. When the network achieves this accuracy, training ends. The default value of 0 means that this option is ignored.
 
@@ -61,7 +84,7 @@ If you have a trained model and want to continue training it (maybe with lower l
 
 .. code-block:: bash
 
-    $ nlpnet-train.py pos --gold /path/to/training-data.txt --data pos-model/ --load_features --load_network
+    $ nlpnet-train.py pos --gold /path/to/training-data.txt --data pos-model/ --load_network
 
 You don't need to provide extra attribute options such as ``--caps`` if your model originally used it. This information is saved with the network.
     

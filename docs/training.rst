@@ -36,15 +36,9 @@ Importing embeddings manually
 
 You can save your word embeddings directly in the format used by :mod:`nlpnet`. You will need to create two files: the vocabulary and the actual embeddings. 
 
-The vocabulary must have one word type per line, encoded in UTF-8. The vocabulary is also treated as case insensitive, so, if you have an entry for "Apple" and another for "apple", one of them will be ignored (naturally, :mod:`nlpnet` *can* check capital letters when tagging text, but it observes the presence of upper case letters and the vocabulary separately). Additionally, all digits are internally replaced by 9's, so there's no point in using digits 0-8 in the vocabulary. It must be saved to a file called ``vocabulary.txt``.
+The vocabulary must have one word type per line, encoded in UTF-8. The vocabulary is also treated as case insensitive, so, if you have an entry for "Apple" and another for "apple", one of them will be ignored (naturally, :mod:`nlpnet` *can* check capital letters when tagging text, but it observes the presence of upper case as an independent feature). Additionally, all digits are internally replaced by 9's, so there's no point in using digits 0-8 in the vocabulary. It must be saved to a file called ``vocabulary.txt``.
 
-The embeddings must be stored in a 2-dim :mod:`numpy` array, such that the *i*-th row corresponds to the *i*-th word in the vocabulary. This matrix should be saved using the default :mod:`numpy` save command. The file name depends on the task you want to use the embeddings for:
-
-* POS tagging: ``types-features-pos.npy``
-* SRL predicate detection (check :ref:`training-srl` for details about the different SRL modes): ``types-features-preds.npy``
-* SRL in one step: ``types-features-1step.npy``
-* SRL argument delimitation: ``types-features-id.npy``
-* SRL argument classification: ``types-features-class.npy``
+The embeddings must be stored in a 2-dim :mod:`numpy` array, such that the *i*-th row corresponds to the *i*-th word in the vocabulary. This matrix should be saved using the default :mod:`numpy` save command. The file name must be ``types-features.npy``.
 
 Importing embeddings with the nlpnet-load-embeddings script
 -----------------------------------------------------------
@@ -54,8 +48,15 @@ The ``nlpnet-load-embeddings.py`` script can read input files in different forma
 1. Plain text (also those of SENNA, which include ``PADDING`` and ``UNKNOWN`` in the vocabulary). These embeddings are stored with one vector per line.
 2. word2embeddings_
 3. gensim_
+4. polyglot_
+5. Single file containing vocabulary and embeddings. Everything should be separated by whitespaces.
 
-You must also provide a vocabulary file (except for gensim embeddings, which saves vocabulary and their vectors together). The same recommendations mentioned in `Importing embeddings manually`_ apply for this file: UTF-8 encoding, everything is converted to lowercase and digits are replaced by 9's.
+.. _`polyglot`: https://sites.google.com/site/rmyeid/projects/polyglot
+
+You must also provide a vocabulary file (except for gensim and single file embeddings, which saves vocabulary and their vectors together). The same recommendations mentioned in `Importing embeddings manually`_ apply for this file: UTF-8 encoding, everything is converted to lowercase and digits are replaced by 9's.
+
+.. note::
+  The Polyglot project provides different embeddings for words with varying case and with digits. In order to make them compatible with :mod:`nlpnet`, the vectors for all case variations of a word are averaged. This leads to some unavoidable knowledge loss.
 
 Here's how to call ``nlpnet-load-embeddings.py`` from the command line:
 
@@ -63,7 +64,7 @@ Here's how to call ``nlpnet-load-embeddings.py`` from the command line:
 
     $ nlpnet-load-embeddings.py [FORMAT] [EMBEDDINGS_FILE] -v [VOCABULARY_FILE] -o [OUTPUT_DIRECTORY]
     
-``FORMAT`` is one of ``senna``, ``plain``, ``word2embeddings`` and ``gensim``. The vocabulary isn't used with gensim vectors and the output defaults to the current directory.
+``FORMAT`` is one of ``senna``, ``plain``, ``word2embeddings``, ``gensim``, ``polyglot`` and ``single``. The vocabulary isn't used with gensim vectors and the output defaults to the current directory.
 
 Task specific training
 ======================

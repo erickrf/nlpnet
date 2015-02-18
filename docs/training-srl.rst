@@ -70,11 +70,7 @@ As in :ref:`training-pos`, you can load existing word embeddings:
 
     $ nlpnet-train.py srl pred --gold /path/to/training-data.txt --data srl-model/ --load_features
 
-You can continue the training of a previously saved model using ``--load_network``. The predicate detector runs by default a single epoch with the learning rates set to 0.01. It might be a good idea to load the model after the initial training for one more epoch with lower rates:
-
-.. code-block:: bash
-
-    $ nlpnet-train.py srl pred --gold /path/to/training-data.txt --data srl-model/ --load_features --load_network -e 1 -l 0.001 --lf 0.001 --lt 0.001
+You can continue the training of a previously saved model using ``--load_network``. The predicate detector runs by default a single epoch with the learning rates set to 0.01. It might be a good idea to use ``--decay`` in order to lower learning rates during training.
 
 Argument identification and classification
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -91,7 +87,7 @@ In experiments with Portuguese, a little improvement was achieved after loading 
 
 .. code-block:: bash
 
-    $ nlpnet-train.py srl id --gold /path/to/training-data.txt --data srl-model/ --load_features --load_network -e 10 -l 0.0001 --lf 0.0001 --lt 0.0001
+    $ nlpnet-train.py srl id --gold /path/to/training-data.txt --data srl-model/ --load_network -e 10 -l 0.0001 --lf 0.0001 --lt 0.0001
 
 The argument classification model receives the output of the previous one and tags each argument block with the right tag. By default, it doesn't have a hidden layer after the convolution (same as ``-n 0``). In these cases, a non-linear function is applied directly to the output of the convolution. Still, you can force :mod:`nlpnet` to use an additional layer:
 
@@ -103,24 +99,11 @@ In experiments with Portuguese SRL, it was useful to start training the argument
 
 .. code-block:: bash
 
-    $ nlpnet-train.py srl class --gold /path/to/training-data.txt --data srl-model/ --load_features --load_network -e 15 -l 0.001 --lf 0.001 --lt 0.001
+    $ nlpnet-train.py srl class --gold /path/to/training-data.txt --data srl-model/ --load_network -e 15 -l 0.001 --lf 0.001 --lt 0.001
     
 Finally, the one-step model is an alternative to the combination of the two above. In experiments with Portuguese, it yielded slightly worse results [2]_, but you may still use it with :mod:`nlpnet`. It tags all tokens in the sentence with a combination of IOB (In, Out, Begin) and the argument labels.
 
-It defaults to use 200 convolution neurons and 150 in the following hidden layer, and 15 epochs with learning rates set to 0.001. As with argument identification, it was found useful to perform a few more epochs with the rate set to 0.0001:
-
-Supposing you have pre-trained word embeddings, you could do:
-
-.. code-block:: bash
-
-    $ nlpnet-train.py srl 1step --gold /path/to/training-data.txt --data srl-model/ --load_features
-
-Wait the 15 epochs to finish, and then:
-
-.. code-block:: bash
-
-    $ nlpnet-train.py srl 1step --gold /path/to/training-data.txt --data srl-model/ --load_features -e 10 -l 0.0001 --lf 0.0001 --lt 0.0001
-
+It defaults to use 200 convolution neurons and 150 in the following hidden layer, and 15 epochs with learning rates set to 0.001. As with argument identification, it was found useful to perform a few more epochs with the rate set to 0.0001.
 
 A few more options
 ~~~~~~~~~~~~~~~~~~

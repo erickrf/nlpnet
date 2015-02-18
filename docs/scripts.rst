@@ -35,19 +35,21 @@ It should be called with the following syntax:
 
 .. code-block:: bash
 
-    $ nlpnet-tag.py TASK DATA_DIRECTORY
+    $ nlpnet-tag.py TASK
 
-Where ``TASK`` is either ``pos`` or ``srl`` and ``DATA_DIRECTORY`` is the directory with the
-trained models. It has also the following command line options:
+Where ``TASK`` is either ``pos`` or ``srl``. It has also the following command line options:
 
--v  Verbose mode
+-v  Verbose mode.
+-t  Disables built-in tokenizer. Tokens are assumed to be separated by whitespace and one sentence per line.
+--lang  Sets the tokenkizer language (ignored if ``-t`` is used). Currently, it only accepts ``pt`` and ``en``. 
 --no-repeat  Forces the classification step to avoid repeated argument labels (SRL only).
+--data  The directory with the trained models (defaults to the current one).
 
 For example:
 
 .. code-block:: bash
 
-    $ nlpnet-tag.py pos /path/to/nlpnet-data/
+    $ nlpnet-tag.py pos --data /path/to/nlpnet-data/ --lang pt
     O rato roeu a roupa do rei de Roma.
     O_ART rato_N roeu_V a_ART roupa_N do_PREP+ART rei_N de_PREP Roma_NPROP ._PU
 
@@ -55,7 +57,7 @@ Or with semantic role labeling:
 
 .. code-block:: bash
 
-    $ nlpnet-tag.py srl /path/to/nlpnet-data/
+    $ nlpnet-tag.py srl --data /path/to/nlpnet-data/ --lang pt
     O rato roeu a roupa do rei de Roma.
     O rato roeu a roupa do rei de Roma .
     roeu
