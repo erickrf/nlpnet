@@ -28,7 +28,7 @@ setup(
                  'bin/nlpnet-test.py',
                  'bin/nlpnet-load-embeddings.py'],
       license = 'MIT',
-      version = '1.1.5',
+      version = '1.1.6',
       author = 'Erick Fonseca',
       author_email = 'erickrfonseca@gmail.com',
       url = 'http://nilc.icmc.usp.br/nlpnet',
