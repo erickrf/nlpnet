@@ -67,7 +67,7 @@ class TaggerReader(object):
         '''
         self._set_metadata(md)
         self.codified = False
-        self.converter = None
+        self._converter = None
         
         if load_dictionaries:
             self.load_or_create_dictionary()
@@ -138,7 +138,7 @@ class TaggerReader(object):
         
         :param sentence: a sequence of tokens, already tokenized
         """
-        if self.converter is None:
+        if self._converter is None:
             self.create_converter()
         return np.array([self.converter.convert(t) for t in sentence])
     
@@ -147,7 +147,7 @@ class TaggerReader(object):
         Converts each token in each sequence into indices to their feature vectors
         in feature matrices. The previous sentences as text are not accessible anymore.
         """
-        if self.converter is None:
+        if self._converter is None:
             self.create_converter()
         
         new_sentences = []
@@ -308,6 +308,21 @@ class TaggerReader(object):
         with open(filename, 'wb') as f:
             f.write(text.encode('utf-8'))
     
+    @property
+    def converter(self):
+        """
+        Return the token converter, which transforms tokens into their feature
+        vector indices. If it doesn't exist, one is created. 
+        """
+        if self._converter is None:
+            self.create_converter()
+        
+        return self._converter
+    
+    @converter.setter
+    def converter(self, value):
+        self._converter = value
+    
     def create_converter(self):
         """
         Sets up the token converter, which is responsible for transforming tokens into their
@@ -335,7 +350,7 @@ class TaggerReader(object):
                 
                 self.converter.add_extractor(f)
         
-        self.converter = attributes.TokenConverter()
+        self._converter = attributes.TokenConverter()
         self.converter.add_extractor(self.word_dict.get)
         if self.md.use_caps:
             self.converter.add_extractor(get_capitalization)
