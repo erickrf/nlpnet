@@ -16,7 +16,6 @@ import nlpnet.taggers as taggers
 import nlpnet.metadata as metadata
 import nlpnet.srl as srl
 import nlpnet.pos as pos
-import nlpnet.parse as parse
 import nlpnet.arguments as arguments
 import nlpnet.reader as reader
 import nlpnet.attributes as attributes
