@@ -3,7 +3,7 @@
 import logging
 import numpy as np
 
-from word_dictionary import WordDictionary as WD
+from .word_dictionary import WordDictionary as WD
 from collections import defaultdict
 
 # dummy value to be used when POS is an additional attribute

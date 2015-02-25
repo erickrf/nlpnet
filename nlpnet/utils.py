@@ -12,7 +12,7 @@ import numpy as np
 
 from nltk.tokenize.regexp import RegexpTokenizer
 from nltk.tokenize import TreebankWordTokenizer
-import attributes
+from . import attributes
 
 _tokenizer_regexp = ur'''(?ux)
     # the order of the patterns is important!!

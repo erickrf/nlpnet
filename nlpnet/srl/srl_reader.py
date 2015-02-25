@@ -38,8 +38,7 @@ class SRLReader(reader.TaggerReader):
         """
         The reader will read sentences from a given file. This file must
         be in the correct format (one token per line, columns indicating
-        which tokens are predicates and their argument structure. See
-        function read_data.read_plain_srl for more details).
+        which tokens are predicates and their argument structure).
         
         :param filename: a file with CoNLL-like format data. If it is None,
             the reader will be created with no data.
