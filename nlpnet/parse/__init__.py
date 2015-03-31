@@ -1,1 +1,1 @@
-from parse_reader import DependencyReader
+from .parse_reader import DependencyReader

@@ -17,7 +17,7 @@ def readme():
 setup(
       name = 'nlpnet',
       description = 'Neural networks for NLP tasks',
-      packages = ['nlpnet', 'nlpnet.pos', 'nlpnet.srl'],
+      packages = ['nlpnet', 'nlpnet.pos', 'nlpnet.srl', 'nlpnet.parse'],
       ext_modules = [Extension("nlpnet.network", 
                                ["nlpnet/network.c"],
                                include_dirs=['.', np.get_include()]
@@ -28,7 +28,7 @@ setup(
                  'bin/nlpnet-test.py',
                  'bin/nlpnet-load-embeddings.py'],
       license = 'MIT',
-      version = '1.1.6',
+      version = '1.2.0',
       author = 'Erick Fonseca',
       author_email = 'erickrfonseca@gmail.com',
       url = 'http://nilc.icmc.usp.br/nlpnet',
