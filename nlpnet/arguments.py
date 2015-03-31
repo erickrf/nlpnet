@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
 """
-Script for argument parsing and a few verifications. 
-These arguments used by the training script.
+Code for argument parsing and a few verifications. 
+These arguments are used by the training script.
 """
 
 import argparse
@@ -123,6 +123,21 @@ def get_args():
                            learning_rate=0.001, learning_rate_features=0.001,
                            learning_rate_transitions=0.001)
     
+    # dependency
+    parser_dep = subparsers.add_parser('dependency', help='Dependency parsing')
+    dep_subparsers = parser_dep.add_subparsers(title='Dependency parsing training steps',
+                                               dest='subtask',
+                                               description='Which step of the dependency training '\
+                                               '(detecting edges or labeling them)')
+    
+    dep_subparsers.add_parser('labeled', help='Labeling dependency edges',
+                              parents=[network_parser, conv_parser])
+    dep_subparsers.add_parser('unlabeled', help='Dependency edge detection',
+                              parents=[network_parser, conv_parser])
+    
+    defaults['dependency_filter'] = dict()
+    defaults['labeled_dependency'] = dict(window=3)
+    defaults['unlabeled_dependency'] = dict(window=3)
     
     # SRL argument parser
     # There is another level of subparsers for predicate detection / 
@@ -184,6 +199,13 @@ Type %(prog)s [SUBTASK] -h to get subtask-specific help.'''
         elif args.subtask == 'pred':
             args.task = 'srl_predicates'
             args.predicates = True
-    
+    elif args.task == 'dependency':
+        if args.subtask == 'labeled':
+            args.task = 'labeled_dependency'
+            args.labeled = True
+        elif args.subtask == 'unlabeled':
+            args.task = 'unlabeled_dependency'
+            args.labeled = False
+        
     fill_defaults(args, defaults)
     return args

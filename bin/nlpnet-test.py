@@ -85,6 +85,96 @@ def is_punctuation(token):
     
     return True
 
+def evaluate_unlabeled_dependency(gold_file, punctuation):
+    """
+    Evaluate unlabeled accuracy per token.
+    """
+    md = Metadata.load_from_file('unlabeled_dependency')
+    nn = taggers.load_network(md)
+    reader = taggers.create_reader(md, gold_file)
+    #reader.codify_sentences()
+    
+    logger = logging.getLogger("Logger")
+    logger.debug('Loaded network')
+    logger.debug(nn.description())
+    logger.info('Starting test...')
+    hits = 0
+    num_tokens = 0
+    sentence_hits = 0
+    num_sentences = 0
+    
+    for sent, heads in zip(reader.sentences, reader.heads):
+        
+        sent_codified = reader.codify_sentence(sent)
+        answer = nn.tag_sentence(sent_codified)
+        correct_sentence = True
+            
+        for i, (net_tag, gold_tag) in enumerate(zip(answer, heads)):
+            
+            token = sent[i]
+            # detect punctuation
+            if punctuation and is_punctuation(token):
+                continue
+            
+            if net_tag == gold_tag or (gold_tag == i and net_tag == len(sent)):
+                hits += 1
+            else:
+                correct_sentence = False
+            
+            num_tokens += 1
+            
+        if correct_sentence:
+            sentence_hits += 1
+        num_sentences += 1
+        
+    accuracy = float(hits) / num_tokens
+    sent_accuracy = 100 * float(sentence_hits) / num_sentences
+    print '%d hits out of %d' % (hits, num_tokens)
+    print '%d sentences completely correct (%f%%)' % (sentence_hits, sent_accuracy)
+    print 'Accuracy: %f%%' % (100 * accuracy)
+
+def evaluate_labeled_dependency(gold_file, punctuation):
+    """
+    Evaluate the accuracy for dependency labels per token.
+    """
+    md = Metadata.load_from_file('labeled_dependency')
+    nn = taggers.load_network(md)
+    reader = taggers.create_reader(md, gold_file)
+    reader.codify_sentences()
+    
+    logger = logging.getLogger("Logger")
+    logger.debug('Loaded network')
+    logger.debug(nn.description())
+    logger.info('Starting test...')
+    hits = 0
+    num_tokens = 0
+    sentence_hits = 0
+    num_sentences = 0
+    
+    for sent, heads, labels in zip(reader.sentences, reader.heads, reader.labels):
+        
+        answer = nn.tag_sentence(sent, heads)
+        correct_sentence = True
+        
+        for net_tag, gold_tag in zip(answer, labels):
+            
+            if net_tag == gold_tag:
+                hits += 1
+            else:
+                correct_sentence = False
+            
+            num_tokens += 1
+            
+        if correct_sentence:
+            sentence_hits += 1
+        num_sentences += 1
+        
+    accuracy = float(hits) / num_tokens
+    sent_accuracy = 100 * float(sentence_hits) / num_sentences
+    print '%d hits out of %d' % (hits, num_tokens)
+    print '%d sentences completely correct (%f%%)' % (sentence_hits, sent_accuracy)
+    print 'Accuracy: %f' % accuracy
+
 def sentence_precision(network_tags, gold_tags, gold_tag_dict, network_tag_dict):
     """
     Evaluates the network precision on a single sentence.
@@ -514,6 +604,7 @@ if __name__ == '__main__':
     
     parser_pos = subparsers.add_parser('pos', help='POS tagging', parents=[base_parser])
     parser_srl = subparsers.add_parser('srl', help='Semantic Role Labeling', parents=[base_parser])
+    parser_dep = subparsers.add_parser('dependency', help='Dependency parsing', parents=[base_parser])
     
     parser_srl.add_argument('--id', help='Evaluate only argument identification (SRL only)',
                             action='store_true', dest='identify')
@@ -527,6 +618,11 @@ if __name__ == '__main__':
     parser_srl.add_argument('--auto-pred', dest='auto_pred', action='store_true',
                             help='Determines SRL predicates automatically (instead of gold annotation)')
     
+    parser_dep.add_argument('type', help='Whether to test labeled or unlabeled performance',
+                            choices=['labeled', 'unlabeled'])
+    parser_dep.add_argument('-p', help='Score on punctuation (ignored by default)',
+                            action='store_true', dest='punctuation')
+
     parser_pos.add_argument('--oov', help='Analyze performance on OOV data. Not fully functional with numbers.', type=str)
     args = parser.parse_args()
     
@@ -546,6 +642,14 @@ if __name__ == '__main__':
             oov = None
                     
         evaluate_pos(gold_file=args.gold, oov=oov)
+    
+    elif args.task == 'dependency':
+        
+        if args.type == 'labeled':
+            evaluate_labeled_dependency(args.gold, args.punctuation)
+    
+        elif args.type == 'unlabeled':
+            evaluate_unlabeled_dependency(args.gold, args.punctuation)
     
     elif args.task == 'srl':
         

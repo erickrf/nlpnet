@@ -19,7 +19,7 @@ def interactive_running(args):
     It receives text from the standard input, tokenizes it, and calls the function
     given as a parameter to produce an answer.
     
-    :param task: 'pos', 'srl'
+    :param task: 'pos', 'srl' or 'dependency'
     :param use_tokenizer: whether to use built-in tokenizer
     """
     use_tokenizer = not args.disable_tokenizer
@@ -28,6 +28,8 @@ def interactive_running(args):
         tagger = nlpnet.taggers.POSTagger(language=args.lang)
     elif task_lower == 'srl':
         tagger = nlpnet.taggers.SRLTagger(language=args.lang)
+    elif task_lower == 'dependency':
+        tagger = nlpnet.taggers.DependencyParser(language=args.lang)
     else:
         raise ValueError('Unknown task: %s' % args.task)
     
@@ -46,7 +48,10 @@ def interactive_running(args):
             result = tagger.tag(text)
         else:
             tokens = text.split()
-            result = [tagger.tag_tokens(tokens, True)]
+            if task_lower != 'dependency':
+                result = [tagger.tag_tokens(tokens, True)]
+            else:
+                result = [tagger.tag_tokens(tokens)]            
         
         _print_tagged(result, task_lower)
 
@@ -55,14 +60,22 @@ def _print_tagged(tagged_sents, task):
     Prints the tagged text to stdout.
     
     :param tagged_sents: sentences tagged according to any of nlpnet taggers.
-    :param task: the tagging task (either 'pos', 'srl')
+    :param task: the tagging task (either 'pos', 'srl' or 'dependency')
     """
     if task == 'pos':
         _print_tagged_pos(tagged_sents)
     elif task == 'srl':
         _print_tagged_srl(tagged_sents)
+    elif task == 'dependency':
+        _print_parsed_dependency(tagged_sents)
     else:
         raise ValueError('Unknown task: %s' % task)
+
+def _print_parsed_dependency(parsed_sents):
+    """Prints one token per line and its head"""
+    for sent in parsed_sents:
+        print sent.to_conll().encode('utf-8')
+        print
 
 def _print_tagged_pos(tagged_sents):
     """Prints one sentence per line as token_tag"""
@@ -85,8 +98,8 @@ def _print_tagged_srl(tagged_sents):
 if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('task', help='Task for which the network should be used', 
-                        type=str, choices=['srl', 'pos'])
+    parser.add_argument('task', help='Task for which the network should be used.',
+                        type=str, choices=['srl', 'pos', 'dependency'])
     parser.add_argument('--data', help='Directory containing trained models (default: current)', type=str,
                         default='.')
     parser.add_argument('-v', help='Verbose mode', action='store_true', dest='verbose')

@@ -3,5 +3,5 @@ from .config import set_data_dir
 from . import taggers
 from . import utils
 
-from .taggers import POSTagger, SRLTagger
+from .taggers import POSTagger, SRLTagger, DependencyParser
 from .utils import tokenize

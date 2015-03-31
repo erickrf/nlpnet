@@ -36,7 +36,26 @@ def get_config_paths(directory):
         ('suffix_features_pos'         , 'suffix-features-pos.npy'),
         ('prefix_features_pos'         , 'prefix-features-pos.npy'),
         ('vocabulary_pos'              , 'vocabulary-pos.txt'),
-                
+        
+        # dependency
+        ('network_labeled_dependency', 'ldep-network.npz'),
+        ('type_features_labeled_dependency', 'types-features-ldep.npy'),
+        ('caps_features_labeled_dependency', 'caps-features-ldep.npy'),
+        ('pos_features_labeled_dependency', 'pos-features-ldep.npy'),
+        ('metadata_labeled_dependency', 'metadata-ldep.pickle'),
+        ('dependency_tag_dict', 'dependency-tags.txt'),
+        ('labeled_dependency_tag_dict', 'dependency-tags.txt'),
+        ('vocabulary_labeled_dependency', 'vocabulary-ldep.txt'),
+        
+        ('dependency_pos_tags', 'dep-pos-tags.txt'),
+        
+        ('network_unlabeled_dependency', 'udep-network.npz'),
+        ('type_features_unlabeled_dependency', 'types-features-udep.npy'),
+        ('caps_features_unlabeled_dependency', 'caps-features-udep.npy'),
+        ('pos_features_unlabeled_dependency', 'pos-features-udep.npy'),
+        ('metadata_unlabeled_dependency', 'metadata-udep.pickle'),
+        ('vocabulary_unlabeled_dependency', 'vocabulary-udep.txt'),
+        
         # chunk
         ('chunk_tag_dict'              , 'chunk-tag-dict.pickle'),
         ('chunk_tags'                  , 'chunk-tags.txt'),

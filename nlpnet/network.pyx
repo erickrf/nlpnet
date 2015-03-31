@@ -858,4 +858,4 @@ Output size: %d
 # include the files for other networks
 # this comes here after the Network class has already been defined
 include "networkconv.pyx"
-
+include "networkdependencyconv.pyx"

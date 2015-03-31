@@ -589,7 +589,7 @@ Output size: %d
                 sent_args = i_args.next()
             
             answer = self._tag_sentence(sent, sent_preds, None, sent_args)
-            for predicate_answer, predicate_tags in zip(answer, sent_tags):                
+            for predicate_answer, predicate_tags in zip(answer, sent_tags):
                 for net_tag, gold_tag in zip(predicate_answer, predicate_tags):
                     if net_tag == gold_tag:
                         hits += 1
@@ -669,7 +669,7 @@ Output size: %d
     @cython.wraparound(False)
     def _adjust_weights(self, predicate, arguments=None):
         """
-        Adjusts the network weights after gradients have been calculated.        
+        Adjusts the network weights after gradients have been calculated.
         """
         cdef int i
         cdef np.ndarray[FLOAT_t, ndim=1] gradients_t
@@ -692,7 +692,7 @@ Output size: %d
         # of the overhead in building matrices/tensors with the max indices
         for i, neuron_maxes in enumerate(self.max_indices):
             # i indicates the i-th target
-                         
+              
             gradients_t = self.hidden_gradients[i] * self.learning_rate
             
             # table containing in each line the input values selected for each convolution neuron

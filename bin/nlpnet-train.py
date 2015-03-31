@@ -16,10 +16,11 @@ import nlpnet.taggers as taggers
 import nlpnet.metadata as metadata
 import nlpnet.srl as srl
 import nlpnet.pos as pos
+import nlpnet.parse as parse
 import nlpnet.arguments as arguments
 import nlpnet.reader as reader
 import nlpnet.attributes as attributes
-from nlpnet.network import Network, ConvolutionalNetwork
+from nlpnet.network import Network, ConvolutionalNetwork, ConvolutionalDependencyNetwork
 
 
 ############################
@@ -62,6 +63,9 @@ def create_reader(args, md, validation=False):
             # this is SRL as one step, we use IOB
             text_reader.convert_tags('iob', update_tag_dict=False)
     
+    elif 'dependency' in args.task:
+        text_reader = parse.DependencyReader(md, filename)
+    
     else:
         raise ValueError("Unknown task: %s" % args.task)
     
@@ -72,32 +76,41 @@ def create_network(args, text_reader, feature_tables, md):
     """Creates and returns the neural network according to the task at hand."""
     logger = logging.getLogger("Logger")
     
-    convolution_srl =  args.task.startswith('srl') and args.task != 'srl_predicates'
-    convolution = convolution_srl
+    is_dependency = 'dependency' in args.task
+    is_convolution_srl =  args.task.startswith('srl') and args.task != 'srl_predicates'
+    is_convolution = is_convolution_srl or is_dependency
     
-    if convolution:
-        # get some data structures used by convolutional networks
+    if is_convolution:
+        # get some data structures used both by dep parsing and SRL
         distance_tables = utils.set_distance_features(args.max_dist, args.target_features,
                                                       args.pred_features)
         padding_left = text_reader.converter.get_padding_left(False)
         padding_right = text_reader.converter.get_padding_right(False)
     
-        num_tags = len(text_reader.tag_dict)
-        nn = ConvolutionalNetwork.create_new(feature_tables, distance_tables[0], 
-                                             distance_tables[1], args.window, 
-                                             args.convolution, args.hidden, num_tags)
+        if is_dependency:
+            output_size = 1 if not args.labeled else len(text_reader.tag_dict)
+            nn = ConvolutionalDependencyNetwork.create_new(feature_tables, distance_tables[0], 
+                                                           distance_tables[1], args.window, 
+                                                           args.convolution, args.hidden, output_size)
         
-        if args.identify:
-            logger.info("Loading initial transition scores table for argument identification")
-            transitions = srl.init_transitions_simplified(text_reader.tag_dict)
-            nn.transitions = transitions
-            nn.learning_rate_trans = args.learning_rate_transitions
+        else:
+            # not dependency (SRL)
+            num_tags = len(text_reader.tag_dict)
+            nn = ConvolutionalNetwork.create_new(feature_tables, distance_tables[0], 
+                                                 distance_tables[1], args.window, 
+                                                 args.convolution, args.hidden, num_tags)
             
-        elif not args.classify:
-            logger.info("Loading initial IOB transition scores table")
-            transitions = srl.init_transitions(text_reader.tag_dict, 'iob')
-            nn.transitions = transitions
-            nn.learning_rate_trans = args.learning_rate_transitions
+            if args.identify:
+                logger.info("Loading initial transition scores table for argument identification")
+                transitions = srl.init_transitions_simplified(text_reader.tag_dict)
+                nn.transitions = transitions
+                nn.learning_rate_trans = args.learning_rate_transitions
+                
+            elif not args.classify:
+                logger.info("Loading initial IOB transition scores table")
+                transitions = srl.init_transitions(text_reader.tag_dict, 'iob')
+                nn.transitions = transitions
+                nn.learning_rate_trans = args.learning_rate_transitions
                 
     else:
         # not convolution
@@ -162,6 +175,13 @@ def set_validation_data(nn, task, reader):
         arg_limits = None if task != 'srl_classify' else reader.arg_limits
         nn.set_validation_data(reader.sentences, reader.predicates,
                                reader.tags, arg_limits)
+    
+    elif task.endswith('dependency'):
+        if task.startswith('unlabeled'):
+            nn.set_validation_data(reader.sentences, reader.heads)
+        else:
+            nn.set_validation_data(reader.sentences, reader.heads, reader.labels)
+    
     else:
         raise ValueError('Unknown task: %s' % task)
 
@@ -203,6 +223,15 @@ def train(nn, reader, args):
         
         nn.train(reader.sentences, reader.predicates, reader.tags, 
                  args.iterations, intervals, args.accuracy, arg_limits)
+    
+    elif args.task.endswith('dependency'): 
+        if args.labeled:
+            nn.train(reader.sentences, reader.heads, args.iterations, 
+                     intervals, args.accuracy, text_reader.labels)
+        else:
+            nn.train(reader.sentences, reader.heads, args.iterations, 
+                     intervals, args.accuracy)
+
     else:
         nn.train(reader.sentences, reader.tags, 
                  args.iterations, intervals, args.accuracy)
