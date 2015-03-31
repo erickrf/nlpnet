@@ -7,6 +7,8 @@ Currently, it performs part-of-speech tagging, semantic role labeling and depend
 Most of the architecture is language independent, but some functions were specially tailored for working
 with Portuguese. This system was inspired by SENNA_.
 
+.. _SENNA: http://ronan.collobert.com/senna/
+
 **Important:** in order to use the trained models for Portuguese NLP, you will need to download the data from http://nilc.icmc.usp.br/nlpnet/models.html.
 
 Dependencies
