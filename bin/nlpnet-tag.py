@@ -105,7 +105,7 @@ if __name__ == '__main__':
     parser.add_argument('-v', help='Verbose mode', action='store_true', dest='verbose')
     parser.add_argument('-t', action='store_true', dest='disable_tokenizer',
                         help='Disable built-in tokenizer. Tokens are assumed to be separated by whitespace.')
-    parser.add_argument('--lang', dest='lang', default=None,
+    parser.add_argument('--lang', dest='lang', default='en',
                         help='Language (used to determine which tokenizer to run. Ignored if -t is provided)', 
                         choices=['en', 'pt'])
     parser.add_argument('--no-repeat', dest='no_repeat', action='store_true',
