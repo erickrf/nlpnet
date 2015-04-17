@@ -299,12 +299,11 @@ class SRLTagger(Tagger):
 class DependencyParser(Tagger):
     """A Dependency Parser based on a neural network tagger."""
     
-    def __init__(self, pos_data_dir=None, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """
         Set the data directory for the POS tagger, if one is used,
         and call the parent constructor.        
         """
-        self.pos_data_dir = pos_data_dir
         super(DependencyParser, self).__init__(*args, **kwargs)
     
     def _load_data(self):
@@ -320,9 +319,7 @@ class DependencyParser(Tagger):
         
         self.use_pos = md_udep.use_pos or md_ldep.use_pos
         if self.use_pos:
-            if self.pos_data_dir is None:
-                self.pos_data_dir = self.data_dir
-            self.pos_tagger = POSTagger(self.pos_data_dir, language=self.language)
+            self.pos_tagger = POSTagger(self.data_dir, language=self.language)
     
     def parse(self, text):
         """
