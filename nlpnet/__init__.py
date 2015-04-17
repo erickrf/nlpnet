@@ -5,3 +5,5 @@ from . import utils
 
 from .taggers import POSTagger, SRLTagger, DependencyParser
 from .utils import tokenize
+
+__version__ = '1.2.0'
