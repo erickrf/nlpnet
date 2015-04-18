@@ -41,14 +41,13 @@ You can use ``nlpnet`` as a library in Python code as follows:
 .. code-block:: python
 
     >>> import nlpnet
-    >>> nlpnet.set_data_dir('/path/to/nlpnet-data/')
-    >>> tagger = nlpnet.POSTagger()
+    >>> tagger = nlpnet.POSTagger('/path/to/pos-model/', language='pt')
     >>> tagger.tag('O rato roeu a roupa do rei de Roma.')
     [[(u'O', u'ART'), (u'rato', u'N'), (u'roeu', u'V'), (u'a', u'ART'), (u'roupa', u'N'), (u'do', u'PREP+ART'), (u'rei', u'N'), (u'de', u'PREP'), (u'Roma', u'NPROP'), (u'.', 'PU')]]
 
-In the example above, the call to ``set_data_dir`` indicates where the data directory is located. This location must be given whenever ``nlpnet`` is imported. 
+In the example above, the ``POSTagger`` constructor receives as the first argument the directory where its trained model is located. The second argument is the two letter language code (currently, onle ``pt`` and ``en`` are supported). This only has impact in tokenization.
 
-Calling a tagger is pretty straightforward. The two provided taggers are ``POSTagger`` and ``SRLTagger``, both having a method ``tag`` which receives strings with text to be tagged. The tagger splits the text into sentences and then tokenizes each one (hence the return of the POSTagger is a list of lists).
+Calling an annotation tool is pretty straightforward. The provided ones are ``POSTagger``, ``SRLTagger`` and ``DependencyParser``, all of them having a method ``tag`` which receives strings with text to be tagged (in ``DependencyParser``, there is an alias to the method ``parse``, which sounds more adequate). The tagger splits the text into sentences and then tokenizes each one (hence the return of the POSTagger is a list of lists).
 
 The output of the SRLTagger is slightly more complicated:
 
@@ -71,6 +70,35 @@ The ``arg_structures`` is a list containing all predicate-argument structures in
 
 Note that the verb appears as the first member of the tuple and also as the content of label 'V' (which stands for verb). This is because some predicates are multiwords. In these cases, the "main" predicate word (usually the verb itself) appears in ``arg_structures[0]``, and all the words appear under the key 'V'.
 
+Here's an example with the DependencyParser:
+
+    >>> parser = nlpnet.DependencyParser('dependency', language='en')
+    >>> parsed_text = parser.parse('The book is on the table.')
+    >>> parsed_text
+    [<nlpnet.taggers.ParsedSentence at 0x10e067f0>]
+    >>> sent = parsed_text[0]
+    >>> print(sent.to_conll())
+    1       The     _       DT      DT      _       2       NMOD
+    2       book    _       NN      NN      _       3       SBJ
+    3       is      _       VBZ     VBZ     _       0       ROOT
+    4       on      _       IN      IN      _       3       LOC-PRD
+    5       the     _       DT      DT      _       6       NMOD
+    6       table   _       NN      NN      _       4       PMOD
+    7       .       _       .       .       _       3       P
+
+The ``to_conll()`` method of ParsedSentence objects prints them in the `CoNLL`_ notation. The tokens, labels and head indices are accessible through member variables:
+
+    >>> sent.tokens
+    [u'The', u'book', u'is', u'on', u'the', u'table', u'.']
+    >>> sent.heads
+    array([ 1,  2, -1,  2,  5,  3,  2])
+    >>> sent.labels
+    [u'NMOD', u'SBJ', u'ROOT', u'LOC-PRD', u'NMOD', u'PMOD', u'P']
+    
+The ``heads`` member variable is a numpy array. The i-th position in the array contains the index of the head of the i-th token, except for the root token, which has a head of -1. Notice that these indices are 0-based, while the ones shown in the ``to_conll()`` function are 1-based.
+
+.. _`CoNLL`: http://ilk.uvt.nl/conll/#dataformat
+
 Standalone scripts
 ~~~~~~~~~~~~~~~~~~
 
@@ -78,11 +106,13 @@ Standalone scripts
 
 .. code-block:: bash
 
-    $ nlpnet-tag.py pos /path/to/nlpnet-data/
+    $ nlpnet-tag.py pos --data /path/to/nlpnet-data/ --lang pt
     O rato roeu a roupa do rei de Roma.
     O_ART rato_N roeu_V a_ART roupa_N do_PREP+ART rei_N de_PREP Roma_NPROP ._PU
 
-Or with semantic role labeling:
+If ``--data`` is not given, the script will search for the trained models in the current directory. ``--lang`` defaults to ``en``. If you have text already tokenized, you may use the ``-t`` option; it assumes tokens are separated by whitespaces.
+    
+With semantic role labeling:
 
 .. code-block:: bash
 
@@ -95,5 +125,19 @@ Or with semantic role labeling:
         V: roeu
 
 The first line was typed by the user, and the second one is the result of tokenization.
+
+And dependency parsing:
+
+.. code-block:: bash
+
+    $ nlpnet-tag.py dependency --data dependency --lang en
+    The book is on the table.
+    1       The     _       DT      DT      _       2       NMOD
+    2       book    _       NN      NN      _       3       SBJ
+    3       is      _       VBZ     VBZ     _       0       ROOT
+    4       on      _       IN      IN      _       3       LOC-PRD
+    5       the     _       DT      DT      _       6       NMOD
+    6       table   _       NN      NN      _       4       PMOD
+    7       .       _       .       .       _       3       P
 
 To learn more about training and testing new models, and other functionalities, refer to the documentation at http://nilc.icmc.usp.br/nlpnet

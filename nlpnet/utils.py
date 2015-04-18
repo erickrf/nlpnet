@@ -145,7 +145,7 @@ _contractible_art = re.compile('[oa]s?')
 
 def contract(w1, w2):
     """
-    Makes a contraction of two words.
+    Makes a contraction of two words (in Portuguese).
 
     For example: contract('de', 'os') returns 'dos'
     If a contraction between the given words doesn't exist in Portuguese, a ValueError

@@ -4,10 +4,13 @@ Trained Models
 
 Here, you find trained models ready to be used with :mod:`nlpnet`. Model files can be decompressed anywhere, and when using :mod:`nlpnet`, the path to it must be supplied (using the ``--data`` argument in the ``nlpnet-tag`` script or the ``nlpnet.set_data_dir`` function).
 
-Currently, there are only models for POS and SRL in Portuguese, plus word embeddings not trained for any task. If you have trained :mod:`nlpnet` to perform any task in another language, please enter in contact and we add provide a link to your models.
+If you have trained :mod:`nlpnet` to perform any task in another language, please enter in contact and we add provide a link to your models.
 
-Word Embeddings
-===============
+.. contents:: Models
+  :local:
+
+Word Embeddings (Portuguese)
+============================
 
 `Word embeddings <data/embeddings-pt.tgz>`_
 
@@ -18,8 +21,8 @@ These word embeddings can be used to train new :mod:`nlpnet` models (check the :
   
 .. _`word2embeddings`: https://bitbucket.org/aboSamoor/word2embeddings
 
-POS
-===
+POS (Portuguese)
+================
 
 `State-of-the-art POS tagger <data/pos-pt.tgz>`_
   
@@ -28,8 +31,8 @@ POS
 
 .. _`Mac-Morpho`: http://nilc.icmc.usp.br/macmorpho
   
-SRL
-===
+SRL (Portuguese)
+================
 
 `Semantic Role Labeling model <data/srl-pt.tgz>`_
 
@@ -38,3 +41,12 @@ This SRL model doesn't use any feature besides word vectors. You can use it with
 **Performance:** 66.19% precision, 59.78% recall, 62.82 F-1 (evaluated on `PropBank-Br`_ test section)
 
 .. _`PropBank-Br`: http://www.nilc.icmc.usp.br/portlex/index.php/en/projects/propbankbringl
+
+Dependency and POS (English)
+============================
+
+`Dependency Parser model <data/dependency-en.tgz>`_
+
+This dependency parser includes a POS tagger. Performance is unfortunately still below state-of-the-art.
+
+**Performance:** 91.5% unlabeled attachment score (UAS), 89.1% labeled attachment score (LAS) (evaluated on the Penn Treebank)
