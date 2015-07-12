@@ -116,6 +116,8 @@ def create_network(args, text_reader, feature_tables, md):
         # not convolution
         num_tags = len(text_reader.tag_dict)
         nn = Network.create_new(feature_tables, args.window, args.hidden, num_tags)
+        nn.l2_factor = args.l2
+        nn.dropout = args.dropout
         if args.learning_rate_transitions > 0:
             transitions = np.zeros((num_tags + 1, num_tags), np.float)
             nn.transitions = transitions

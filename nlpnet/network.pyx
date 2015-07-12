@@ -85,6 +85,9 @@ cdef class Network:
     # lookup for fast access to all the token embeddings in a sentence
     cdef np.ndarray sentence_lookup
     
+    # L^2 regularization factor (aka lambda) and dropout
+    cdef public float l2_factor, dropout
+    
     # padding stuff
     cdef np.ndarray padding_left, padding_right
     cdef public np.ndarray pre_padding, pos_padding
@@ -172,6 +175,9 @@ cdef class Network:
         """
         self.learning_rate = 0
         self.learning_rate_features = 0
+        
+        self.l2_factor = 0
+        self.dropout = 0
         
         self.word_window_size = word_window
         self.input_size = input_size
@@ -300,6 +306,17 @@ Output size: %d
             # (hidden_size, input_size) . input_size = hidden_size
             self.layer2_values = self.hidden_weights.dot(input_data) + self.hidden_bias
             self.hidden_values = hardtanh(self.layer2_values, inplace=not training)
+            
+            # dropout
+            if training:
+                # in training, we zero hidden layer values with a given probability
+                # when running a model, we multiply all values by that probability minus one
+                dropout_probabilities = [self.dropout, 1 - self.dropout]
+                dropout_vector = np.random.choice([0, 1], self.hidden_size, p=dropout_probabilities)
+                self.hidden_values *= dropout_vector
+            else:
+                self.hidden_values *= (1 - self.dropout)
+                
             output = self.output_weights.dot(self.hidden_values) + self.output_bias
             scores[i] = output
             
@@ -707,6 +724,10 @@ Output size: %d
         # (len, output_size).T (len, hidden_size) = (output_size, hidden_size)
         cdef np.ndarray[FLOAT_t, ndim=2] output_deltas
         output_deltas = self.net_gradients.T.dot(self.hidden_sent_values)
+        
+        # L^2 regularization
+        l2 = self.output_weights * self.l2_factor
+        output_deltas -= l2
 
         # dC / db_4 = dC / df_4					(22)
         # (output_size) += ((len(sentence), output_size))
@@ -732,7 +753,11 @@ Output size: %d
         cdef np.ndarray[FLOAT_t, ndim=2] hidden_deltas
         # (len, hidden_size).T (len, input_size) = (hidden_size, input_size)
         hidden_deltas = dCdf_2.T.dot(self.input_sent_values)
-
+        
+        # L^2 regularization
+        l2 = self.hidden_weights * self.l2_factor
+        hidden_deltas -= l2        
+         
         # dC / db_2 = dC / df_2					(22)
         # sum by column contribution by each token
         hidden_bias_deltas = dCdf_2.sum(0)
@@ -771,7 +796,7 @@ Output size: %d
         cdef int i, j
 
         for i, w_deltas in enumerate(input_deltas):
-            # for each window (w_deltas: 300, features: 5)
+            # for each window
             # this tracks where the deltas for the next table begins
             start = 0
             for features in padded_sentence[i:i+self.word_window_size]:
@@ -815,7 +840,7 @@ Output size: %d
                  input_size=self.input_size, hidden_size=self.hidden_size,
                  output_size=self.output_size, padding_left=self.padding_left,
                  padding_right=self.padding_right, transitions=self.transitions,
-                 feature_tables=self.feature_tables)
+                 feature_tables=self.feature_tables, dropout=self.dropout)
     
     @classmethod
     def load_from_file(cls, filename):
@@ -852,6 +877,7 @@ Output size: %d
         nn.pos_padding = np.array((nn.word_window_size / 2) * [nn.padding_right])
         nn.feature_tables = list(data['feature_tables'])
         nn.network_filename = filename
+        nn.dropout = data['dropout']
         
         return nn
         
