@@ -109,6 +109,8 @@ cdef class Network:
     
     # gradients
     cdef readonly np.ndarray net_gradients, trans_gradients
+    cdef readonly np.ndarray historical_output_gradients, historical_hidden_gradients
+    cdef readonly np.ndarray historical_input_gradients
     cdef readonly np.ndarray input_sent_values, hidden_sent_values, layer2_sent_values
     
     # data for statistics during training. 
@@ -298,11 +300,11 @@ Output size: %d
             self.hidden_sent_values = np.empty((len(sentence), self.hidden_size))
         
         self._create_sentence_lookup(sentence)
-
+        
         # run through all windows in the sentence
         for i in xrange(len(sentence)):
             input_data = self.sentence_lookup[i:i + self.word_window_size].flatten()
-            
+             
             # (hidden_size, input_size) . input_size = hidden_size
             self.layer2_values = self.hidden_weights.dot(input_data) + self.hidden_bias
             self.hidden_values = hardtanh(self.layer2_values, inplace=not training)
@@ -316,10 +318,10 @@ Output size: %d
                 self.hidden_values *= dropout_vector
             else:
                 self.hidden_values *= (1 - self.dropout)
-                
+            
             output = self.output_weights.dot(self.hidden_values) + self.output_bias
             scores[i] = output
-            
+             
             if training:
                 self.input_sent_values[i] = input_data
                 self.layer2_sent_values[i] = self.layer2_values
@@ -615,6 +617,9 @@ Output size: %d
         top_accuracy = 0
         last_accuracy = 0
         last_error = np.Infinity
+        self.historical_output_gradients = np.zeros((self.output_size, self.hidden_size))
+        self.historical_hidden_gradients = np.zeros((self.hidden_size, self.input_size))
+        self.historical_input_gradients = np.zeros(self.input_size)
         self.num_tokens = sum(len(sent) for sent in sentences)
         
         if self.validation_sentences is None:
@@ -622,7 +627,7 @@ Output size: %d
             self.validation_tags = tags
         
         for i in xrange(epochs):
-            self.decrease_learning_rates(i)      
+#             self.decrease_learning_rates(i)      
             self._train_epoch(sentences, tags)
             self._validate()
             
@@ -634,10 +639,10 @@ Output size: %d
                 top_accuracy = self.accuracy
                 self.save()
                 logger.debug("Saved model")
-            elif self.use_learning_rate_decay:
-                # this iteration didn't bring improvements; load the last saved model
-                # before continuing training with a lower rate
-                self._load_parameters()
+#             elif self.use_learning_rate_decay:
+#                 # this iteration didn't bring improvements; load the last saved model
+#                 # before continuing training with a lower rate
+#                 self._load_parameters()
                         
             if (epochs_between_reports > 0 and i % epochs_between_reports == 0) \
                 or self.accuracy >= desired_accuracy > 0 \
@@ -707,65 +712,41 @@ Output size: %d
         """
         Backpropagate the gradients of the cost.
         """
-        # f_1 = input_sent_values
-        # f_2 = M_1 f_1 + b_2 = layer2_values
-        # f_3 = hardTanh(f_2) = hidden_values
-        # f_4 = M_2 f_3 + b_4
-
-        # For l = 4..1 do:
-        # dC / dtheta_l = df_l / dtheta_l dC / df_l		(19)
-        # dC / df_l-1 = df_l / df_l-1 dC / df_l			(20)
-
-        """
-        Compute the gradients of the cost for each layer
-        """
-        # layer 4: output layer
-        # dC / dW_4 = dC / df_4 f_3.T				(22)
         # (len, output_size).T (len, hidden_size) = (output_size, hidden_size)
-        cdef np.ndarray[FLOAT_t, ndim=2] output_deltas
         output_deltas = self.net_gradients.T.dot(self.hidden_sent_values)
+        
+        # perform adagrad to compute the actual gradient
+        self.historical_output_gradients += output_deltas ** 2
+        output_deltas = output_deltas / np.sqrt(self.historical_output_gradients)
         
         # L^2 regularization
         l2 = self.output_weights * self.l2_factor
         output_deltas -= l2
 
-        # dC / db_4 = dC / df_4					(22)
         # (output_size) += ((len(sentence), output_size))
         # sum by column, i.e. all changes through the sentence
         output_bias_deltas = self.net_gradients.sum(0)
 
-        # dC / df_3 = M_2.T dC / df_4				(23)
         #  (len, output_size) (output_size, hidden_size) = (len, hidden_size)
-        dCdf_3 = self.net_gradients.dot(self.output_weights)
+        hidden_gradients = hardtanhd(self.layer2_sent_values) * self.net_gradients.dot(self.output_weights)
 
-        # layer 3: HardTanh layer
-        # no weights to adjust
-
-        # dC / df_2 = hardtanhd(f_2) * dC / df_3
-        # (len, hidden_size) (len, hidden_size)
-        # FIXME: this goes quickly to 0.
-        dCdf_2 = hardtanhd(self.layer2_sent_values) * dCdf_3
-
-        # df_2 / df_1 = M_1
-
-        # layer 2: linear layer
-        # dC / dW_2 = dC / df_2 f_1.T				(22)
-        cdef np.ndarray[FLOAT_t, ndim=2] hidden_deltas
         # (len, hidden_size).T (len, input_size) = (hidden_size, input_size)
-        hidden_deltas = dCdf_2.T.dot(self.input_sent_values)
+        hidden_deltas = hidden_gradients.T.dot(self.input_sent_values)
+        
+        # adagrad
+        self.historical_hidden_gradients += hidden_deltas ** 2
+        hidden_deltas = hidden_deltas / np.sqrt(self.historical_hidden_gradients)
         
         # L^2 regularization
         l2 = self.hidden_weights * self.l2_factor
         hidden_deltas -= l2        
          
-        # dC / db_2 = dC / df_2					(22)
         # sum by column contribution by each token
-        hidden_bias_deltas = dCdf_2.sum(0)
+        hidden_bias_deltas = hidden_gradients.sum(0)
 
-        # dC / df_1 = M_1.T dC / df_2
         cdef np.ndarray[FLOAT_t, ndim=2] input_gradients
         # (len, hidden_size) (hidden_size, input_size) = (len, input_size)
-        input_gradients = dCdf_2.dot(self.hidden_weights)
+        input_gradients = hidden_gradients.dot(self.hidden_weights)
 
         """
         Adjust the weights. 
@@ -774,17 +755,22 @@ Output size: %d
         self.output_bias += output_bias_deltas * self.learning_rate
         self.hidden_weights += hidden_deltas * self.learning_rate
         self.hidden_bias += hidden_bias_deltas * self.learning_rate
-
+        
         """
         Adjust the features indexed by the input window.
         """
+        # to perform adagrad in the input, we sum the gradients over all words in each input neuron
+        # and use it to divide the learning rate
+        squared_gradients = input_gradients ** 2
+        self.historical_input_gradients += squared_gradients.sum(0)
+        
         # the deltas that will be applied to the feature tables
         # they are in the same sequence as the network receives them, i.e.
         # [token1-table1][token1-table2][token2-table1][token2-table2] (...)
-        # input_size = num features * window (e.g. 60 * 5). Attardi
-        cdef np.ndarray[FLOAT_t, ndim=2] input_deltas
+        
+        # input_size = num features * window (e.g. 60 * 5)
         # (len, input_size)
-        input_deltas = input_gradients * self.learning_rate_features
+        input_deltas = input_gradients * self.learning_rate_features / np.sqrt(self.historical_input_gradients)
         
         padded_sentence = np.concatenate((self.pre_padding,
                                           sentence,
