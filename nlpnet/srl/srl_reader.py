@@ -258,9 +258,6 @@ class SRLReader(reader.TaggerReader):
         :param iob: If True, this function will generate an entry for B-[tag] 
             and one for I-[tag], except for the tag 'O'.
         """
-        if self.task == 'srl_predicates' or self.task == 'srl_boundary':
-            return
-        
         if filename is None:
             filename = self.md.paths['srl_tags']
         
@@ -483,7 +480,7 @@ class SRLReader(reader.TaggerReader):
         :param scheme: IOB or IOBES (In, Other, Begin, End, Single).
         :param update_dict: whether to update or not the tag dictionary after
             converting the tags.
-        :param only_boundaries: if True, only leaves the IOBES tags and remove
+        :param only_boundaries: if True, only leaves the IOBES tags and removes
             the actual tags. Also, avoid updating the tag dict.
         """
         scheme = scheme.lower()
