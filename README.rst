@@ -36,113 +36,114 @@ Microsoft의 C 컴파일러를 설치하기 전이라면, MinGW_ 를 사용하�
 Basic usage
 -----------
 
-``nlpnet`` can be used both as a Python library or by its standalone scripts. Both usages are explained below.
+``nlpnet for Korean``은 파이썬 라이브러리로, 혹은 `Standalone`으로 사용할 수 있습니다. 아래에서 두가지 사용방법에 대해서 설명하겠습니다.
 
 Library usage
 ~~~~~~~~~~~~~
 
-You can use ``nlpnet`` as a library in Python code as follows:
+``nlpnet for Korean``을 파이썬 라이브러리로 사용하기 위한 코드는 다음과 같습니다.
 
 .. code-block:: python
 
     >>> import nlpnet
-    >>> tagger = nlpnet.POSTagger('/path/to/pos-model/', language='pt')
-    >>> tagger.tag('O rato roeu a roupa do rei de Roma.')
-    [[(u'O', u'ART'), (u'rato', u'N'), (u'roeu', u'V'), (u'a', u'ART'), (u'roupa', u'N'), (u'do', u'PREP+ART'), (u'rei', u'N'), (u'de', u'PREP'), (u'Roma', u'NPROP'), (u'.', 'PU')]]
+    >>> tagger = nlpnet.POSTagger('/path/to/pos-model-directory/')
+    >>> tagger.tag('나는 집에 갔다.')
+    [[(u'나는', u'NPJ'), (u'집에', u'NPJ'), (u'갔다', u'NPJ'), (u'.', u'S')]]
 
-In the example above, the ``POSTagger`` constructor receives as the first argument the directory where its trained model is located. The second argument is the two letter language code (currently, onle ``pt`` and ``en`` are supported). This only has impact in tokenization.
+위 예제에서 ``POSTagger``생성자는 첫번째 인자로 모델의 위치를 전달해주면 됩니다. (기본설정 : nlpnet/bin/)
+태거를 호출해 사용하는 것이 꽤나 간단합니다. ``POSTagger``, ``SRLTagger``, ``DependencyParser``를 지원할 예정입니다.
+모든 모델은 ``tag`` 메소드를 사용해서 태거를 동작시킬 수 있습니다.(``DependencyParser``의 경우 ``parse``.)
+태거는 주어진 텍스트를 문장으로 분리한 후, 분석해 리스트로 결과를 내어줍니다.
 
-Calling an annotation tool is pretty straightforward. The provided ones are ``POSTagger``, ``SRLTagger`` and ``DependencyParser``, all of them having a method ``tag`` which receives strings with text to be tagged (in ``DependencyParser``, there is an alias to the method ``parse``, which sounds more adequate). The tagger splits the text into sentences and then tokenizes each one (hence the return of the POSTagger is a list of lists).
-
-The output of the SRLTagger is slightly more complicated:
+``SRLTagger``의 결과는 조금 더 복잡합니다.
 
     >>> tagger = nlpnet.SRLTagger()
-    >>> tagger.tag(u'O rato roeu a roupa do rei de Roma.')
+    >>> tagger.tag(u'로마는 하루아침에 세워진 것이 아니다.')
     [<nlpnet.taggers.SRLAnnotatedSentence at 0x84020f0>]
 
-Instead of a list of tuples, sentences are represented by instances of ``SRLAnnotatedSentence``. This class serves basically as a data holder, and has two attributes:
+튜플의 리스트가 아니라, 두 가지 `attribute`를 가진 `instance`가 리턴됩니다. 
 
-    >>> sent = tagger.tag(u'O rato roeu a roupa do rei de Roma.')[0]
+    >>> sent = tagger.tag(u'로마는 하루아침에 세워진 것이 아니다.')[0]
     >>> sent.tokens
-    [u'O', u'rato', u'roeu', u'a', u'roupa', u'do', u'rei', u'de', u'Roma', u'.']
+    [u'로마는', u'하루아침에', u'세워진', u'것이', u'아니다', u'.']
     >>> sent.arg_structures
-    [(u'roeu',
-      {u'A0': [u'O', u'rato'],
-       u'A1': [u'a', u'roupa', u'do', u'rei', u'de', u'Roma'],
-       u'V': [u'roeu']})]
+    [(u'아니다',
+      {u'A0': [u'로마는'],
+       u'A1': [u'것이'],
+       u'V': [u'아니다']})]
 
-The ``arg_structures`` is a list containing all predicate-argument structures in the sentence. The only one in this example is for the verb `roeu`. It is represented by a tuple with the predicate and a dictionary mapping semantic role labels to the tokens that constitute the argument.
+SRL의 ``argument_structure``는 문장내 모든 용언-아규먼트 구조를 담고 있는 리스트입니다.
+이번 예제에서는 '아니다'라는 용언에 대해서만을 보인 것입니다.
 
-Note that the verb appears as the first member of the tuple and also as the content of label 'V' (which stands for verb). This is because some predicates are multiwords. In these cases, the "main" predicate word (usually the verb itself) appears in ``arg_structures[0]``, and all the words appear under the key 'V'.
+용언이 튜플의 가장 처음에 나타났고, 'V'의 value에도 다시한번 나타난 것에 유의하시기 바랍니다.
 
-Here's an example with the DependencyParser:
+다음은 ``Dependency Parser`` 예제입니다.
 
-    >>> parser = nlpnet.DependencyParser('dependency', language='en')
-    >>> parsed_text = parser.parse('The book is on the table.')
+    >>> parser = nlpnet.DependencyParser('dependency')
+    >>> parsed_text = parser.parse('플라스틱으로 만든 샤베트기는 수입품이 대부분이다.')
     >>> parsed_text
     [<nlpnet.taggers.ParsedSentence at 0x10e067f0>]
     >>> sent = parsed_text[0]
     >>> print(sent.to_conll())
-    1       The     _       DT      DT      _       2       NMOD
-    2       book    _       NN      NN      _       3       SBJ
-    3       is      _       VBZ     VBZ     _       0       ROOT
-    4       on      _       IN      IN      _       3       LOC-PRD
-    5       the     _       DT      DT      _       6       NMOD
-    6       table   _       NN      NN      _       4       PMOD
-    7       .       _       .       .       _       3       P
+    1      2      NP_AJT      플라스틱/NNG+으로/JKB
+    2      3      VP_MOD      만들/VV+ㄴ/ETM
+    3      5      NP_SBJ      샤베트기/NNG+는/JX
+    4      5      NP_SBJ      수입품/NNG+이/JKS
+    5      5      VNP         대부분/NNG+이/VCP+다/EF+./SF
 
-The ``to_conll()`` method of ParsedSentence objects prints them in the `CoNLL`_ notation. The tokens, labels and head indices are accessible through member variables:
+Parsed object에 ``to_conll()`` 메소드를 호출하면 `CoNLL`_ 형식으로 결과를 보여줍니다.
+또한 멤버변수에 직접 접근할 수도 있습니다.
 
     >>> sent.tokens
-    [u'The', u'book', u'is', u'on', u'the', u'table', u'.']
+    [u'플라스틱으로', u'만든', u'샤베트기는', u'수입품이', u'대부분이다', u'.']
     >>> sent.heads
-    array([ 1,  2, -1,  2,  5,  3,  2])
+    array([ 2,  3, 5,  5,  5])
     >>> sent.labels
-    [u'NMOD', u'SBJ', u'ROOT', u'LOC-PRD', u'NMOD', u'PMOD', u'P']
+    [u'NP_AJT', u'VP_MOD', u'NP_SBJ', u'NP_SBJ', u'VNP']
     
-The ``heads`` member variable is a numpy array. The i-th position in the array contains the index of the head of the i-th token, except for the root token, which has a head of -1. Notice that these indices are 0-based, while the ones shown in the ``to_conll()`` function are 1-based.
+``heads``는 numpy array입니다.
+각각의 값은 i번째 어절을 지배소로 가진다는 의미입니다.
 
 .. _`CoNLL`: http://ilk.uvt.nl/conll/#dataformat
 
 Standalone scripts
 ~~~~~~~~~~~~~~~~~~
 
-``nlpnet`` also provides scripts for tagging text, training new models and testing them. They are copied to the `scripts` subdirectory of your Python installation, which can be included in the system PATH variable. You can call them from command line and give some text input.
+``nlpnet`` also provides scripts for tagging text, training new models and testing them.
+``nlpnet for Korean``은 스크립트로도 사용할 수 있습니다.
+
+아래와 같이 입력하여 결과를 얻을 수 있습니다.
 
 .. code-block:: bash
 
-    $ nlpnet-tag.py pos --data /path/to/nlpnet-data/ --lang pt
-    O rato roeu a roupa do rei de Roma.
-    O_ART rato_N roeu_V a_ART roupa_N do_PREP+ART rei_N de_PREP Roma_NPROP ._PU
+    $ nlpnet-tag.py pos --data /path/to/nlpnet-data/
+    나는 집에 갔다.
+    나는_NPJ 집에_NPJ 갔다_VPE ._S
 
-If ``--data`` is not given, the script will search for the trained models in the current directory. ``--lang`` defaults to ``en``. If you have text already tokenized, you may use the ``-t`` option; it assumes tokens are separated by whitespaces.
-    
-With semantic role labeling:
+``--data``가 주어지지 않은 경우, 스크립트는 현재 디렉토리에서 학습모델을 검색할 것입니다.
+문장이 이미 토큰화(토크나이즈) 완료된 경우라면, ``-t``옵션을 사용하세요. 띄어쓰기를 토큰 단위로 인식할 것입니다.
+
+Semantic Role Labeling하기.
 
 .. code-block:: bash
 
     $ nlpnet-tag.py srl /path/to/nlpnet-data/
-    O rato roeu a roupa do rei de Roma.
-    O rato roeu a roupa do rei de Roma .
-    roeu
-        A1: a roupa do rei de Roma
-        A0: O rato
-        V: roeu
+    나는 집에 갔다.
+    나는 집에 갔다.
+    갔다.
+        A1: 나는
+        V: 갔다.
 
-The first line was typed by the user, and the second one is the result of tokenization.
+첫번째 열은 유저에게서 입력된 것이고, 두번째는 토큰화 결과입니다.
 
-And dependency parsing:
+구문 분석하기.
 
 .. code-block:: bash
 
-    $ nlpnet-tag.py dependency --data dependency --lang en
-    The book is on the table.
-    1       The     _       DT      DT      _       2       NMOD
-    2       book    _       NN      NN      _       3       SBJ
-    3       is      _       VBZ     VBZ     _       0       ROOT
-    4       on      _       IN      IN      _       3       LOC-PRD
-    5       the     _       DT      DT      _       6       NMOD
-    6       table   _       NN      NN      _       4       PMOD
-    7       .       _       .       .       _       3       P
+    $ nlpnet-tag.py dependency --data dependency
+    나는 집에 갔다.
+    1   3   NP_SBJ  나/NP+는/JX
+    2   3   NP_AJT  집/NNG+에/JKB
+    3   3   VP      가/VV+았/EP+다/EF+./SF
 
-To learn more about training and testing new models, and other functionalities, refer to the documentation at http://nilc.icmc.usp.br/nlpnet
+    

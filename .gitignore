@@ -8,3 +8,7 @@ nlpnet/network.pyd
 build
 dist
 MANIFEST
+
+bin/pos-tags.txt
+
+bin/vocabulary-pos.txt
