@@ -1,26 +1,31 @@
 ===============================================================
-``nlpnet`` --- Natural Language Processing with neural networks
+``nlpnet for Korean`` --- Korean Natural Language Processing with neural networks
 ===============================================================
 
-``nlpnet`` is a Python library for Natural Language Processing tasks based on neural networks. 
-Currently, it performs part-of-speech tagging, semantic role labeling and dependency parsing. 
-Most of the architecture is language independent, but some functions were specially tailored for working
-with Portuguese. This system was inspired by SENNA_.
+``nlpnet for Korean``은 ``neural network``를 이용한 한국어 자연어 처리용 파이썬 라이브러리입니다.
+현재, 기존의 nlpnet_ 프로젝트를 가져와 POS만 한글에 맞게 수정한 상태입니다.
+앞으로 nlpnet_ 의 SRL과 DEPENDENCY Parsing부분도 수정해야 할 것입니다.
+기존의 nlpnet_ 프로젝트의 설명에 따르면 거의 대부분의 구조가 언어에 종속적이지 않으나, 몇몇 함수들은 포르투갈어에 맞게 설계되었다고 합니다.
+또한 SENNA_ 에 영감을 받아 시작하였다고도 서술하고 있습니다.
 
+이 페이지에는 일부 오역이 포함되어 있을 수 있습니다. 원문은 nlpnet_ 에서 확인해 주세요.
+
+.. _nlpnet: https://github.com/erickrf/nlpnet/
 .. _SENNA: http://ronan.collobert.com/senna/
-
-**Important:** in order to use the trained models for Portuguese NLP, you will need to download the data from http://nilc.icmc.usp.br/nlpnet/models.html.
 
 Dependencies
 ------------
 
-``nlpnet`` requires NLTK_ and numpy_. Additionally, it needs to download some data from NLTK. After installing it, call
+``nlpnet for Korean``은 NLTK_ 와 numpy_ 를 필요로 합니다. 또, NLTK를 인스톨한 후에, 추가적인 data를 다운로드 받아야 합니다. 인스톨 후에 아래의 명령어를 호출하십시오.
 
     >>> nltk.download()
 
-go to the `Models` tab and select the Punkt tokenizer. It is used in order to split the text into sentences.
+후에, `Models` 탭으로 가서, `Punkt tokenizer`를 선택합니다. `Punkt tokenizer`는 텍스트를 문장으로 나누는데 사용됩니다.
 
-Cython_ is used to generate C extensions and run faster. You probably won't need it, since the generated ``.c`` file is already provided with `nlpnet`, but you will need a C compiler. On Linux and Mac systems this shouldn't be a problem, but may be on Windows, because  setuptools_ requires the Microsoft C Compiler by default. If you don't have it already, it is usually easier to install MinGW_ instead and follow the instructions `here <http://docs.cython.org/src/tutorial/appendix.html>`_.
+Cython_ 은 C extension을 생성하고, 빠르게 실행시키기 위해 사용됩니다.
+``.c``파일을 사용하는 ``nlpnet for Korean``은 그렇기에 Cython_ 에 종속적이고, ``C 컴파일러``가 필요합니다.
+setuptools_ 는 또한 Microsoft의 C 컴파일러를 필요로 하기 때문에, Linux나 OSX환경에서는 문제가 되지 않지만, Windows 사용자라면 곤란할 수 있습니다.
+Microsoft의 C 컴파일러를 설치하기 전이라면, MinGW_ 를 사용하는 것이 빠를 수 있습니다.
 
 .. _NLTK: http://www.nltk.org
 .. _numpy: http://www.numpy.org

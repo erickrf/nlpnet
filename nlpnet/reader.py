@@ -143,6 +143,7 @@ class TaggerReader(object):
         return np.array([self.converter.convert(t) for t in sentence])
     
     def codify_sentences(self):
+        logger.info("data structuring.")
         """
         Converts each token in each sequence into indices to their feature vectors
         in feature matrices. The previous sentences as text are not accessible anymore.

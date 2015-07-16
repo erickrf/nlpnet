@@ -1,0 +1,57 @@
+0 나는 NPJ
+1 집에 NPJ
+2 갔다 VPE
+3 . S
+
+0 나는 NPJ
+1 학교에 NPJ
+2 갔다 VPE
+3 . S
+
+0 그는 NPJ
+1 직장에 NPJ
+2 다닌다 VPE
+3 . S
+
+0 그의 NPJ
+1 직장은 NPJ
+2 좋은 VPE
+3 곳이 NPJ
+4 확실하다 VPE
+5 . S
+
+0 프랑스의 NPJ
+1 세계적인 VNPE
+2 의상 NP
+3 디자이너 NP
+4 엠마누엘 NP
+5 웅가로가 NPJ
+6 실내 NP
+7 장식용 NP
+8 직물 NP
+9 디자이너로 NPJ
+10 나섰다 VPE
+11 . S
+
+0 플라스틱으로 NPJ
+1 만든 VPE
+2 샤베트기는 NPJ
+3 수입품이 NPJ
+4 대부분이다 VNPE
+5 . S
+
+0 얼음 NP
+1 대신 NP
+2 쓰는 VPE
+3 아이스팩도 NPJ
+4 필수품이다 VNPE
+5 . S
+
+0 도수안경의 NPJ
+1 경우 NP
+2 일반제품의 NPJ
+3 2 S
+4 배인 VNPE
+5 3 S
+6 만원선 NP
+7 . S

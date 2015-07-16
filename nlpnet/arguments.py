@@ -39,9 +39,9 @@ def get_args():
                              help='Number of features per word '\
                              '(used to generate random vectors)',
                              default=50, dest='num_features')
-    base_parser.add_argument('--load-network', action='store_true',
+    base_parser.add_argument('--load_network', action='store_true',
                              help='Load previously saved network')
-    base_parser.add_argument('--load-features', action='store_true',
+    base_parser.add_argument('--load_features', action='store_true',
                              help="Load previously saved word type features "\
                              "(overrides -f and must also load a vocabulary file)", 
                              dest='load_types')
@@ -77,10 +77,6 @@ def get_args():
     network_parser.add_argument('--decay', type=float, const=1, nargs='?', default=None,
                                 help='Use learning rate decay. Optionally, '\
                                 'supply decay factor (default 1)')
-    network_parser.add_argument('--l2', type=float, default=0,
-                                help='L^2 regularization factor (aka lambda, default 0)')
-    network_parser.add_argument('--dropout', type=float, default=0,
-                                help='Dropout; probability to change a hidden value to 0 (default 0)')
     network_parser.add_argument('-a', '--accuracy', type=float,
                                 help='Maximum desired accuracy per token.',
                                 default=0, dest='accuracy')

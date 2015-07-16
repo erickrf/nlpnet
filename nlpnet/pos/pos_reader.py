@@ -10,12 +10,11 @@ class ConllPos(object):
     """
     Dummy class for storing column positions in a conll file.
     """
-    id = 0
-    word = 1
-    lemma = 2
-    pos = 3
-    pos2 = 4
-    morph = 5
+    file = 0
+    qtag = 1
+    id = 2
+    word = 3
+    pos = 4
 
 class POSReader(TaggerReader):
     """
@@ -78,9 +77,12 @@ class POSReader(TaggerReader):
                         continue
                 
                 line = unicode(line, 'utf-8')
+                print line
                 fields = line.split()
                 word = fields[ConllPos.word]
+                print word
                 pos = fields[ConllPos.pos]
+                print pos
                 sentence.append((word, pos))
         
         if len(sentence) > 0:
