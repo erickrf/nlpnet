@@ -208,14 +208,14 @@ def train(nn, reader, args):
     logger.info("Starting training with %d sentences" % num_sents)
     
     avg_len = sum(len(x) for x in text_reader.sentences) / float(num_sents)
-    logger.debug("Average sentence length is %f tokens" % avg_len)
+    logger.debug("Average sentence length is %.2f tokens" % avg_len)
     
     logger.debug("Network connection learning rate: %f" % nn.learning_rate)
     logger.debug("Feature vectors learning rate: %f" % nn.learning_rate_features)
     logger.debug("Tag transition matrix learning rate: %f\n" % nn.learning_rate_trans)
     
     intervals = max(args.iterations / 200, 1)
-    np.seterr(over='raise')
+    np.seterr(over='raise', divide='raise', invalid='raise')
     
     if args.decay:
         nn.set_learning_rate_decay(args.decay)
