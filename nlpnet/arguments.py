@@ -100,12 +100,12 @@ def get_args():
     conv_parser.add_argument('--pos', const=5, nargs='?', type=int, default=None,
                              help='Include part-of-speech features. '\
                              'Optionally, supply the number of features (default 5)')
-    conv_parser.add_argument('--max_dist', type=int, default=10,
-                             help='Maximum distance to have its own feature vector')
-    conv_parser.add_argument('--target_features', type=int, default=5,
-                             help='Number of features for distance to target word')
-    conv_parser.add_argument('--pred_features', type=int, default=5,
-                             help='Number of features for distance to predicate')
+    conv_parser.add_argument('--max-dist', type=int, default=10, dest='max_dist',
+                             help='Maximum distance to have its own feature vector (default 10)')
+    conv_parser.add_argument('--target-features', type=int, default=5, dest='target_features',
+                             help='Number of features for distance to target word (default 5)')
+    conv_parser.add_argument('--pred-features', type=int, default=5, dest='pred_features',
+                             help='Number of features for distance to predicate (default 5)')
         
     
     # POS argument parser

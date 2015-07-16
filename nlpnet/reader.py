@@ -249,7 +249,7 @@ class TaggerReader(object):
         
         wd = WordDictionary.init_from_wordlist(words)
         self.word_dict = wd
-        logger.info("Done. Dictionary size is %d types" % wd.num_tokens)
+        logger.debug("Done. Dictionary size is %d types" % wd.num_tokens)
     
     def save_dictionary(self, filename=None):
         """

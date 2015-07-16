@@ -606,11 +606,11 @@ if __name__ == '__main__':
     parser_srl = subparsers.add_parser('srl', help='Semantic Role Labeling', parents=[base_parser])
     parser_dep = subparsers.add_parser('dependency', help='Dependency parsing', parents=[base_parser])
     
-    parser_srl.add_argument('--id', help='Evaluate only argument identification (SRL only)',
+    parser_srl.add_argument('--id', help='Evaluate only argument identification',
                             action='store_true', dest='identify')
-    parser_srl.add_argument('--class', help='Evaluate only argument classification (SRL only)',
+    parser_srl.add_argument('--class', help='Evaluate only argument classification',
                             action='store_true', dest='classify')
-    parser_srl.add_argument('--preds', help='Evaluate only predicate identification (SRL only)',
+    parser_srl.add_argument('--preds', help='Evaluate only predicate identification',
                             action='store_true', dest='predicates')
     parser_srl.add_argument('--2steps', help='Execute SRL with two separate steps', action='store_true', dest='two_steps')
     parser_srl.add_argument('--no-repeat', dest='no_repeat', action='store_true',
