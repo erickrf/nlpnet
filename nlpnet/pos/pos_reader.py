@@ -10,11 +10,9 @@ class ConllPos(object):
     """
     Dummy class for storing column positions in a conll file.
     """
-    file = 0
-    qtag = 1
-    id = 2
-    word = 3
-    pos = 4
+    id = 0
+    word = 1
+    pos = 2
 
 class POSReader(TaggerReader):
     """

@@ -143,6 +143,7 @@ class TaggerReader(object):
         return np.array([self.converter.convert(t) for t in sentence])
     
     def codify_sentences(self):
+        logger = logging.getLogger("Logger")
         logger.info("data structuring.")
         """
         Converts each token in each sequence into indices to their feature vectors
