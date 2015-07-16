@@ -77,7 +77,7 @@ cdef class Network:
     
     # sizes and learning rates
     cdef readonly int word_window_size, input_size, hidden_size, output_size
-    cdef public float learning_rate, learning_rate_features
+    cdef public float learning_rate
     cdef public float decay_factor
     cdef public bool use_learning_rate_decay
     cdef readonly int features_per_token
@@ -85,8 +85,8 @@ cdef class Network:
     # lookup for fast access to all the token embeddings in a sentence
     cdef np.ndarray sentence_lookup
     
-    # L^2 regularization factor (aka lambda) and dropout
-    cdef public float l2_factor, dropout
+    # L2 regularization factor (aka lambda), dropout and max_norm
+    cdef public float l2_factor, dropout, max_norm
     
     # padding stuff
     cdef np.ndarray padding_left, padding_right
@@ -101,7 +101,6 @@ cdef class Network:
     cdef public list feature_tables
     
     # transitions
-    cdef public float learning_rate_trans
     cdef public np.ndarray transitions
     
     # the score for a given path
@@ -110,7 +109,7 @@ cdef class Network:
     # gradients
     cdef readonly np.ndarray net_gradients, trans_gradients
     cdef readonly np.ndarray historical_output_gradients, historical_hidden_gradients
-    cdef readonly np.ndarray historical_input_gradients
+    cdef readonly np.ndarray historical_input_gradients, historical_trans_gradients
     cdef readonly np.ndarray input_sent_values, hidden_sent_values, layer2_sent_values
     
     # data for statistics during training. 
@@ -176,10 +175,10 @@ cdef class Network:
             Window Level Likelihood instead of Sentence Level Likelihood.
         """
         self.learning_rate = 0
-        self.learning_rate_features = 0
         
         self.l2_factor = 0
         self.dropout = 0
+        self.max_norm = 0
         
         self.word_window_size = word_window
         self.input_size = input_size
@@ -310,14 +309,7 @@ Output size: %d
             self.hidden_values = hardtanh(self.layer2_values, inplace=not training)
             
             # dropout
-            if training:
-                # in training, we zero hidden layer values with a given probability
-                # when running a model, we multiply all values by that probability minus one
-                dropout_probabilities = [self.dropout, 1 - self.dropout]
-                dropout_vector = np.random.choice([0, 1], self.hidden_size, p=dropout_probabilities)
-                self.hidden_values *= dropout_vector
-            else:
-                self.hidden_values *= (1 - self.dropout)
+            self.hidden_values = self._dropout(self.hidden_values, training)
             
             output = self.output_weights.dot(self.hidden_values) + self.output_bias
             scores[i] = output
@@ -332,6 +324,31 @@ Output size: %d
                 self._backpropagate(sentence)
 
         return scores
+    
+    def _generate_dropout_vector(self, size):
+        """
+        Generate a vector to be used in dropout functionality.
+        """
+        dropout_probabilities = [self.dropout, 1 - self.dropout]
+        dropout_vector = np.random.choice([0, 1], size, p=dropout_probabilities)
+        return dropout_vector
+    
+    def _dropout(self, values, training):
+        """
+        Employ the dropout technique on the given input values.
+        If training is True, some values are set to 0 with probability self.dropout.
+        If training is False, all values are multiplied by (1 - self.dropout).
+        """
+        if training:
+            # for 1-dimensional vectors, shape[-1] is the same as shape[0]
+            # for 2-dimensional vectors, it is the second dimension, which we are interested here
+            # since it refers to each neuron. In nlpnet, the first dimension refers to values along
+            # tokens in the sentence
+            shape = values.shape[-1]
+            dropout_vector = self._generate_dropout_vector(shape)
+            return values * dropout_vector
+        else:
+            return values * (1 - self.dropout)
     
     def _calculate_delta(self, scores):
         """
@@ -359,7 +376,7 @@ Output size: %d
             # sum by rows
             logadd = logsumexp(delta[token - 1] + transitions, 1)
             delta[token] += logadd
-        
+            
         return delta
 
     @cython.boundscheck(False)
@@ -387,6 +404,7 @@ Output size: %d
         
         # delta[t] = delta_t in equation (14)
         delta = self._calculate_delta(scores)
+        
         # logadd_i(delta_T(i)) = log(Sum_i(exp(delta_T(i))))
         # Sentence-level Log-Likelihood (SLL)
         # C(ftheta,A) = logadd_j(s(x, j, theta, A)) - score(correct path)
@@ -591,9 +609,6 @@ Output size: %d
         # and we don't need to store the initial rates
         factor = (1.0 + (epoch - 1) * self.decay_factor) / (1 + epoch * self.decay_factor)
         self.learning_rate *= factor
-        self.learning_rate_features *= factor
-        if self.transitions is not None:
-            self.learning_rate_trans *= factor
     
     def train(self, list sentences, list tags, 
               int epochs, int epochs_between_reports=0,
@@ -617,9 +632,10 @@ Output size: %d
         top_accuracy = 0
         last_accuracy = 0
         last_error = np.Infinity
-        self.historical_output_gradients = np.zeros((self.output_size, self.hidden_size))
-        self.historical_hidden_gradients = np.zeros((self.hidden_size, self.input_size))
+        self.historical_output_gradients = np.zeros_like(self.output_weights)
+        self.historical_hidden_gradients = np.zeros_like(self.hidden_weights)
         self.historical_input_gradients = np.zeros(self.input_size)
+        self.historical_trans_gradients = np.zeros_like(self.transitions)
         self.num_tokens = sum(len(sent) for sent in sentences)
         
         if self.validation_sentences is None:
@@ -719,7 +735,7 @@ Output size: %d
         self.historical_output_gradients += output_deltas ** 2
         output_deltas = output_deltas / np.sqrt(self.historical_output_gradients)
         
-        # L^2 regularization
+        # L2 regularization
         l2 = self.output_weights * self.l2_factor
         output_deltas -= l2
 
@@ -737,7 +753,7 @@ Output size: %d
         self.historical_hidden_gradients += hidden_deltas ** 2
         hidden_deltas = hidden_deltas / np.sqrt(self.historical_hidden_gradients)
         
-        # L^2 regularization
+        # L2 regularization
         l2 = self.hidden_weights * self.l2_factor
         hidden_deltas -= l2        
          
@@ -770,7 +786,7 @@ Output size: %d
         
         # input_size = num features * window (e.g. 60 * 5)
         # (len, input_size)
-        input_deltas = input_gradients * self.learning_rate_features / np.sqrt(self.historical_input_gradients)
+        input_deltas = input_gradients * self.learning_rate / np.sqrt(self.historical_input_gradients)
         
         padded_sentence = np.concatenate((self.pre_padding,
                                           sentence,
@@ -794,7 +810,9 @@ Output size: %d
 
         # Adjusts the transition scores table with the calculated gradients.
         if self.transitions is not None:
-            self.transitions += self.trans_gradients * self.learning_rate_trans
+            self.historical_trans_gradients += self.trans_gradients ** 2
+            transisitons_deltas = self.trans_gradients / np.sqrt(self.historical_trans_gradients)
+            self.transitions += self.learning_rate * transisitons_deltas
 
     def _load_parameters(self):
         """
@@ -866,6 +884,23 @@ Output size: %d
         nn.dropout = data['dropout']
         
         return nn
+    
+    def cap_norm(self, np.ndarray[FLOAT_t, ndim=2] weights):
+        """
+        Constrain the norm of the weights for each neuron at a maximum value.
+        
+        It is assumed that each row of the weight matrix corresponds to a 
+        neuron (that is, the norms are examined row-wise).
+        """
+        if self.max_norm == 0:
+            return weights
+        norms = np.linalg.norm(weights, axis=1)
+        factors = norms / self.max_norm
+        
+        # only change weight rows whose norm is above the threshold
+        norms[norms < self.max_norm] = 1
+        weights = (weights.T / factors).T
+        return weights
         
 # include the files for other networks
 # this comes here after the Network class has already been defined

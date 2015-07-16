@@ -104,24 +104,18 @@ def create_network(args, text_reader, feature_tables, md):
                 logger.info("Loading initial transition scores table for argument identification")
                 transitions = srl.init_transitions_simplified(text_reader.tag_dict)
                 nn.transitions = transitions
-                nn.learning_rate_trans = args.learning_rate_transitions
                 
             elif not args.classify:
                 logger.info("Loading initial IOB transition scores table")
                 transitions = srl.init_transitions(text_reader.tag_dict, 'iob')
                 nn.transitions = transitions
-                nn.learning_rate_trans = args.learning_rate_transitions
                 
     else:
         # not convolution
         num_tags = len(text_reader.tag_dict)
         nn = Network.create_new(feature_tables, args.window, args.hidden, num_tags)
-        nn.l2_factor = args.l2
-        nn.dropout = args.dropout
-        if args.learning_rate_transitions > 0:
-            transitions = np.zeros((num_tags + 1, num_tags), np.float)
-            nn.transitions = transitions
-            nn.learning_rate_trans = args.learning_rate_transitions
+        transitions = np.zeros((num_tags + 1, num_tags), np.float)
+        nn.transitions = transitions
 
         padding_left = text_reader.converter.get_padding_left(args.task == 'pos')
         padding_right = text_reader.converter.get_padding_right(args.task == 'pos')
@@ -129,14 +123,16 @@ def create_network(args, text_reader, feature_tables, md):
     nn.padding_left = np.array(padding_left)
     nn.padding_right = np.array(padding_right)
     nn.learning_rate = args.learning_rate
-    nn.learning_rate_features = args.learning_rate_features
+    nn.l2_factor = args.l2
+    nn.dropout = args.dropout
+    nn.max_norm = args.max_norm
     
     if 'convolution' in args and args.convolution > 0 and args.hidden > 0:
         layer_sizes = (nn.input_size, nn.hidden_size, nn.hidden2_size, nn.output_size)
     else:
         layer_sizes = (nn.input_size, nn.hidden_size, nn.output_size)
     
-    logger.info("Created new network with the following layer sizes: %s"
+    logger.info("Created new network with the following layer sizes: %s\n"
                 % ', '.join(str(x) for x in layer_sizes))
     
     nn.network_filename = config.FILES[md.network]
@@ -150,9 +146,6 @@ def load_network_train(args, md):
     logger.info(nn.description())
     
     nn.learning_rate = args.learning_rate
-    nn.learning_rate_features = args.learning_rate_features
-    if md.task.startswith('srl') or md.task == 'pos':
-        nn.learning_rate_trans = args.learning_rate_transitions
     
     return nn
 
@@ -205,20 +198,20 @@ def load_or_create_metadata(args):
 def train(nn, reader, args):
     """Trains a neural network for the selected task."""
     num_sents = len(reader.sentences)
-    logger.info("Starting training with %d sentences" % num_sents)
+    logger.debug("----------------------------------------------------")
+    logger.debug("Starting training with %d sentences" % num_sents)
     
     avg_len = sum(len(x) for x in text_reader.sentences) / float(num_sents)
     logger.debug("Average sentence length is %.2f tokens" % avg_len)
     
-    logger.debug("Network connection learning rate: %f" % nn.learning_rate)
-    logger.debug("Feature vectors learning rate: %f" % nn.learning_rate_features)
-    logger.debug("Tag transition matrix learning rate: %f\n" % nn.learning_rate_trans)
+    logger.debug("Network learning rate: %f" % nn.learning_rate)
+    logger.debug("L2 normalization factor set to %f" % nn.l2_factor)
+    logger.debug("Dropout factor set to %f" % nn.dropout)
+    logger.debug("Maximum weight norm set to %f (0 means disabled)" % nn.max_norm)
+    logger.debug("----------------------------------------------------")
     
     intervals = max(args.iterations / 200, 1)
     np.seterr(over='raise', divide='raise', invalid='raise')
-    
-    if args.decay:
-        nn.set_learning_rate_decay(args.decay)
     
     if args.task.startswith('srl') and args.task != 'srl_predicates':
         arg_limits = None if args.task != 'srl_classify' else text_reader.arg_limits

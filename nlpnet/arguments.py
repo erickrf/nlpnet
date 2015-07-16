@@ -68,19 +68,12 @@ def get_args():
     network_parser.add_argument('-l', '--learning_rate', type=float,
                                 help='Learning rate for network connections',
                                 dest='learning_rate')
-    network_parser.add_argument('--lf', type=float,
-                                help='Learning rate for features',
-                                dest='learning_rate_features')
-    network_parser.add_argument('--lt', type=float,
-                                help='Learning rate for tag transitions',
-                                dest='learning_rate_transitions')
-    network_parser.add_argument('--decay', type=float, const=1, nargs='?', default=None,
-                                help='Use learning rate decay. Optionally, '\
-                                'supply decay factor (default 1)')
     network_parser.add_argument('--l2', type=float, default=0,
                                 help='L^2 regularization factor (aka lambda, default 0)')
     network_parser.add_argument('--dropout', type=float, default=0,
                                 help='Dropout; probability to change a hidden value to 0 (default 0)')
+    network_parser.add_argument('--max-norm', type=float, default=0, dest='max_norm',
+                                help='Maximum weight norm; limits the norm of weight vectors (default 0 ie disabled)')
     network_parser.add_argument('-a', '--accuracy', type=float,
                                 help='Maximum desired accuracy per token.',
                                 default=0, dest='accuracy')

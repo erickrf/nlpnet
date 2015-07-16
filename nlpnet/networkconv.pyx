@@ -17,12 +17,16 @@ cdef class ConvolutionalNetwork(Network):
     cdef readonly np.ndarray target_dist_lookup, pred_dist_lookup
     cdef readonly np.ndarray target_convolution_lookup, pred_convolution_lookup
     cdef readonly np.ndarray target_dist_deltas, pred_dist_deltas
+    cdef readonly np.ndarray historical_target_gradients, historical_pred_gradients
+    cdef readonly np.ndarray historical_target_weight_gradients
+    cdef readonly np.ndarray historical_pred_weight_gradients
     
     # the second hidden layer
     cdef readonly int hidden2_size
     cdef readonly np.ndarray hidden2_weights, hidden2_bias
     cdef readonly np.ndarray hidden2_values
     cdef readonly np.ndarray hidden2_before_activation, hidden_before_activation
+    cdef readonly np.ndarray historical_hidden2_gradients
     
     # lookup of convolution values (the same for each sentence, used to save time)
     cdef np.ndarray convolution_lookup
@@ -130,6 +134,9 @@ Output size: %d
         self.half_window = word_window / 2
         self.features_per_token = self.input_size / word_window
         
+        self.l2_factor = 0
+        self.dropout = 0
+        
         self.transitions = None
         self.target_dist_lookup = None
         self.pred_dist_lookup = None
@@ -163,7 +170,7 @@ Output size: %d
                  output_size=self.output_size, hidden2_size=self.hidden2_size,
                  hidden2_weights=self.hidden2_weights, hidden2_bias=self.hidden2_bias,
                  padding_left=self.padding_left, padding_right=self.padding_right,
-                 feature_tables=self.feature_tables)
+                 feature_tables=self.feature_tables, dropout=self.dropout)
         return d
     
     def save(self):
@@ -218,6 +225,7 @@ Output size: %d
         nn.pos_padding = np.array((nn.word_window_size / 2) * [nn.padding_right])
         nn.feature_tables = list(data['feature_tables'])
         nn.network_filename = filename
+        nn.dropout = data['dropout']
         
         return nn
 
@@ -293,6 +301,13 @@ Output size: %d
         last_accuracy = 0
         top_accuracy = 0
         last_error = np.Infinity
+        self.historical_output_gradients = np.zeros_like(self.output_weights)
+        self.historical_hidden_gradients = np.zeros_like(self.hidden_weights)
+        self.historical_hidden2_gradients = np.zeros_like(self.hidden2_weights)
+        self.historical_input_gradients = np.zeros(self.input_size)
+        self.historical_target_weight_gradients = np.zeros_like(self.target_dist_weights)
+        self.historical_pred_weight_gradients = np.zeros_like(self.pred_dist_weights)
+        self.historical_trans_gradients = np.zeros_like(self.transitions)
         
         if self.validation_sentences is None:
             self.set_validation_data(sentences, predicates, tags, arguments)
@@ -307,10 +322,10 @@ Output size: %d
                 top_accuracy = self.accuracy
                 self.save()
                 logger.debug("Saved model")
-            elif self.use_learning_rate_decay:
-                # this iteration didn't bring improvements; load the last saved model
-                # before continuing training with a lower rate
-                self._load_parameters()
+#             elif self.use_learning_rate_decay:
+#                 # this iteration didn't bring improvements; load the last saved model
+#                 # before continuing training with a lower rate
+#                 self._load_parameters()
             
             if (epochs_between_reports > 0 and i % epochs_between_reports == 0) \
                 or self.accuracy >= desired_accuracy > 0 \
@@ -456,6 +471,10 @@ Output size: %d
         
         input_and_pred_dist_values = pred_dist_values + self.convolution_lookup
         
+        # generate here the dropout vector to be used in the convolution layer
+        # the same vector is used for all targets
+        dropout_vector = self._generate_dropout_vector(self.hidden_size)
+        
         for target in range(self.num_targets):
             # loop over targets and add the weighted distance features to each token
             # this is necessary for the convolution layer
@@ -474,6 +493,7 @@ Output size: %d
                                                                      0, mode='clip')
 
             convolution_values = target_dist_values + input_and_pred_dist_values
+            convolution_values *= dropout_vector
             
             # now, find the maximum values
             if training:
@@ -482,10 +502,13 @@ Output size: %d
             
         # apply the bias and proceed to the next layer
         self.hidden_values += self.hidden_bias
-    
+        
         if self.hidden2_weights is not None:
             self.hidden2_values = self.hidden_values.dot(self.hidden2_weights.T) + self.hidden2_bias
-        
+            
+            # dropout
+            self.hidden2_values = self._dropout(self.hidden2_values, training)
+            
             if training:
                 self.hidden2_before_activation = self.hidden2_values.copy()
     
@@ -516,6 +539,12 @@ Output size: %d
         
         if self.target_dist_lookup is None: self._create_target_lookup()
         if self.pred_dist_lookup is None: self._create_pred_lookup()
+        
+        if self.historical_target_gradients is None:
+            self.historical_target_gradients = np.zeros_like(self.target_dist_lookup)
+            
+        if self.historical_pred_gradients is None:
+            self.historical_pred_gradients = np.zeros_like(self.pred_dist_lookup)
         
     
     @cython.boundscheck(False)
@@ -657,9 +686,7 @@ Output size: %d
         
         if self.hidden2_weights is not None:
             # derivative with respect to the second hidden layer
-            dCd_hidden2 = dCd_tanh * hardtanhd(self.hidden2_before_activation)
-            self.hidden2_gradients = dCd_hidden2
-                        
+            self.hidden2_gradients = dCd_tanh * hardtanhd(self.hidden2_before_activation)
             self.hidden_gradients = self.hidden2_gradients.dot(self.hidden2_weights)
         else:
             # the non-linearity appears right after the convolution max
@@ -674,16 +701,34 @@ Output size: %d
         cdef int i
         cdef np.ndarray[FLOAT_t, ndim=1] gradients_t
         cdef np.ndarray[FLOAT_t, ndim=2] last_values, deltas, grad_matrix, input_values
+        cdef float epsilon = 1e-10
         
         last_values = self.hidden2_values if self.hidden2_weights is not None else self.hidden_values
-        deltas = self.net_gradients.T.dot(last_values) * self.learning_rate
-        self.output_weights += deltas
+        
+        # adagrad
+        deltas = self.net_gradients.T.dot(last_values) 
+        self.historical_output_gradients += deltas ** 2
+        deltas /= epsilon + np.sqrt(self.historical_output_gradients)
+        
+        # L2 regularization
+        deltas -= self.output_weights * self.l2_factor
+        
+        self.output_weights += deltas * self.learning_rate
         self.output_bias += self.net_gradients.sum(0) * self.learning_rate
+        self.output_weights= self.cap_norm(self.output_weights)
         
         if self.hidden2_weights is not None:
-            deltas = self.hidden2_gradients.T.dot(self.hidden_values) * self.learning_rate
-            self.hidden2_weights += deltas
+            # adagrad
+            deltas = self.hidden2_gradients.T.dot(self.hidden_values)
+            self.historical_hidden2_gradients += deltas ** 2
+            deltas /= epsilon + np.sqrt(self.historical_hidden2_gradients)
+            
+            # L2
+            deltas -= self.hidden2_weights * self.l2_factor
+            
+            self.hidden2_weights += deltas * self.learning_rate
             self.hidden2_bias += self.hidden2_gradients.sum(0) * self.learning_rate
+            self.hidden2_weights= self.cap_norm(self.hidden2_weights)
         
         # now adjust weights from input to convolution. these will be trickier.
         # we need to know which input value to use in the delta formula
@@ -693,14 +738,23 @@ Output size: %d
         for i, neuron_maxes in enumerate(self.max_indices):
             # i indicates the i-th target
               
-            gradients_t = self.hidden_gradients[i] * self.learning_rate
+            gradients_t = self.hidden_gradients[i]
             
             # table containing in each line the input values selected for each convolution neuron
             input_values = self.input_sent_values.take(neuron_maxes, 0)
             
             # stack the gradients to multiply all weights for a neuron
             grad_matrix = np.tile(gradients_t, [self.input_size, 1]).T
-            self.hidden_weights += grad_matrix * input_values
+            deltas = grad_matrix * input_values
+            
+            # adagrad
+            self.historical_hidden_gradients += deltas ** 2
+            deltas /= epsilon + np.sqrt(self.historical_hidden_gradients)
+            
+            # L2
+            deltas -= self.hidden_weights * self.l2_factor
+            
+            self.hidden_weights += deltas * self.learning_rate
             
             # target distance weights
             # get the relative distance from each max token to its target
@@ -713,7 +767,16 @@ Output size: %d
             dist_features = self.target_dist_lookup.take(target_dists + self.target_dist_offset, 
                                                          0, mode='clip')
             grad_matrix = np.tile(gradients_t, [self.target_dist_weights.shape[0], 1]).T
-            self.target_dist_weights += (grad_matrix * dist_features).T
+            
+            # adagrad
+            deltas = (grad_matrix * dist_features).T
+            self.historical_target_weight_gradients += deltas ** 2
+            deltas /= epsilon + np.sqrt(self.historical_target_weight_gradients)
+            
+            # L2
+            deltas -= self.target_dist_weights * self.l2_factor
+            
+            self.target_dist_weights += deltas * self.learning_rate
             
             # predicate distance weights
             # get the distance from each max token to its predicate
@@ -724,14 +787,27 @@ Output size: %d
             if self.target_dist_weights.shape[0] != self.pred_dist_weights.shape[0]: 
                 grad_matrix = np.tile(gradients_t, [self.pred_dist_weights.shape[0], 1]).T
             
-            self.pred_dist_weights += (grad_matrix * dist_features).T
+            # adagrad 
+            deltas = (grad_matrix * dist_features).T
+            self.historical_pred_weight_gradients += deltas ** 2
+            deltas /= epsilon + np.sqrt(self.historical_pred_weight_gradients)
+            
+            # L2
+            deltas -= self.pred_dist_weights * self.l2_factor
+                        
+            self.pred_dist_weights += deltas * self.learning_rate
         
         self.hidden_bias += self.hidden_gradients.sum(0) * self.learning_rate
+        self.hidden_weights = self.cap_norm(self.hidden_weights)
+        self.target_dist_weights = self.cap_norm(self.target_dist_weights)
+        self.pred_dist_weights = self.cap_norm(self.pred_dist_weights)
         
         # Adjusts the transition scores table with the calculated gradients.
         if not self.only_classify and self.transitions is not None:
-            self.transitions += self.trans_gradients * self.learning_rate_trans
-            
+            self.historical_trans_gradients += self.trans_gradients ** 2
+            deltas = self.trans_gradients / (epsilon + np.sqrt(self.historical_trans_gradients))
+            self.transitions += self.learning_rate * deltas
+    
     @cython.boundscheck(False)
     @cython.wraparound(False)
     def _calculate_input_deltas(self, np.ndarray sentence, int predicate, 
@@ -745,13 +821,12 @@ Output size: %d
         cdef np.ndarray[INT_t, ndim=1] convolution_max, target_dists
         
         # matrices accumulating gradients over each target
-        # each matrix has a whole window in each line
         input_gradients = np.zeros((len(sentence), self.hidden_size))
         target_dist_gradients = np.zeros((self.target_dist_lookup.shape[0], self.hidden_size))
         pred_dist_gradients = np.zeros((self.pred_dist_lookup.shape[0], self.hidden_size))
         
         # avoid multiplying by the learning rate multiple times
-        hidden_gradients = self.hidden_gradients * self.learning_rate_features
+        hidden_gradients = self.hidden_gradients * self.learning_rate
         cdef np.ndarray[INT_t, ndim=1] column_numbers = np.arange(self.hidden_size)
         
         for target in range(self.num_targets):
@@ -776,16 +851,32 @@ Output size: %d
             
             # sparse matrix with gradients to be applied over the input
             # line i has the gradients for the i-th token in the sentence
-            input_gradients[convolution_max, np.arange(self.hidden_size)] += gradients
+            input_gradients[convolution_max, column_numbers] += gradients
             
             # distance deltas
-            target_dist_gradients[target_dists, np.arange(self.hidden_size)] += gradients
-            pred_dist_gradients[pred_dists, np.arange(self.hidden_size)] += gradients
+            target_dist_gradients[target_dists, column_numbers] += gradients
+            pred_dist_gradients[pred_dists, column_numbers] += gradients
         
+        # (len(sent), hidden_size) . (hidden_size, input_size) = (len(sent), input_size)
         self.input_deltas = input_gradients.dot(self.hidden_weights)
+        
+        # (dist_lookup_size, hidden_size) . (hidden_size, num_dist_features) = (dist_lookup_size, num_dist_features)
         self.target_dist_deltas = target_dist_gradients.dot(self.target_dist_weights.T)
         self.pred_dist_deltas = pred_dist_gradients.dot(self.pred_dist_weights.T)
-            
+        
+        # use adagrad on the embedding deltas
+        # each matrix has a number of rows equal to the sentence length
+        # the historical input gradients are stored in a vector;
+        # the ones for distance tables are stored in matrices 
+        squared_deltas = self.input_deltas ** 2
+        self.historical_input_gradients += squared_deltas.sum(0)
+        self.input_deltas /= np.sqrt(self.historical_input_gradients)
+        
+        self.historical_target_gradients += self.target_dist_deltas ** 2
+        self.target_dist_deltas /= np.sqrt(self.historical_target_gradients)
+        
+        self.historical_pred_gradients += self.pred_dist_deltas ** 2
+        self.pred_dist_deltas /= np.sqrt(self.historical_pred_gradients)            
         
     def _adjust_features(self, sentence, predicate):
         """Adjusts the features in all feature tables."""
