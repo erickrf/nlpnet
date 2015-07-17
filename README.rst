@@ -141,3 +141,8 @@ And dependency parsing:
     7       .       _       .       .       _       3       P
 
 To learn more about training and testing new models, and other functionalities, refer to the documentation at http://nilc.icmc.usp.br/nlpnet
+
+
+.. image:: https://badges.gitter.im/Join%20Chat.svg
+   :alt: Join the chat at https://gitter.im/erickrf/nlpnet
+   :target: https://gitter.im/erickrf/nlpnet?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge
