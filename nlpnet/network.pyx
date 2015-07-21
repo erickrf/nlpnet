@@ -78,7 +78,7 @@ cdef class Network:
     # sizes and learning rates
     cdef readonly int word_window_size, input_size, hidden_size, output_size
     cdef public float learning_rate
-    cdef public float decay_factor
+    cdef public float decay_rate
     cdef public bool use_learning_rate_decay
     cdef readonly int features_per_token
     
@@ -110,6 +110,7 @@ cdef class Network:
     cdef readonly np.ndarray net_gradients, trans_gradients
     cdef readonly np.ndarray historical_output_gradients, historical_hidden_gradients
     cdef readonly np.ndarray historical_input_gradients, historical_trans_gradients
+    cdef readonly np.ndarray historical_hidden_bias_gradients, historical_output_bias_gradients
     cdef readonly np.ndarray input_sent_values, hidden_sent_values, layer2_sent_values
     
     # data for statistics during training. 
@@ -309,7 +310,7 @@ Output size: %d
             self.hidden_values = hardtanh(self.layer2_values, inplace=not training)
             
             # dropout
-            self.hidden_values = self._dropout(self.hidden_values, training)
+            self._dropout(self.hidden_values, training)
             
             output = self.output_weights.dot(self.hidden_values) + self.output_bias
             scores[i] = output
@@ -341,14 +342,14 @@ Output size: %d
         """
         if training:
             # for 1-dimensional vectors, shape[-1] is the same as shape[0]
-            # for 2-dimensional vectors, it is the second dimension, which we are interested here
+            # for 2-dimensional vectors, it is the second dimension,which we are interested in here
             # since it refers to each neuron. In nlpnet, the first dimension refers to values along
             # tokens in the sentence
             shape = values.shape[-1]
             dropout_vector = self._generate_dropout_vector(shape)
-            return values * dropout_vector
+            values *= dropout_vector
         else:
-            return values * (1 - self.dropout)
+            values *= (1 - self.dropout)
     
     def _calculate_delta(self, scores):
         """
@@ -585,31 +586,6 @@ Output size: %d
         self.validation_sentences = validation_sentences
         self.validation_tags = validation_tags 
     
-    def set_learning_rate_decay(self, float decay_factor=1.0):
-        """
-        Sets the network to use learning rate decay. 
-        
-        The learning rate at each iteration t is determined as:
-        initial_rate / (1 + t * decay_factor)
-        
-        with t starting from 0
-        """
-        self.use_learning_rate_decay = True
-        self.decay_factor = decay_factor
-    
-    def decrease_learning_rates(self, epoch):
-        """
-        Apply the learning rate decay, if the network was configured to use it.
-        """
-        if not self.use_learning_rate_decay or epoch == 0:
-            return
-        
-        # multiplying the last rate by this adjustment is equivalent to
-        # initial_rate / (1 + t * decay_factor)
-        # and we don't need to store the initial rates
-        factor = (1.0 + (epoch - 1) * self.decay_factor) / (1 + epoch * self.decay_factor)
-        self.learning_rate *= factor
-    
     def train(self, list sentences, list tags, 
               int epochs, int epochs_between_reports=0,
               float desired_accuracy=0):
@@ -636,6 +612,8 @@ Output size: %d
         self.historical_hidden_gradients = np.zeros_like(self.hidden_weights)
         self.historical_input_gradients = np.zeros(self.input_size)
         self.historical_trans_gradients = np.zeros_like(self.transitions)
+        self.historical_hidden_bias_gradients = np.zeros_like(self.hidden_bias)
+        self.historical_output_bias_gradients = np.zeros_like(self.output_bias)
         self.num_tokens = sum(len(sent) for sent in sentences)
         
         if self.validation_sentences is None:
@@ -732,8 +710,7 @@ Output size: %d
         output_deltas = self.net_gradients.T.dot(self.hidden_sent_values)
         
         # perform adagrad to compute the actual gradient
-        self.historical_output_gradients += output_deltas ** 2
-        output_deltas = output_deltas / np.sqrt(self.historical_output_gradients)
+        self.adagrad(output_deltas, self.historical_output_gradients)
         
         # L2 regularization
         l2 = self.output_weights * self.l2_factor
@@ -750,8 +727,7 @@ Output size: %d
         hidden_deltas = hidden_gradients.T.dot(self.input_sent_values)
         
         # adagrad
-        self.historical_hidden_gradients += hidden_deltas ** 2
-        hidden_deltas = hidden_deltas / np.sqrt(self.historical_hidden_gradients)
+        self.adagrad(hidden_deltas, self.historical_hidden_gradients)
         
         # L2 regularization
         l2 = self.hidden_weights * self.l2_factor
@@ -884,6 +860,18 @@ Output size: %d
         nn.dropout = data['dropout']
         
         return nn
+        
+    def adagrad(self, deltas, np.ndarray history):
+        """
+        Applies weight adjustments according to adagrad. 
+        
+        Historical values are updated. 
+        """
+        history += deltas ** 2
+        
+        # add a very small value to the denominator to avoid division by zero
+        # the result of sqrt is always positive, so no risk of getting a zero result
+        deltas /= 1e-10 + np.sqrt(history)
     
     def cap_norm(self, np.ndarray[FLOAT_t, ndim=2] weights):
         """
@@ -898,7 +886,7 @@ Output size: %d
         factors = norms / self.max_norm
         
         # only change weight rows whose norm is above the threshold
-        norms[norms < self.max_norm] = 1
+        factors[norms < self.max_norm] = 1
         weights = (weights.T / factors).T
         return weights
         

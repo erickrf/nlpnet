@@ -204,11 +204,11 @@ def train(nn, reader, args):
     avg_len = sum(len(x) for x in text_reader.sentences) / float(num_sents)
     logger.debug("Average sentence length is %.2f tokens" % avg_len)
     
-    logger.debug("Network learning rate: %f" % nn.learning_rate)
-    logger.debug("L2 normalization factor set to %f" % nn.l2_factor)
-    logger.debug("Dropout factor set to %f" % nn.dropout)
-    logger.debug("Maximum weight norm set to %f (0 means disabled)" % nn.max_norm)
-    logger.debug("----------------------------------------------------")
+    logger.debug("Network learning rate: %.2f" % nn.learning_rate)
+    logger.debug("L2 normalization factor set to %.2f" % nn.l2_factor)
+    logger.debug("Dropout factor set to %.2f" % nn.dropout)
+    logger.debug("Maximum weight norm set to %.2f (0 means disabled)" % nn.max_norm)
+    logger.debug("----------------------------------------------------\n")
     
     intervals = max(args.iterations / 200, 1)
     np.seterr(over='raise', divide='raise', invalid='raise')

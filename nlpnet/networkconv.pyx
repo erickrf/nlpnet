@@ -27,6 +27,7 @@ cdef class ConvolutionalNetwork(Network):
     cdef readonly np.ndarray hidden2_values
     cdef readonly np.ndarray hidden2_before_activation, hidden_before_activation
     cdef readonly np.ndarray historical_hidden2_gradients
+    cdef readonly np.ndarray historical_hidden2_bias_gradients
     
     # lookup of convolution values (the same for each sentence, used to save time)
     cdef np.ndarray convolution_lookup
@@ -308,12 +309,15 @@ Output size: %d
         self.historical_target_weight_gradients = np.zeros_like(self.target_dist_weights)
         self.historical_pred_weight_gradients = np.zeros_like(self.pred_dist_weights)
         self.historical_trans_gradients = np.zeros_like(self.transitions)
+        self.historical_hidden_bias_gradients = np.zeros_like(self.hidden_bias)
+        self.historical_hidden2_bias_gradients = np.zeros_like(self.hidden2_bias)
+        self.historical_output_bias_gradients = np.zeros_like(self.output_bias)
         
         if self.validation_sentences is None:
             self.set_validation_data(sentences, predicates, tags, arguments)
         
         for i in xrange(epochs):
-            self.decrease_learning_rates(i)
+#             self.decrease_learning_rates(i)
             self._train_epoch(sentences, predicates, tags, arguments)
             self._validate()
             
@@ -463,17 +467,13 @@ Output size: %d
             # hidden sent values: results after tanh
             self.hidden_values = np.zeros((self.num_targets, self.hidden_size))
             self.max_indices = np.empty((self.num_targets, self.hidden_size), np.int)
-    
+                
         # predicate distances are the same across all targets
         pred_dist_indices = np.arange(len(sentence)) - predicate
         pred_dist_values = self.pred_convolution_lookup.take(pred_dist_indices + self.pred_dist_offset,
                                                              0, mode='clip')
         
         input_and_pred_dist_values = pred_dist_values + self.convolution_lookup
-        
-        # generate here the dropout vector to be used in the convolution layer
-        # the same vector is used for all targets
-        dropout_vector = self._generate_dropout_vector(self.hidden_size)
         
         for target in range(self.num_targets):
             # loop over targets and add the weighted distance features to each token
@@ -493,13 +493,14 @@ Output size: %d
                                                                      0, mode='clip')
 
             convolution_values = target_dist_values + input_and_pred_dist_values
-            convolution_values *= dropout_vector
             
             # now, find the maximum values
             if training:
                 self.max_indices[target] = convolution_values.argmax(0)
             self.hidden_values[target] = convolution_values.max(0)
-            
+        
+        self._dropout(self.hidden_values, training)
+        
         # apply the bias and proceed to the next layer
         self.hidden_values += self.hidden_bias
         
@@ -507,7 +508,7 @@ Output size: %d
             self.hidden2_values = self.hidden_values.dot(self.hidden2_weights.T) + self.hidden2_bias
             
             # dropout
-            self.hidden2_values = self._dropout(self.hidden2_values, training)
+            self._dropout(self.hidden2_values, training)
             
             if training:
                 self.hidden2_before_activation = self.hidden2_values.copy()
@@ -691,7 +692,7 @@ Output size: %d
         else:
             # the non-linearity appears right after the convolution max
             self.hidden_gradients = dCd_tanh * hardtanhd(self.hidden_before_activation)
-    
+        
     @cython.boundscheck(False)
     @cython.wraparound(False)
     def _adjust_weights(self, predicate, arguments=None):
@@ -699,35 +700,36 @@ Output size: %d
         Adjusts the network weights after gradients have been calculated.
         """
         cdef int i
-        cdef np.ndarray[FLOAT_t, ndim=1] gradients_t
+        cdef np.ndarray[FLOAT_t, ndim=1] gradients_t, bias_deltas
         cdef np.ndarray[FLOAT_t, ndim=2] last_values, deltas, grad_matrix, input_values
         cdef float epsilon = 1e-10
         
         last_values = self.hidden2_values if self.hidden2_weights is not None else self.hidden_values
         
-        # adagrad
         deltas = self.net_gradients.T.dot(last_values) 
-        self.historical_output_gradients += deltas ** 2
-        deltas /= epsilon + np.sqrt(self.historical_output_gradients)
+        bias_deltas = self.net_gradients.sum(0)
+        
+        self.adagrad(deltas, self.historical_output_gradients)
+        self.adagrad(bias_deltas, self.historical_output_bias_gradients)
         
         # L2 regularization
         deltas -= self.output_weights * self.l2_factor
         
         self.output_weights += deltas * self.learning_rate
-        self.output_bias += self.net_gradients.sum(0) * self.learning_rate
+        self.output_bias += bias_deltas * self.learning_rate
         self.output_weights= self.cap_norm(self.output_weights)
         
         if self.hidden2_weights is not None:
-            # adagrad
             deltas = self.hidden2_gradients.T.dot(self.hidden_values)
-            self.historical_hidden2_gradients += deltas ** 2
-            deltas /= epsilon + np.sqrt(self.historical_hidden2_gradients)
+            bias_deltas = self.hidden2_gradients.sum(0)
+            self.adagrad(deltas, self.historical_hidden2_gradients)
+            self.adagrad(bias_deltas, self.historical_hidden2_bias_gradients)
             
             # L2
             deltas -= self.hidden2_weights * self.l2_factor
             
             self.hidden2_weights += deltas * self.learning_rate
-            self.hidden2_bias += self.hidden2_gradients.sum(0) * self.learning_rate
+            self.hidden2_bias += bias_deltas * self.learning_rate
             self.hidden2_weights= self.cap_norm(self.hidden2_weights)
         
         # now adjust weights from input to convolution. these will be trickier.
@@ -746,10 +748,7 @@ Output size: %d
             # stack the gradients to multiply all weights for a neuron
             grad_matrix = np.tile(gradients_t, [self.input_size, 1]).T
             deltas = grad_matrix * input_values
-            
-            # adagrad
-            self.historical_hidden_gradients += deltas ** 2
-            deltas /= epsilon + np.sqrt(self.historical_hidden_gradients)
+            self.adagrad(deltas, self.historical_hidden_gradients)
             
             # L2
             deltas -= self.hidden_weights * self.l2_factor
@@ -768,10 +767,8 @@ Output size: %d
                                                          0, mode='clip')
             grad_matrix = np.tile(gradients_t, [self.target_dist_weights.shape[0], 1]).T
             
-            # adagrad
             deltas = (grad_matrix * dist_features).T
-            self.historical_target_weight_gradients += deltas ** 2
-            deltas /= epsilon + np.sqrt(self.historical_target_weight_gradients)
+            self.adagrad(deltas, self.historical_target_weight_gradients)
             
             # L2
             deltas -= self.target_dist_weights * self.l2_factor
@@ -787,17 +784,18 @@ Output size: %d
             if self.target_dist_weights.shape[0] != self.pred_dist_weights.shape[0]: 
                 grad_matrix = np.tile(gradients_t, [self.pred_dist_weights.shape[0], 1]).T
             
-            # adagrad 
             deltas = (grad_matrix * dist_features).T
-            self.historical_pred_weight_gradients += deltas ** 2
-            deltas /= epsilon + np.sqrt(self.historical_pred_weight_gradients)
+            self.adagrad(deltas, self.historical_pred_weight_gradients)
             
             # L2
             deltas -= self.pred_dist_weights * self.l2_factor
-                        
+            
             self.pred_dist_weights += deltas * self.learning_rate
         
-        self.hidden_bias += self.hidden_gradients.sum(0) * self.learning_rate
+        bias_deltas = self.hidden_gradients.sum(0)
+        self.adagrad(bias_deltas, self.historical_hidden_bias_gradients)
+        self.hidden_bias += bias_deltas * self.learning_rate
+        
         self.hidden_weights = self.cap_norm(self.hidden_weights)
         self.target_dist_weights = self.cap_norm(self.target_dist_weights)
         self.pred_dist_weights = self.cap_norm(self.pred_dist_weights)
