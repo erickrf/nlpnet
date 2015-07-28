@@ -75,12 +75,9 @@ class POSReader(TaggerReader):
                         continue
                 
                 line = unicode(line, 'utf-8')
-                print line
                 fields = line.split()
                 word = fields[ConllPos.word]
-                print word
                 pos = fields[ConllPos.pos]
-                print pos
                 sentence.append((word, pos))
         
         if len(sentence) > 0:

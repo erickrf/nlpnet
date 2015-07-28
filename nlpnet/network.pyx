@@ -371,8 +371,8 @@ Output size: %d
         # logadd_i(delta_T(i)) = log(Sum_i(exp(delta_T(i))))
         # Sentence-level Log-Likelihood (SLL)
         # C(ftheta,A) = logadd_j(s(x, j, theta, A)) - score(correct path)
-        #error = np.log(np.sum(np.exp(delta[-1]))) - correct_path_score
-        error = logsumexp(delta[-1]) - correct_path_score
+        error = np.log(np.sum(np.exp(delta[-1]))) - correct_path_score
+        #error = logsumexp(delta[-1]) - correct_path_score
         self.error += error
         
         # if the error is too low, don't bother training (saves time and avoids
