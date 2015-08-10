@@ -857,7 +857,10 @@ Output size: %d
         nn.pos_padding = np.array((nn.word_window_size / 2) * [nn.padding_right])
         nn.feature_tables = list(data['feature_tables'])
         nn.network_filename = filename
-        nn.dropout = data['dropout']
+        if 'dropout' in data:
+            nn.dropout = data['dropout']
+        else:
+            nn.dropout = 0
         
         return nn
         
