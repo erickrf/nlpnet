@@ -148,3 +148,15 @@ And dependency parsing:
 
 To learn more about training and testing new models, and other functionalities, refer to the documentation at http://nilc.icmc.usp.br/nlpnet
 
+References
+----------
+
+The following references describe the design of nlpnet, as well as experiments carried out. Some improvements to the code have been implemented since their publication.
+
+* Fonseca, Erick and Aluísio, Sandra M. **A Deep Architecture for Non-Projective Dependency Parsing**. Proceedings of the NAACL-HLT Workshop on Vector Space Modeling for NLP. 2015
+
+* Fonseca, Erick and Rosa, João Luís G. **A Two-Step Convolutional Neural Network Approach for Semantic Role Labeling**. Proceedings of the International Joint Conference on Neural Networks. 2013.
+
+* Fonseca, Erick, Rosa, João Luís G. and Aluísio, Sandra M. **Evaluating word embeddings and a revised corpus for part-of-speech tagging in Portuguese**. Journal of The Brazilian Computer Society. 2015.
+
+
