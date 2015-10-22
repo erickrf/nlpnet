@@ -111,7 +111,7 @@ def read_polyglot_embeddings(filename):
     # first four words are UNK, <s>, </s> and padding
     # we discard <s> and </s>
     words = data[0]
-    matrix = data[1]
+    matrix = data[1].astype(np.float)
     matrix = np.delete(matrix, [1, 2], 0)
     
     WD = nlpnet.word_dictionary.WordDictionary
