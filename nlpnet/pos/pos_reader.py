@@ -54,6 +54,8 @@ class POSReader(TaggerReader):
             for line in f:
                 line = unicode(line, 'utf-8')
                 items = line.split()
+                if len(items) == 0:
+                    continue
                 sentence = []
                 for item in items:
                     token, tag = item.rsplit('_', 1)
