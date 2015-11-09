@@ -74,24 +74,24 @@ def _print_tagged(tagged_sents, task):
 def _print_parsed_dependency(parsed_sents):
     """Prints one token per line and its head"""
     for sent in parsed_sents:
-        print sent.to_conll().encode('utf-8')
-        print
+        print(sent.to_conll().encode('utf-8'))
+        print()
 
 def _print_tagged_pos(tagged_sents):
     """Prints one sentence per line as token_tag"""
     for sent in tagged_sents:
         s = ' '.join('_'.join(item) for item in sent)
-        print s.encode('utf-8')
+        print(s.encode('utf-8'))
 
 def _print_tagged_srl(tagged_sents):
     for sent in tagged_sents:
-        print ' '.join(sent.tokens).encode('utf-8')
+        print(' '.join(sent.tokens).encode('utf-8'))
         for predicate, arg_structure in sent.arg_structures:
-            print predicate.encode('utf-8')
+            print(predicate.encode('utf-8'))
             for label in arg_structure:
                 argument = ' '.join(arg_structure[label])
                 line = '\t%s: %s' % (label, argument)
-                print line.encode('utf-8')
+                print(line.encode('utf-8'))
         print
 
 
