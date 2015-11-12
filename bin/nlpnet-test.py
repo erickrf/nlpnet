@@ -21,6 +21,7 @@ import unicodedata as ud
 from itertools import izip
 import numpy as np
 from collections import Counter, defaultdict
+from __future__ import print_function
 
 import nlpnet.config as config
 import nlpnet.utils as utils
@@ -67,9 +68,9 @@ def evaluate_pos(gold_file=None, oov=None):
             
             total += 1
         
-    print '%d hits out of %d' % (hits, total)
+    print('%d hits out of %d' % (hits, total))
     accuracy = float(hits) / total
-    print 'Accuracy: %f%%' % (100 * accuracy)
+    print('Accuracy: %f%%' % (100 * accuracy))
 
 
 def is_punctuation(token):
@@ -129,9 +130,9 @@ def evaluate_unlabeled_dependency(gold_file, punctuation):
         
     accuracy = float(hits) / num_tokens
     sent_accuracy = 100 * float(sentence_hits) / num_sentences
-    print '%d hits out of %d' % (hits, num_tokens)
-    print '%d sentences completely correct (%f%%)' % (sentence_hits, sent_accuracy)
-    print 'Accuracy: %f%%' % (100 * accuracy)
+    print('%d hits out of %d' % (hits, num_tokens))
+    print('%d sentences completely correct (%f%%)' % (sentence_hits, sent_accuracy))
+    print('Accuracy: %f%%' % (100 * accuracy))
 
 def evaluate_labeled_dependency(gold_file, punctuation):
     """
@@ -171,9 +172,9 @@ def evaluate_labeled_dependency(gold_file, punctuation):
         
     accuracy = float(hits) / num_tokens
     sent_accuracy = 100 * float(sentence_hits) / num_sentences
-    print '%d hits out of %d' % (hits, num_tokens)
-    print '%d sentences completely correct (%f%%)' % (sentence_hits, sent_accuracy)
-    print 'Accuracy: %f' % accuracy
+    print('%d hits out of %d' % (hits, num_tokens))
+    print('%d sentences completely correct (%f%%)' % (sentence_hits, sent_accuracy))
+    print('Accuracy: %f' % accuracy)
 
 def sentence_precision(network_tags, gold_tags, gold_tag_dict, network_tag_dict):
     """
@@ -349,7 +350,7 @@ def evaluate_srl_classify(no_repeat=False, gold_file=None):
             
             total_args += len(pred_gold)
     
-    print 'Accuracy: %f' % (float(hits) / total_args)
+    print('Accuracy: %f' % (float(hits) / total_args))
 
 def convert_iob_to_iobes(iob_tags):
     """Converts a sequence of IOB tags into IOBES tags."""
@@ -442,7 +443,7 @@ def evaluate_srl_2_steps(no_repeat=False, find_preds_automatically=False, gold_f
         arguments = [[itd_classify[x] for x in pred_answer] for pred_answer in answers]        
         tags = join_2_steps(boundaries, arguments)        
         
-        print prop_conll(verbs, tags, len(sent))
+        print(prop_conll(verbs, tags, len(sent)))
 
 def evaluate_srl_1step(find_preds_automatically=False, gold_file=None):
     """
@@ -477,7 +478,7 @@ def evaluate_srl_1step(find_preds_automatically=False, gold_file=None):
         tags = [convert_iob_to_iobes([itd[x] for x in pred_answer])
                 for pred_answer in answers]
             
-        print prop_conll(verbs, tags, len(actual_sent))
+        print(prop_conll(verbs, tags, len(actual_sent)))
         
 def evaluate_srl_predicates(gold_file):
     """
@@ -510,12 +511,12 @@ def evaluate_srl_predicates(gold_file):
     precision = float(tp) / (tp + fp)
     recall = float(tp) / (tp + fn)
     
-    print 'True positives: %d, false positives: %d, \
-true negatives: %d, false negatives: %d' % (tp, fp, tn, fn)
-    print 'Accuracy: %f' % (float(tp + tn) / total_tokens) 
-    print 'Precision: %f' % precision
-    print 'Recall: %f' % recall
-    print 'F-1: %f' % (2 * precision * recall / (precision + recall))
+    print('True positives: %d, false positives: %d, \
+true negatives: %d, false negatives: %d' % (tp, fp, tn, fn))
+    print('Accuracy: %f' % (float(tp + tn) / total_tokens))
+    print('Precision: %f' % precision)
+    print('Recall: %f' % recall)
+    print('F-1: %f' % (2 * precision * recall / (precision + recall)))
     
     
 def evaluate_srl_identify(gold_file):
@@ -565,9 +566,9 @@ def evaluate_srl_identify(gold_file):
     except ZeroDivisionError:
         f1 = 0
 
-    print 'Recall: %f, Precision: %f, F-1: %f' % (rec, prec, f1)
-    print
-    print 'Argument\tRecall'
+    print('Recall: %f, Precision: %f, F-1: %f' % (rec, prec, f1))
+    print()
+    print('Argument\tRecall')
     
     for arg in counter_existing_args:
         rec = counter_correct_args[arg] / float(counter_existing_args[arg])
@@ -576,7 +577,7 @@ def evaluate_srl_identify(gold_file):
         # - we can't compute it if we are only interested in boundaries. hence, we can't compute f-1
         # - if the network never tagged a given argument, its precision is 100% (it never made a mistake)
                 
-        print '%s\t\t%f' % (arg, rec)
+        print('%s\t\t%f' % (arg, rec))
 
 def read_oov_words(oov_file):
     words = set()
