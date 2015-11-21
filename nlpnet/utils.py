@@ -16,21 +16,21 @@ from . import attributes
 
 _tokenizer_regexp = ur'''(?ux)
     # the order of the patterns is important!!
-    ([^\W\d_]\.)+|                # one letter abbreviations, e.g. E.U.A.
-    \d{1,3}(\.\d{3})*(,\d+)|      # numbers in format 999.999.999,99999
-    \d{1,3}(,\d{3})*(\.\d+)|      # numbers in format 999,999,999.99999
-    \d+:\d+|                      # time and proportions
-    \d+([-\\/]\d+)*|              # dates. 12/03/2012 12-03-2012
-    [DSds][Rr][Aa]?\.|            # common abbreviations such as dr., sr., sra., dra.
-    [Mm]\.?[Ss][Cc]\.?|           # M.Sc. with or without capitalization and dots
-    [Pp][Hh]\.?[Dd]\.?|           # Same for Ph.D.
-    [^\W\d_]{1,2}\$|              # currency
-    (?:(?<=\s)|^)[\#@]\w*[A-Za-z_]+\w*|  # Hashtags and twitter user names
-    -[^\W\d_]+|                   # clitic pronouns with leading hyphen
-    \w+([-']\w+)*|                # words with hyphens or apostrophes, e.g. não-verbal, McDonald's
-    -+|                           # any sequence of dashes
-    \.{3,}|                       # ellipsis or sequences of dots
-    \S                            # any non-space character
+    (?:[Mm]\.?[Ss][Cc])\.?|           # M.Sc. with or without capitalization and dots
+    (?:[Pp][Hh]\.?[Dd])\.?|           # Same for Ph.D.
+    (?:[^\W\d_]\.)+|                  # one letter abbreviations, e.g. E.U.A.
+    \d{1,3}(?:\.\d{3})*(?:,\d+)|      # numbers in format 999.999.999,99999
+    \d{1,3}(?:,\d{3})*(?:\.\d+)|      # numbers in format 999,999,999.99999
+    \d+:\d+|                          # time and proportions
+    \d+(?:[-\\/]\d+)*|                # dates. 12/03/2012 12-03-2012
+    (?:[DSds][Rr][Aa]?)\.|            # common abbreviations such as dr., sr., sra., dra.
+    (?:[^\W\d_]){1,2}\$|              # currency
+    (?:[\#@]\w+])|                    # Hashtags and twitter user names
+    -(?:[^\W\d_])+|                   # clitic pronouns with leading hyphen
+    \w+(?:[-']\w+)*|                  # words with hyphens or apostrophes, e.g. não-verbal, McDonald's
+    -+|                               # any sequence of dashes
+    \.{3,}|                           # ellipsis or sequences of dots
+    \S                                # any non-space character
     '''
 _tokenizer = RegexpTokenizer(_tokenizer_regexp)
 
