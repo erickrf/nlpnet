@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 import sys
 import warnings
 from distutils.core import setup

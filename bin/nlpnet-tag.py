@@ -5,10 +5,14 @@
 This script will run a POS or SRL tagger on the input data and print the results
 to stdout.
 """
+from __future__ import print_function
+from __future__ import unicode_literals
+from builtins import str
+from builtins import input
 
 import argparse
 import logging
-from itertools import izip
+
 
 import nlpnet
 import nlpnet.utils as utils
@@ -35,14 +39,14 @@ def interactive_running(args):
     
     while True:
         try:
-            text = raw_input()
+            text = eval(input())
         except KeyboardInterrupt:
             break
         except EOFError:
             break
         
-        if type(text) is not unicode:
-            text = unicode(text, 'utf-8')
+        if type(text) is not str:
+            text = str(text, 'utf-8')
         
         if use_tokenizer:
             result = tagger.tag(text)
@@ -92,7 +96,7 @@ def _print_tagged_srl(tagged_sents):
                 argument = ' '.join(arg_structure[label])
                 line = '\t%s: %s' % (label, argument)
                 print(line.encode('utf-8'))
-        print
+        print()
 
 
 if __name__ == '__main__':

@@ -3,14 +3,21 @@
 """
 Class for dealing with SRL data.
 """
+from __future__ import unicode_literals
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
+from builtins import zip
+from builtins import range
+from builtins import object
 
 from collections import defaultdict
-import cPickle
+import pickle
 import logging
 import re
 import os
 import numpy as np
-from itertools import izip
+
 
 from .. import attributes
 from .. import utils
@@ -82,7 +89,7 @@ class SRLReader(reader.TaggerReader):
         lines = []
         with open(filename, 'rb') as f:
             for line in f:
-                line = unicode(line, 'utf-8').strip()
+                line = str(line, 'utf-8').strip()
                 lines.append(line)
         
         self.sentences = []
@@ -269,7 +276,7 @@ class SRLReader(reader.TaggerReader):
         code = 0
         with open(filename, 'rb') as f:
             for tag in f:
-                tag = unicode(tag, 'utf-8').strip()
+                tag = str(tag, 'utf-8').strip()
                 if tag == '':
                     continue
                 
@@ -348,7 +355,7 @@ class SRLReader(reader.TaggerReader):
         
         if self.md.use_pos:
             with open(self.md.paths['pos_tag_dict']) as f:
-                pos_dict = cPickle.load(f)
+                pos_dict = pickle.load(f)
                 
             pos_def_dict = defaultdict(lambda: pos_dict['other'])
             pos_def_dict.update(pos_dict)
@@ -357,7 +364,7 @@ class SRLReader(reader.TaggerReader):
         
         if self.md.use_chunk:
             with open(self.md.paths['chunk_tag_dict']) as f:
-                chunk_dict = cPickle.load(f)
+                chunk_dict = pickle.load(f)
             
             chunk_def_dict = defaultdict(lambda: chunk_dict['O'])
             chunk_def_dict.update(chunk_dict)
@@ -374,9 +381,9 @@ class SRLReader(reader.TaggerReader):
                           for prop in props
                           for tag in prop)
         
-        self.tag_dict = dict( zip( self.tagset,
-                                   xrange(len(self.tagset))
-                                   )
+        self.tag_dict = dict( list(zip( self.tagset,
+                                   list(range(len(self.tagset)))
+                                   ))
                              )
     
     def _remove_tag_names(self):
@@ -391,7 +398,7 @@ class SRLReader(reader.TaggerReader):
         new_sentences = []
         self.tags = []
         
-        for (sent, props), preds in izip(self.sentences, self.predicates):
+        for (sent, props), preds in zip(self.sentences, self.predicates):
             new_sent = []
             sentence_tags = []
             

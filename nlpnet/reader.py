@@ -4,6 +4,10 @@
 """
 Base class for reading NLP tagging data.
 """
+from __future__ import unicode_literals
+from builtins import str
+from builtins import range
+from builtins import object
 
 import os
 import re
@@ -17,6 +21,7 @@ from . import metadata
 from . import config
 from .word_dictionary import WordDictionary
 from .attributes import get_capitalization
+from future.utils import with_metaclass
 
 class FileNotFoundException(IOError):
     """
@@ -34,7 +39,7 @@ def load_tag_dict(filename):
     with open(filename, 'rb') as f:
         code = 0
         for tag in f:
-            tag = unicode(tag, 'utf-8').strip()
+            tag = str(tag, 'utf-8').strip()
             if tag:
                 tag_dict[tag] = code
                 code += 1
@@ -52,12 +57,11 @@ def save_tag_dict(filename, tag_dict):
         f.write(text.encode('utf-8'))
 
 
-class TaggerReader(object):
+class TaggerReader(with_metaclass(abc.ABCMeta, object)):
     """
     Abstract class extending TextReader with useful functions
     for tagging tasks. 
     """
-    __metaclass__ = abc.ABCMeta
     
     def __init__(self, md=None, load_dictionaries=True):
         '''
@@ -127,7 +131,7 @@ class TaggerReader(object):
         Returns a version of the tag dictionary that maps numbers to tags.
         Used for consulting the meaning of the network's output.
         """
-        tuples = [(x[1], x[0]) for x in self.tag_dict.iteritems()]
+        tuples = [(x[1], x[0]) for x in list(self.tag_dict.items())]
         ret = dict(tuples)
         
         return ret
@@ -243,7 +247,7 @@ class TaggerReader(object):
         words = []
         with open(filename, 'rb') as f:
             for word in f:
-                word = unicode(word, 'utf-8').strip()
+                word = str(word, 'utf-8').strip()
                 if word:
                     words.append(word)
         

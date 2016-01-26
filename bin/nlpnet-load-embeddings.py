@@ -6,13 +6,18 @@ Script to load word embeddings from different representations
 and save them in the nlpnet format (numpy arrays and a text
 vocabulary).
 """
+from __future__ import unicode_literals
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
+from builtins import zip
 
 import argparse
 import os
 import re
 import logging
 import numpy as np
-import cPickle
+import pickle
 from collections import defaultdict
 
 import nlpnet
@@ -42,7 +47,7 @@ def read_plain_vocabulary(filename):
     words = []
     with open(filename, 'rb') as f:
         for line in f:
-            word = unicode(line, 'utf-8').strip()
+            word = str(line, 'utf-8').strip()
             if not word:
                 continue
             words.append(word)
@@ -90,7 +95,7 @@ def read_w2e_embeddings(filename):
     Load the feature matrix used by word2embeddings.
     """
     with open(filename, 'rb') as f:
-        model = cPickle.load(f)
+        model = pickle.load(f)
     matrix = model.get_word_embeddings()
 
     # remove <s>, </s> and <padding>
@@ -106,7 +111,7 @@ def read_polyglot_embeddings(filename):
     Read vocabulary and embeddings from a file from polyglot.
     """
     with open(filename, 'rb') as f:
-        data = cPickle.load(f)
+        data = pickle.load(f)
     
     # first four words are UNK, <s>, </s> and padding
     # we discard <s> and </s>
@@ -117,12 +122,12 @@ def read_polyglot_embeddings(filename):
     WD = nlpnet.word_dictionary.WordDictionary
     words = [WD.rare, WD.padding_left] + list(words[4:])
     
-    model = dict(zip(words, matrix))
+    model = dict(list(zip(words, matrix)))
     clusters = clusterize_words(model)
     
-    vocabulary = clusters.keys()
+    vocabulary = list(clusters.keys())
     vocabulary.append(WD.padding_right)
-    matrix = np.array(clusters.values())
+    matrix = np.array(list(clusters.values()))
     
     return matrix, vocabulary
     
@@ -139,7 +144,7 @@ def clusterize_words(model, filter_=None):
     
     # group vectors by their corresponding words' normalized form
     clusters = defaultdict(list)
-    for word, vector in model.iteritems():
+    for word, vector in list(model.items()):
         if filter_(word) or word.strip() == '':
             continue
         
@@ -147,7 +152,7 @@ def clusterize_words(model, filter_=None):
         clusters[normalized_word].append(vector)
     
     # now, average out each cluster
-    for word, vectors in clusters.iteritems():
+    for word, vectors in list(clusters.items()):
         clusters[word] = np.mean(vectors, 0)
     
     return clusters
@@ -161,7 +166,7 @@ def read_skipdep_embeddings(filename):
     with open(filename, 'rb') as f:
         for line in f:
             fields = line.split()
-            word = unicode(fields[0], 'utf-8')
+            word = str(fields[0], 'utf-8')
             vector = np.fromiter((float(x) for x in fields[1:]), 
                                  dtype=np.float)
             model[word] = vector
@@ -172,12 +177,12 @@ def read_skipdep_embeddings(filename):
     clusters = clusterize_words(model, filter_)    
     
     # now, average out each cluster
-    for word, vectors in clusters.iteritems():
+    for word, vectors in list(clusters.items()):
         clusters[word] = np.mean(vectors, 0)
     
     # and separate vocabulary from vectors
-    vocabulary = clusters.keys()
-    matrix = np.array(clusters.values())
+    vocabulary = list(clusters.keys())
+    matrix = np.array(list(clusters.values()))
     
     if '*unknown*' in clusters:
         # symbol used in skipdep
@@ -204,7 +209,7 @@ def read_gensim_embeddings(filename):
     vocab = model.vocab
     # gensim saves words in UTF-8. We convert to unicode here for consistency
     # with the rest of the script
-    sorted_words = [unicode(word, 'utf-8') 
+    sorted_words = [str(word, 'utf-8') 
                     for word in sorted(vocab, key=lambda x: vocab[x].index)]
     
     return matrix, sorted_words

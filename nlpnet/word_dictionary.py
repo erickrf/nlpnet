@@ -1,3 +1,7 @@
+from __future__ import unicode_literals
+from builtins import str
+from builtins import zip
+from builtins import range
 # -*- coding: utf-8 -*-
 
 import itertools
@@ -50,14 +54,14 @@ class WordDictionary(dict):
             words = [word.lower().translate(WordDictionary.number_transformation)
                      for word in wordlist]
             values = [None] * len(words)
-            words = OD(zip(words, values)).keys()
+            words = list(OD(list(zip(words, values))).keys())
         
         # verifies the maximum size
         if size is None:
             size = len(words)
         
         # set all words in the dictionary
-        for word, num in itertools.izip(words, xrange(size)):
+        for word, num in zip(words, list(range(size))):
             self[word] = num
         
         # if the given words include one of the the rare or padding symbols, don't replace it
@@ -106,7 +110,7 @@ class WordDictionary(dict):
         words = []
         with open(filename, 'rb') as f:
             for word in f:
-                word = unicode(word, 'utf-8').strip()
+                word = str(word, 'utf-8').strip()
                 if word:
                     words.append(word)
         

@@ -3,10 +3,14 @@
 """
 Taggers wrapping the neural networks.
 """
+from __future__ import unicode_literals
+from builtins import zip
+from builtins import range
+from builtins import object
 
 import logging
 import numpy as np
-from itertools import izip
+
 
 from . import utils
 from . import config
@@ -71,12 +75,12 @@ def _group_arguments(tokens, predicate_positions, boundaries, labels):
     """
     arg_structs = []
     
-    for predicate_position, pred_boundaries, pred_labels in izip(predicate_positions,
+    for predicate_position, pred_boundaries, pred_labels in zip(predicate_positions,
                                                                  boundaries,
                                                                  labels):
         structure = {}
 
-        for token, boundary_tag in izip(tokens, pred_boundaries):
+        for token, boundary_tag in zip(tokens, pred_boundaries):
             if boundary_tag == 'O':
                 continue
 
@@ -445,7 +449,7 @@ class POSTagger(Tagger):
         tags = [self.itd[tag] for tag in answer]
 
         if return_tokens:
-            return zip(tokens, tags)
+            return list(zip(tokens, tags))
 
         return tags
 

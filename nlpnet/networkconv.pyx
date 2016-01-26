@@ -222,8 +222,8 @@ Output size: %d
         nn.transitions = transitions if transitions.shape != () else None
         nn.padding_left = data['padding_left']
         nn.padding_right = data['padding_right']
-        nn.pre_padding = np.array((nn.word_window_size / 2) * [nn.padding_left])
-        nn.pos_padding = np.array((nn.word_window_size / 2) * [nn.padding_right])
+        nn.pre_padding = np.array((nn.word_window_size / 2) * np.asarray(nn.padding_left))
+        nn.pos_padding = np.array((nn.word_window_size / 2) * np.asarray(nn.padding_right))
         nn.feature_tables = list(data['feature_tables'])
         nn.network_filename = filename
         
@@ -390,7 +390,7 @@ Output size: %d
         else:
             sent_args = None
         
-        for sent, sent_preds, sent_tags in izip(sentences, predicates, tags):
+        for sent, sent_preds, sent_tags in zip(sentences, predicates, tags):
             if arguments is not None:
                 sent_args = i_args.next()
             
@@ -616,7 +616,7 @@ Output size: %d
         else:
             sent_args = None
         
-        for sent, sent_preds, sent_tags in izip(self.validation_sentences, 
+        for sent, sent_preds, sent_tags in zip(self.validation_sentences, 
                                                 self.validation_predicates, 
                                                 self.validation_tags):
             if self.validation_arguments is not None:
