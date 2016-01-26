@@ -12,13 +12,20 @@ Script to test the networks on NLP tasks.
     - Joint task - it will output the data in CoNLL-style to be 
 evaluated externally.
 """
+from __future__ import division
+from __future__ import unicode_literals
+from builtins import str
+from builtins import zip
+from builtins import next
+from builtins import range
+from past.utils import old_div
 
 import logging
 import argparse
 import re
 import timeit
 import unicodedata as ud
-from itertools import izip
+
 import numpy as np
 from collections import Counter, defaultdict
 from __future__ import print_function
@@ -49,7 +56,7 @@ def evaluate_pos(gold_file=None, oov=None):
     
     for sent in pos_reader.sentences:
         
-        tokens, tags = zip(*sent)
+        tokens, tags = list(zip(*sent))
         sent_codified = pos_reader.codify_sentence(tokens)
         answer = nn.tag_sentence(sent_codified)
         if oov is not None:
@@ -59,7 +66,7 @@ def evaluate_pos(gold_file=None, oov=None):
             
             if oov is not None:
                 # only check oov words
-                word = iter_sent.next()
+                word = next(iter_sent)
                 if word.lower() not in oov:
                     continue
             
@@ -69,7 +76,7 @@ def evaluate_pos(gold_file=None, oov=None):
             total += 1
         
     print('%d hits out of %d' % (hits, total))
-    accuracy = float(hits) / total
+    accuracy = old_div(float(hits), total)
     print('Accuracy: %f%%' % (100 * accuracy))
 
 
@@ -128,7 +135,7 @@ def evaluate_unlabeled_dependency(gold_file, punctuation):
             sentence_hits += 1
         num_sentences += 1
         
-    accuracy = float(hits) / num_tokens
+    accuracy = old_div(float(hits), num_tokens)
     sent_accuracy = 100 * float(sentence_hits) / num_sentences
     print('%d hits out of %d' % (hits, num_tokens))
     print('%d sentences completely correct (%f%%)' % (sentence_hits, sent_accuracy))
@@ -170,7 +177,7 @@ def evaluate_labeled_dependency(gold_file, punctuation):
             sentence_hits += 1
         num_sentences += 1
         
-    accuracy = float(hits) / num_tokens
+    accuracy = old_div(float(hits), num_tokens)
     sent_accuracy = 100 * float(sentence_hits) / num_sentences
     print('%d hits out of %d' % (hits, num_tokens))
     print('%d sentences completely correct (%f%%)' % (sentence_hits, sent_accuracy))
@@ -196,7 +203,7 @@ def sentence_precision(network_tags, gold_tags, gold_tag_dict, network_tag_dict)
     correct_args = []
     predicted_args = []
     
-    for net_tag, gold_tag in izip(network_tags, gold_tags):
+    for net_tag, gold_tag in zip(network_tags, gold_tags):
         net_tag = network_tag_dict[net_tag]
         gold_tag = gold_tag_dict[gold_tag]
         
@@ -243,7 +250,7 @@ def join_2_steps(boundaries, arguments):
     """
     answer = []
     
-    for pred_boundaries, pred_arguments in izip(boundaries, arguments):
+    for pred_boundaries, pred_arguments in zip(boundaries, arguments):
         cur_arg = ''
         pred_answer = []
         
@@ -283,7 +290,7 @@ def sentence_recall(network_tags, gold_tags, gold_tag_dict, network_tag_dict):
     correct_args = []
     existing_args = []
     
-    for net_tag, gold_tag in izip(network_tags, gold_tags):
+    for net_tag, gold_tag in zip(network_tags, gold_tags):
         net_tag = network_tag_dict[net_tag]
         gold_tag = gold_tag_dict[gold_tag]
         
@@ -337,20 +344,20 @@ def evaluate_srl_classify(no_repeat=False, gold_file=None):
     hits = 0
     total_args = 0
     
-    for sentence, tags, predicates, args in izip(r.sentences, r.tags, r.predicates, r.arg_limits):
+    for sentence, tags, predicates, args in zip(r.sentences, r.tags, r.predicates, r.arg_limits):
         
         # the answer includes all predicates
         answer = nn.tag_sentence(sentence, predicates, args, allow_repeats=not no_repeat)
         
-        for pred_answer, pred_gold in izip(answer, tags):
+        for pred_answer, pred_gold in zip(answer, tags):
         
-            for net_tag, gold_tag in izip(pred_answer, pred_gold):
+            for net_tag, gold_tag in zip(pred_answer, pred_gold):
                 if net_tag == gold_tag:
                     hits += 1
             
             total_args += len(pred_gold)
     
-    print('Accuracy: %f' % (float(hits) / total_args))
+    print('Accuracy: %f' % (old_div(float(hits), total_args)))
 
 def convert_iob_to_iobes(iob_tags):
     """Converts a sequence of IOB tags into IOBES tags."""
@@ -424,7 +431,7 @@ def evaluate_srl_2_steps(no_repeat=False, find_preds_automatically=False, gold_f
         if find_preds_automatically:
             pred_pos = tagger.find_predicates(sent)
         else:
-            pred_pos = iter_predicates.next()
+            pred_pos = next(iter_predicates)
         
         verbs = [(position, sent[position].word) for position in pred_pos]
         sent_bound_codified = np.array([reader_boundary.converter.convert(t) for t in sent])
@@ -469,7 +476,7 @@ def evaluate_srl_1step(find_preds_automatically=False, gold_file=None):
         if find_preds_automatically:
             pred_positions = tagger.find_predicates(sent)
         else:
-            pred_positions = iter_predicates.next()
+            pred_positions = next(iter_predicates)
             
         verbs = [(position, actual_sent[position].word) for position in pred_positions]
         sent_codified = np.array([r.converter.convert(token) for token in actual_sent])
@@ -495,10 +502,10 @@ def evaluate_srl_predicates(gold_file):
     tp, fp, tn, fn = 0, 0, 0, 0
     
     # for each sentence, tags are 0 at non-predicates and 1 at predicates
-    for sent, tags in izip(reader.sentences, reader.tags):
+    for sent, tags in zip(reader.sentences, reader.tags):
         answer = nn.tag_sentence(sent)
         
-        for net_tag, gold_tag in izip(answer, tags):
+        for net_tag, gold_tag in zip(answer, tags):
             if gold_tag == 1:
                 if net_tag == gold_tag: tp += 1
                 else: fn += 1
@@ -508,12 +515,12 @@ def evaluate_srl_predicates(gold_file):
         
         total_tokens += len(sent)
     
-    precision = float(tp) / (tp + fp)
-    recall = float(tp) / (tp + fn)
+    precision = old_div(float(tp), (tp + fp))
+    recall = old_div(float(tp), (tp + fn))
     
     print('True positives: %d, false positives: %d, \
 true negatives: %d, false negatives: %d' % (tp, fp, tn, fn))
-    print('Accuracy: %f' % (float(tp + tn) / total_tokens))
+    print('Accuracy: %f' % (old_div(float(tp + tn), total_tokens)))
     print('Precision: %f' % precision)
     print('Recall: %f' % recall)
     print('F-1: %f' % (2 * precision * recall / (precision + recall)))
@@ -543,7 +550,7 @@ def evaluate_srl_identify(gold_file):
 
     srl_reader.codify_sentences()
     
-    for sent, preds, sent_tags in izip(srl_reader.sentences, srl_reader.predicates, srl_reader.tags):
+    for sent, preds, sent_tags in zip(srl_reader.sentences, srl_reader.predicates, srl_reader.tags):
         
         # one answer for each predicate
         answers = nn.tag_sentence(sent, preds)
@@ -559,8 +566,8 @@ def evaluate_srl_identify(gold_file):
     correct_args = sum(counter_correct_args.values())
     total_args = sum(counter_existing_args.values())
     total_found_args = sum(counter_predicted_args.values())
-    rec = correct_args / float(total_args)
-    prec = correct_args / float(total_found_args)
+    rec = old_div(correct_args, float(total_args))
+    prec = old_div(correct_args, float(total_found_args))
     try:
         f1 = 2 * rec * prec / (rec + prec)
     except ZeroDivisionError:
@@ -571,7 +578,7 @@ def evaluate_srl_identify(gold_file):
     print('Argument\tRecall')
     
     for arg in counter_existing_args:
-        rec = counter_correct_args[arg] / float(counter_existing_args[arg])
+        rec = old_div(counter_correct_args[arg], float(counter_existing_args[arg]))
         
         # a couple of notes about precision per argument:
         # - we can't compute it if we are only interested in boundaries. hence, we can't compute f-1
@@ -583,7 +590,7 @@ def read_oov_words(oov_file):
     words = set()
     with open(oov_file, 'rb') as f:
         for line in f:
-            uline = unicode(line, 'utf-8').strip().lower()
+            uline = str(line, 'utf-8').strip().lower()
             words.add(uline)
     
     return words

@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 # import to provide easier access for nlpnet users
 from .config import set_data_dir
 from . import taggers

@@ -3,6 +3,7 @@
 """
 Configuration data for the system.
 """
+from __future__ import unicode_literals
 
 import os
 

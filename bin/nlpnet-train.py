@@ -6,6 +6,10 @@ Script to train a neural networks for NLP tagging tasks.
 
 Author: Erick Rocha Fonseca
 """
+from __future__ import division
+from __future__ import unicode_literals
+from builtins import str
+from past.utils import old_div
 
 import logging
 import numpy as np
@@ -201,7 +205,7 @@ def train(nn, reader, args):
     logger.debug("----------------------------------------------------")
     logger.debug("Starting training with %d sentences" % num_sents)
     
-    avg_len = sum(len(x) for x in text_reader.sentences) / float(num_sents)
+    avg_len = old_div(sum(len(x) for x in text_reader.sentences), float(num_sents))
     logger.debug("Average sentence length is %.2f tokens" % avg_len)
     
     logger.debug("Network learning rate: %.2f" % nn.learning_rate)
@@ -210,7 +214,7 @@ def train(nn, reader, args):
     logger.debug("Maximum weight norm set to %.2f (0 means disabled)" % nn.max_norm)
     logger.debug("----------------------------------------------------\n")
     
-    intervals = max(args.iterations / 200, 1)
+    intervals = max(old_div(args.iterations, 200), 1)
     np.seterr(over='raise', divide='raise', invalid='raise')
     
     if args.task.startswith('srl') and args.task != 'srl_predicates':

@@ -4,6 +4,7 @@
 Code for argument parsing and a few verifications. 
 These arguments are used by the training script.
 """
+from __future__ import unicode_literals
 
 import argparse
 

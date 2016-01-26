@@ -3,6 +3,9 @@
 """
 Class for dealing with POS data.
 """
+from __future__ import unicode_literals
+from builtins import str
+from builtins import object
 
 from ..reader import TaggerReader
 
@@ -52,7 +55,7 @@ class POSReader(TaggerReader):
         self.sentences = []
         with open(filename, 'rb') as f:
             for line in f:
-                line = unicode(line, 'utf-8')
+                line = str(line, 'utf-8')
                 items = line.split()
                 if len(items) == 0:
                     continue
@@ -79,7 +82,7 @@ class POSReader(TaggerReader):
                         sentence = []
                         continue
                 
-                line = unicode(line, 'utf-8')
+                line = str(line, 'utf-8')
                 fields = line.split()
                 word = fields[ConllPos.word]
                 pos = fields[ConllPos.pos]

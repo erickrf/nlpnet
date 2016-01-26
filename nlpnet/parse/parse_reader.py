@@ -3,6 +3,9 @@
 '''
 Class for dealing with dependency parsing data.
 '''
+from __future__ import unicode_literals
+from builtins import str
+from builtins import object
 
 import os
 import logging
@@ -88,7 +91,7 @@ class DependencyReader(reader.TaggerReader):
         
         with open(filename, 'rb') as f:
             for line in f:
-                line = unicode(line, 'utf-8').strip()
+                line = str(line, 'utf-8').strip()
                 lines.append(line)
         
         for line in lines:

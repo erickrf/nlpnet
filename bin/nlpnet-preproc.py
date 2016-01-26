@@ -4,6 +4,7 @@
 """
 Collection of preprocessing tools for nlpnet.
 """
+from __future__ import unicode_literals
 
 import argparse
 
