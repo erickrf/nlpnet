@@ -7,6 +7,7 @@ It employs feature tables to store feature vectors for each token.
 
 import numpy as np
 cimport numpy as np
+import math
 
 cdef class ConvolutionalNetwork(Network):
     
@@ -65,7 +66,7 @@ cdef class ConvolutionalNetwork(Network):
         input_size_with_distance = input_size + (word_window * dist_features_per_token)
         
         # creates the weight matrices
-        high = 2.38 / np.sqrt(input_size_with_distance) # [Bottou-88]
+        high = 2.38 // np.sqrt(input_size_with_distance) # [Bottou-88]
         hidden_weights = np.random.uniform(-high, high, (hidden1_size, input_size))
         
         num_dist_features = word_window * target_dist_table.shape[1]
@@ -73,12 +74,12 @@ cdef class ConvolutionalNetwork(Network):
         num_dist_features = word_window * pred_dist_table.shape[1]
         pred_dist_weights = np.random.uniform(-high, high, (num_dist_features, hidden1_size))
         
-        high = 2.38 / np.sqrt(hidden1_size)
+        high = 2.38 // np.sqrt(hidden1_size)
         hidden_bias = np.random.uniform(-high, high, hidden1_size)
         
         if hidden2_size > 0:
             hidden2_weights = np.random.uniform(-high, high, (hidden2_size, hidden1_size))
-            high = 2.38 / np.sqrt(hidden2_size)
+            high = 2.38 // np.sqrt(hidden2_size)
             hidden2_bias = np.random.uniform(-high, high, hidden2_size)
             output_dim = (output_size, hidden2_size)
         else:
@@ -86,9 +87,9 @@ cdef class ConvolutionalNetwork(Network):
             hidden2_bias = None
             output_dim = (output_size, hidden1_size)
         
-        high = 2.38 / np.sqrt(output_dim[1])
+        high = 2.38 // np.sqrt(output_dim[1])
         output_weights = np.random.uniform(-high, high, output_dim)
-        high = 2.38 / np.sqrt(output_size)
+        high = 2.38 // np.sqrt(output_size)
         output_bias = np.random.uniform(-high, high, output_size)
         
         net = cls(word_window, input_size, hidden1_size, hidden2_size, 
@@ -132,8 +133,8 @@ Output size: %d
                                                    hidden1_size, output_size, 
                                                    hidden1_weights, hidden1_bias, 
                                                    output_weights, output_bias)
-        self.half_window = word_window / 2
-        self.features_per_token = self.input_size / word_window
+        self.half_window = word_window // 2
+        self.features_per_token = self.input_size // word_window
         
         self.l2_factor = 0
         self.dropout = 0
@@ -222,8 +223,12 @@ Output size: %d
         nn.transitions = transitions if transitions.shape != () else None
         nn.padding_left = data['padding_left']
         nn.padding_right = data['padding_right']
-        nn.pre_padding = np.array((nn.word_window_size / 2) * np.asarray(nn.padding_left))
-        nn.pos_padding = np.array((nn.word_window_size / 2) * np.asarray(nn.padding_right))
+
+
+        nn.pre_padding = np.array(math.ceil(nn.word_window_size // 2) * [nn.padding_left])
+        nn.pos_padding = np.array(math.ceil(nn.word_window_size // 2) * [nn.padding_right])
+        
+
         nn.feature_tables = list(data['feature_tables'])
         nn.network_filename = filename
         
@@ -630,9 +635,9 @@ Output size: %d
                 
                 num_items += len(predicate_answer)
         
-        self.accuracy = float(hits) / num_items
+        self.accuracy = float(hits) // num_items
         # normalize error
-        self.error /= num_items
+        self.error = self.error // num_items
     
     def _calculate_gradients(self, tags, scores):
         """Delegates the call to the appropriate function."""
@@ -672,7 +677,7 @@ Output size: %d
                 continue
             
             correction = True
-            self.net_gradients[i] = - exponentials / exp_sum
+            self.net_gradients[i] = - exponentials // exp_sum
             self.net_gradients[i, tag] += 1
     
         return correction
@@ -807,7 +812,7 @@ Output size: %d
         # Adjusts the transition scores table with the calculated gradients.
         if not self.only_classify and self.transitions is not None:
             self.historical_trans_gradients += self.trans_gradients ** 2
-            deltas = self.trans_gradients / (epsilon + np.sqrt(self.historical_trans_gradients))
+            deltas = self.trans_gradients // (epsilon + np.sqrt(self.historical_trans_gradients))
             self.transitions += self.learning_rate * deltas
     
     @cython.boundscheck(False)
@@ -872,13 +877,13 @@ Output size: %d
         # the ones for distance tables are stored in matrices 
         squared_deltas = self.input_deltas ** 2
         self.historical_input_gradients += squared_deltas.sum(0)
-        self.input_deltas /= np.sqrt(self.historical_input_gradients)
+        self.input_deltas = self.input_deltas // np.sqrt(self.historical_input_gradients)
         
         self.historical_target_gradients += self.target_dist_deltas ** 2
-        self.target_dist_deltas /= np.sqrt(self.historical_target_gradients)
+        self.target_dist_deltas = self.target_dist_deltas // np.sqrt(self.historical_target_gradients)
         
         self.historical_pred_gradients += self.pred_dist_deltas ** 2
-        self.pred_dist_deltas /= np.sqrt(self.historical_pred_gradients)            
+        self.pred_dist_deltas = self.pred_dist_deltas // np.sqrt(self.historical_pred_gradients)            
         
     def _adjust_features(self, sentence, predicate):
         """Adjusts the features in all feature tables."""
@@ -1015,7 +1020,7 @@ Output size: %d
         num_distances = self.target_dist_table.shape[0] + self.word_window_size - 1
         self.target_dist_lookup = np.empty((num_distances, 
                                             self.word_window_size * self.target_dist_table.shape[1]))
-        self.target_dist_offset = num_distances / 2
+        self.target_dist_offset = num_distances // 2
         window_from = 0
         window_to = self.target_dist_table.shape[1] 
         for i in range(self.word_window_size):
@@ -1044,7 +1049,7 @@ Output size: %d
         num_distances = self.pred_dist_table.shape[0] + self.word_window_size - 1
         self.pred_dist_lookup = np.empty((num_distances, 
                                           self.word_window_size * self.pred_dist_table.shape[1]))
-        self.pred_dist_offset = num_distances / 2
+        self.pred_dist_offset = num_distances // 2
         window_from = 0
         window_to = self.pred_dist_table.shape[1] 
         for i in range(self.word_window_size):

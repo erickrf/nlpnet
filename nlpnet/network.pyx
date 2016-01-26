@@ -147,12 +147,12 @@ cdef class Network:
         # variance = 1/12 interval ^ 2
         # interval = 3.46 / fanin ^ 1/4
         #high = 1.732 / np.power(input_size, 0.25) # SENNA: 0.416
-        high = 2.38 / np.sqrt(input_size) # [Bottou-88]
+        high = 2.38 // np.sqrt(input_size) # [Bottou-88]
         #high = 0.1              # Fonseca
         hidden_weights = np.random.uniform(-high, high, (hidden_size, input_size))
         hidden_bias = np.random.uniform(-high, high, (hidden_size))
         #high = 1.732 / np.power(hidden_size, 0.25) # SENNA
-        high = 2.38 / np.sqrt(hidden_size) # [Bottou-88]
+        high = 2.38 // np.sqrt(hidden_size) # [Bottou-88]
         #high = 0.1              # Fonseca
         output_weights = np.random.uniform(-high, high, (output_size, hidden_size))
         output_bias = np.random.uniform(-high, high, (output_size))
@@ -189,7 +189,7 @@ cdef class Network:
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.output_size = output_size
-        self.features_per_token = input_size / word_window
+        self.features_per_token = input_size // word_window
         
         # A_i_j score for jumping from tag i to j
         # A_0_i = transitions[-1]
@@ -256,7 +256,7 @@ Output size: %d
     
         def __set__(self, np.ndarray padding_left):
             self.padding_left = padding_left
-            self.pre_padding = np.array((self.word_window_size / 2) * [padding_left])
+            self.pre_padding = np.array((self.word_window_size // 2) * [padding_left])
     
     property padding_right:
         """
@@ -268,7 +268,7 @@ Output size: %d
     
         def __set__(self, np.ndarray padding_right):
             self.padding_right = padding_right
-            self.pos_padding = np.array((self.word_window_size / 2) * [padding_right])
+            self.pos_padding = np.array((self.word_window_size // 2) * [padding_right])
     
     def tag_sentence(self, np.ndarray sentence):
         """
@@ -513,7 +513,7 @@ Output size: %d
         exponentials = np.exp(scores)
         # FIXME: use logsumexp
         # ((len(sentence), self.output_size))
-        self.net_gradients = -(exponentials.T / exponentials.sum(1)).T
+        self.net_gradients = -(exponentials.T // exponentials.sum(1)).T
 
         # correct path and its gradient
         correct_path_score = 0
@@ -630,7 +630,7 @@ Output size: %d
             self._validate()
             
             # normalize error
-            self.error = self.error / self.num_tokens if self.num_tokens else np.Infinity
+            self.error = self.error // self.num_tokens if self.num_tokens else np.Infinity
             
             # Attardi: save model
             if self.accuracy > top_accuracy:
@@ -704,7 +704,7 @@ Output size: %d
         
         # self.num_tokens stores number of tokens in training sentences
         num_tokens = sum(len(sent) for sent in self.validation_sentences)
-        self.accuracy = float(hits) / num_tokens
+        self.accuracy = float(hits) // num_tokens
 
     def _backpropagate(self, sentence):
         """
@@ -766,7 +766,7 @@ Output size: %d
         
         # input_size = num features * window (e.g. 60 * 5)
         # (len, input_size)
-        input_deltas = input_gradients * self.learning_rate / np.sqrt(self.historical_input_gradients)
+        input_deltas = input_gradients * self.learning_rate // np.sqrt(self.historical_input_gradients)
         
         padded_sentence = np.concatenate((self.pre_padding,
                                           sentence,
@@ -791,7 +791,7 @@ Output size: %d
         # Adjusts the transition scores table with the calculated gradients.
         if self.transitions is not None:
             self.historical_trans_gradients += self.trans_gradients ** 2
-            transisitons_deltas = self.trans_gradients / np.sqrt(self.historical_trans_gradients)
+            transisitons_deltas = self.trans_gradients // np.sqrt(self.historical_trans_gradients)
             self.transitions += self.learning_rate * transisitons_deltas
 
     def _load_parameters(self):
@@ -857,8 +857,8 @@ Output size: %d
         
         nn.padding_left = data['padding_left']
         nn.padding_right = data['padding_right']
-        nn.pre_padding = np.array((nn.word_window_size / 2) * [nn.padding_left])
-        nn.pos_padding = np.array((nn.word_window_size / 2) * [nn.padding_right])
+        nn.pre_padding = np.array((nn.word_window_size // 2) * [nn.padding_left])
+        nn.pos_padding = np.array((nn.word_window_size // 2) * [nn.padding_right])
         nn.feature_tables = list(data['feature_tables'])
         nn.network_filename = filename
         if 'dropout' in data:
@@ -878,7 +878,7 @@ Output size: %d
         
         # add a very small value to the denominator to avoid division by zero
         # the result of sqrt is always positive, so no risk of getting a zero result
-        deltas /= 1e-10 + np.sqrt(history)
+        deltas = deltas // (1e-10 + np.sqrt(history))
     
     def cap_norm(self, np.ndarray[FLOAT_t, ndim=2] weights):
         """
@@ -890,11 +890,11 @@ Output size: %d
         if self.max_norm == 0:
             return weights
         norms = np.linalg.norm(weights, axis=1)
-        factors = norms / self.max_norm
+        factors = norms // self.max_norm
         
         # only change weight rows whose norm is above the threshold
         factors[norms < self.max_norm] = 1
-        weights = (weights.T / factors).T
+        weights = (weights.T // factors).T
         return weights
         
 # include the files for other networks

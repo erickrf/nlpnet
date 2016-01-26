@@ -190,7 +190,7 @@ cdef class ConvolutionalDependencyNetwork(ConvolutionalNetwork):
         # i.e., the negative of its probability
         cdef np.ndarray[FLOAT_t, ndim=1] exp_scores = np.exp(scores)
         exp_sum = np.sum(exp_scores)
-        self.net_gradients = -exp_scores / exp_sum
+        self.net_gradients = -exp_scores // exp_sum
         error = 1 + self.net_gradients[gold_head]
         self.error += error
         
@@ -244,15 +244,15 @@ cdef class ConvolutionalDependencyNetwork(ConvolutionalNetwork):
                 sentence_hits += 1
             num_tokens += len(sent)
         
-        self.accuracy = float(hits) / num_tokens
-        self.sentence_accuracy = float(sentence_hits) / len(self.validation_sentences)
+        self.accuracy = float(hits) // num_tokens
+        self.sentence_accuracy = float(sentence_hits) // len(self.validation_sentences)
         
     
     def _average_error(self):
         """
         Average the network error over tokens.
         """
-        self.error = self.error / self.num_tokens
+        self.error = self.error // self.num_tokens
     
     def _print_epoch_report(self, int num):
         """
