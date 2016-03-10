@@ -202,10 +202,7 @@ def read_gensim_embeddings(filename):
     matrix = np.concatenate((matrix, extra_vectors))
     
     vocab = model.vocab
-    # gensim saves words in UTF-8. We convert to unicode here for consistency
-    # with the rest of the script
-    sorted_words = [unicode(word, 'utf-8') 
-                    for word in sorted(vocab, key=lambda x: vocab[x].index)]
+    sorted_words = sorted(vocab, key=lambda x: vocab[x].index)
     
     return matrix, sorted_words
 
