@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*- 
 
+from __future__ import print_function
+
 """
 Script to test the networks on NLP tasks. 
 
@@ -21,7 +23,6 @@ import unicodedata as ud
 from itertools import izip
 import numpy as np
 from collections import Counter, defaultdict
-from __future__ import print_function
 
 import nlpnet.config as config
 import nlpnet.utils as utils
