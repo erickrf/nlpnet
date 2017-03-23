@@ -3,15 +3,6 @@ import warnings
 from distutils.core import setup
 from distutils.extension import Extension
 
-try:
-    import numpy as np
-except ImportError:
-    warnings.warn(
-        "You don't seem to have NumPy installed. "
-        "Please get a copy from www.numpy.org and install it."
-    )
-    sys.exit(1)
-
 def readme():
     with open('README.rst') as f:
         text = f.read()
@@ -25,8 +16,7 @@ setup(
         Extension(
             "nlpnet.network", 
             ["nlpnet/network.c"],
-            include_dirs=['.',
-            np.get_include()]
+            include_dirs=['.']
         )
     ],
     scripts = [
@@ -34,6 +24,10 @@ setup(
         'bin/nlpnet-train.py',
         'bin/nlpnet-test.py',
         'bin/nlpnet-load-embeddings.py'
+    ],
+     install_requires=[
+        'numpy>=1.9.0',
+        'nltk>=3.2.2'
     ],
     license = 'MIT',
     version = '1.2.1',
