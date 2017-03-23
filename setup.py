@@ -26,7 +26,7 @@ setup(
         'bin/nlpnet-load-embeddings.py'
     ],
      install_requires=[
-        'numpy>=1.12.0',
+        'numpy>=1.9.0',
         'nltk>=3.2.2'
     ],
     license = 'MIT',
