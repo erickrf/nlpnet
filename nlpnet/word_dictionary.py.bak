@@ -10,11 +10,11 @@ class WordDictionary(dict):
     maps rare words to a special index.
     """
     
-    padding_left = '*LEFT*'
-    padding_right = '*RIGHT*'
-    rare = '*RARE*'
+    padding_left = u'*LEFT*'
+    padding_right = u'*RIGHT*'
+    rare = u'*RARE*'
     
-    number_transformation = {ord(c): '9' for c in '012345678'}
+    number_transformation = {ord(c): u'9' for c in u'012345678'}
     
     def __init__(self, tokens, size=None, minimum_occurrences=None, wordlist=None):
         """
@@ -50,14 +50,14 @@ class WordDictionary(dict):
             words = [word.lower().translate(WordDictionary.number_transformation)
                      for word in wordlist]
             values = [None] * len(words)
-            words = list(OD(list(zip(words, values))).keys())
+            words = OD(zip(words, values)).keys()
         
         # verifies the maximum size
         if size is None:
             size = len(words)
         
         # set all words in the dictionary
-        for word, num in zip(words, range(size)):
+        for word, num in itertools.izip(words, xrange(size)):
             self[word] = num
         
         # if the given words include one of the the rare or padding symbols, don't replace it
@@ -106,7 +106,7 @@ class WordDictionary(dict):
         words = []
         with open(filename, 'rb') as f:
             for word in f:
-                word = str(word, 'utf-8').strip()
+                word = unicode(word, 'utf-8').strip()
                 if word:
                     words.append(word)
         

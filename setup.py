@@ -1,3 +1,4 @@
+import numpy
 import sys
 import warnings
 from distutils.core import setup
@@ -16,7 +17,7 @@ setup(
         Extension(
             "nlpnet.network", 
             ["nlpnet/network.c"],
-            include_dirs=['.']
+            include_dirs=['.', numpy.get_include()]
         )
     ],
     scripts = [
