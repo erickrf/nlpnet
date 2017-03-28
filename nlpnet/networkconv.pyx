@@ -390,7 +390,7 @@ Output size: %d
         else:
             sent_args = None
         
-        for sent, sent_preds, sent_tags in izip(sentences, predicates, tags):
+        for sent, sent_preds, sent_tags in zip(sentences, predicates, tags):
             if arguments is not None:
                 sent_args = i_args.next()
             
@@ -616,7 +616,7 @@ Output size: %d
         else:
             sent_args = None
         
-        for sent, sent_preds, sent_tags in izip(self.validation_sentences, 
+        for sent, sent_preds, sent_tags in zip(self.validation_sentences, 
                                                 self.validation_predicates, 
                                                 self.validation_tags):
             if self.validation_arguments is not None:
