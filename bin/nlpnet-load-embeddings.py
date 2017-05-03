@@ -169,7 +169,7 @@ def read_skipdep_embeddings(filename):
     def dep_filter(word):
         return '_<CH>' in word or word == '</s>' or word == '<ROOT>'
     
-    clusters = clusterize_words(model, filter_)    
+    clusters = clusterize_words(model, dep_filter)
     
     # now, average out each cluster
     for word, vectors in clusters.iteritems():
