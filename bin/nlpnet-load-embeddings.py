@@ -161,6 +161,10 @@ def read_skipdep_embeddings(filename):
     with open(filename, 'rb') as f:
         for line in f:
             fields = line.split()
+            if len(fields) == 2:
+                # some files have [num_words, vector_size] in the first line
+                continue
+
             word = unicode(fields[0], 'utf-8')
             vector = np.fromiter((float(x) for x in fields[1:]), 
                                  dtype=np.float)
@@ -171,14 +175,10 @@ def read_skipdep_embeddings(filename):
     
     clusters = clusterize_words(model, dep_filter)
     
-    # now, average out each cluster
-    for word, vectors in clusters.iteritems():
-        clusters[word] = np.mean(vectors, 0)
-    
     # and separate vocabulary from vectors
     vocabulary = clusters.keys()
     matrix = np.array(clusters.values())
-    
+
     if '*unknown*' in clusters:
         # symbol used in skipdep
         index_rare = vocabulary.index('*unknown*')
