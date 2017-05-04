@@ -11,6 +11,7 @@ import numpy as np
 cimport numpy as np
 cimport cython
 from cpython cimport bool
+import h5py as h5
 
 from itertools import izip
 import logging
@@ -809,41 +810,62 @@ Output size: %d
     
     def save(self):
         """
-        Saves the neural network to a file.
+        Saves the neural network to an HDF5 file.
         It will save the weights, biases, sizes, padding, 
         and feature tables.
         """
-        np.savez(self.network_filename, hidden_weights=self.hidden_weights,
-                 output_weights=self.output_weights,
-                 hidden_bias=self.hidden_bias, output_bias=self.output_bias,
-                 word_window_size=self.word_window_size, 
-                 input_size=self.input_size, hidden_size=self.hidden_size,
-                 output_size=self.output_size, padding_left=self.padding_left,
-                 padding_right=self.padding_right, transitions=self.transitions,
-                 feature_tables=self.feature_tables, dropout=self.dropout)
+        with h5.File(self.network_filename, 'w') as f:
+            f.create_dataset('hidden_weights', data=self.hidden_weights)
+            f.create_dataset('output_weights', data=self.output_weights)
+            f.create_dataset('hidden_bias', data=self.hidden_bias)
+            f.create_dataset('output_bias', data=self.output_bias)
+            f.create_dataset('word_window_size', data=self.word_window_size)
+            f.create_dataset('input_size', data=self.input_size)
+            f.create_dataset('hidden_size', data=self.hidden_size)
+            f.create_dataset('output_size', data=self.output_size)
+            f.create_dataset('padding_left', data=self.padding_left)
+            f.create_dataset('padding_right', data=self.padding_right)
+            f.create_dataset('transitions', data=self.transitions)
+            f.create_dataset('dropout', data=self.dropout)
+            tables = f.create_group('feature_tables')
+
+            # store feature tables indexed by their position
+            for i, table in enumerate(self.feature_tables):
+                tables.create_dataset(str(i), data=table)
     
     @classmethod
     def load_from_file(cls, filename):
         """
-        Loads the neural network from a file.
+        Loads the neural network from a file. If the filename ends with .hdf5,
+        it is interpreted as an HDF5 file; otherwise, as a numyp archive (npz).
+
         It will load weights, biases, sizes, padding, 
         and feature tables.
         """
-        data = np.load(filename)
+        if filename.lower().endswith('.hdf5'):
+            data = h5.File(filename, 'r')
+            data_fn = lambda x: x.value
+            tables_group = data['feature_tables']
+            keys = sorted(tables_group.keys(), key=lambda x: int(x))
+            tables = [tables_group[key].value for key in keys]
+        else:
+            data = np.load(filename)
+            data_fn = lambda x: x
+            tables = list(data['feature_tables'])
         
         # cython classes don't have the __dict__ attribute
         # so we can't do an elegant self.__dict__.update(data)
-        hidden_weights = data['hidden_weights']
-        hidden_bias = data['hidden_bias']
-        output_weights = data['output_weights']
-        output_bias = data['output_bias']
+        hidden_weights = data_fn(data['hidden_weights'])
+        hidden_bias = data_fn(data['hidden_bias'])
+        output_weights = data_fn(data['output_weights'])
+        output_bias = data_fn(data['output_bias'])
         
-        word_window_size = data['word_window_size']
-        input_size = data['input_size']
-        hidden_size = data['hidden_size']
-        output_size = data['output_size']
+        word_window_size = data_fn(data['word_window_size'])
+        input_size = data_fn(data['input_size'])
+        hidden_size = data_fn(data['hidden_size'])
+        output_size = data_fn(data['output_size'])
         if 'transitions' in data:
-            transitions = data['transitions']
+            transitions = data_fn(data['transitions'])
         else:
             transitions = None
 
@@ -851,14 +873,14 @@ Output size: %d
                      hidden_weights, hidden_bias, output_weights, output_bias,
                      transitions)
         
-        nn.padding_left = data['padding_left']
-        nn.padding_right = data['padding_right']
+        nn.padding_left = data_fn(data['padding_left'])
+        nn.padding_right = data_fn(data['padding_right'])
         nn.pre_padding = np.array((nn.word_window_size / 2) * [nn.padding_left])
         nn.pos_padding = np.array((nn.word_window_size / 2) * [nn.padding_right])
-        nn.feature_tables = list(data['feature_tables'])
+        nn.feature_tables = tables
         nn.network_filename = filename
         if 'dropout' in data:
-            nn.dropout = data['dropout']
+            nn.dropout = data_fn(data['dropout'])
         else:
             nn.dropout = 0
         

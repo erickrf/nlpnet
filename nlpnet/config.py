@@ -23,7 +23,7 @@ def get_config_paths(directory):
         ('termvectors'                 , 'termvectors.txt'),
 
         # POS
-        ('network_pos'                 , 'pos-network.npz'),
+        ('network_pos'                 , 'pos-network.hdf5'),
         ('pos_tags'                    , 'pos-tags.txt'),
         ('pos_tag_dict'                , 'pos-tags.txt'),
         ('suffix'                      , 'suffixes.txt'),
