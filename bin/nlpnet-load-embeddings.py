@@ -191,7 +191,7 @@ def read_gensim_embeddings(filename):
     Load the feature matrix used by gensim.
     """
     import gensim
-    model = gensim.models.Word2Vec.load(filename)
+    model = gensim.models.KeyedVectors.load_word2vec_format(filename)
     matrix = model.syn0
     vocab_size, num_features = matrix.shape
 
