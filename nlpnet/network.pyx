@@ -12,6 +12,7 @@ cimport numpy as np
 cimport cython
 from cpython cimport bool
 import h5py as h5
+import os
 
 from itertools import izip
 import logging
@@ -836,19 +837,24 @@ Output size: %d
     @classmethod
     def load_from_file(cls, filename):
         """
-        Loads the neural network from a file. If the filename ends with .hdf5,
-        it is interpreted as an HDF5 file; otherwise, as a numyp archive (npz).
+        Loads the neural network from a file. If there is not an HDF5, it tries
+        to load a numpy archive (npz).
 
         It will load weights, biases, sizes, padding, 
         and feature tables.
         """
+        if not os.path.isfile(filename):
+            filename = filename.replace('.hdf5', '.npz')
+
         if filename.lower().endswith('.hdf5'):
             data = h5.File(filename, 'r')
+            is_hdf5 = True
             data_fn = lambda x: x.value
             tables_group = data['feature_tables']
             keys = sorted(tables_group.keys(), key=lambda x: int(x))
             tables = [tables_group[key].value for key in keys]
         else:
+            is_hdf5 = False
             data = np.load(filename)
             data_fn = lambda x: x
             tables = list(data['feature_tables'])
@@ -883,6 +889,9 @@ Output size: %d
             nn.dropout = data_fn(data['dropout'])
         else:
             nn.dropout = 0
+
+        if is_hdf5:
+            data.close()
         
         return nn
         
