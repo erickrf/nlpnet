@@ -73,18 +73,18 @@ class POSReader(TaggerReader):
         sentence = []
         with open(filename, 'rb') as f:
             for line in f:
-                if line.strip() == '':
+                line = unicode(line, 'utf-8').strip()
+                if line == '':
                     if len(sentence) > 0:
                         self.sentences.append(sentence)
                         sentence = []
-                        continue
-                
-                line = unicode(line, 'utf-8')
+                    continue
+
                 fields = line.split()
                 word = fields[ConllPos.word]
                 pos = fields[ConllPos.pos]
                 sentence.append((word, pos))
-        
+
         if len(sentence) > 0:
             self.sentences.append(sentence)
 
