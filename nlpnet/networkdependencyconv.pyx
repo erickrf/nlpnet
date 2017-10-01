@@ -33,7 +33,7 @@ cdef class ConvolutionalDependencyNetwork(ConvolutionalNetwork):
         It will load weights, biases, sizes, padding and 
         distance tables, and other feature tables.
         """
-        data = np.load(filename)
+        data = np.load(filename, encoding='bytes')
         nn = cls._load_from_file(data, filename)
         
         return nn

@@ -1,2 +1,2 @@
 
-from .pos_reader import POSReader
+from nlpnet.pos.pos_reader import POSReader

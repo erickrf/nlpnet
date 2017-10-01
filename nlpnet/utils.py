@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from __future__ import unicode_literals
+
 """
 Utility functions
 """
@@ -12,9 +14,9 @@ import numpy as np
 
 from nltk.tokenize.regexp import RegexpTokenizer
 from nltk.tokenize import TreebankWordTokenizer
-from . import attributes
+from nlpnet import attributes
 
-_tokenizer_regexp = ur'''(?ux)
+_tokenizer_regexp = r'''(?ux)
     # the order of the patterns is important!!
     (?:[Mm]\.?[Ss][Cc])\.?|           # M.Sc. with or without capitalization and dots
     (?:[Pp][Hh]\.?[Dd])\.?|           # Same for Ph.D.
@@ -56,13 +58,11 @@ def tokenize(text, language):
     
     :param language: two letter code (en, pt)
     """
-    if not isinstance(text, unicode):
-        text = unicode(text, 'utf-8')
-    
     if language == 'en':
         return tokenize_en(text)
     elif language == 'pt':
         return tokenize_pt(text, False)
+
 
 def tokenize_en(text):
     """
@@ -73,14 +73,15 @@ def tokenize_en(text):
     sentences = [tokenizer.tokenize(sentence) 
                  for sentence in sent_tokenizer.tokenize(text)]
     return sentences
+
     
 def tokenize_pt(text, clean=True):
     """
     Returns a list of lists of the tokens in text, separated by sentences.
     Each line break in the text starts a new list.
     
-    :param clean: If True, performs some cleaning action on the text, such as replacing
-        all digits for 9 (by calling :func:`clean_text`)
+    :param clean: If True, performs some cleaning action on the text, such as
+        replacing all digits for 9 (by calling :func:`clean_text`)
     """    
     if clean:
         text = clean_text(text, correct=True)
@@ -90,9 +91,11 @@ def tokenize_pt(text, clean=True):
     # loads trained model for tokenizing Portuguese sentences (provided by NLTK)
     sent_tokenizer = nltk.data.load('tokenizers/punkt/portuguese.pickle')
     sentences = [_tokenizer.tokenize(sent)
-                 for sent in sent_tokenizer.tokenize(text, realign_boundaries=True)]
+                 for sent in sent_tokenizer.tokenize(text,
+                                                     realign_boundaries=True)]
     
     return sentences
+
 
 def clean_text(text, correct=True):
     """
@@ -103,16 +106,16 @@ def clean_text(text, correct=True):
     """    
     # replaces different kinds of quotation marks with "
     # take care not to remove apostrophes
-    text = re.sub(ur"(?u)(^|\W)[‘’′`']", r'\1"', text)
-    text = re.sub(ur"(?u)[‘’`′'](\W|$)", r'"\1', text)
-    text = re.sub(ur'(?u)[«»“”]', '"', text)
+    text = re.sub(r"(?u)(^|\W)[‘’′`']", r'\1"', text)
+    text = re.sub(r"(?u)[‘’`′'](\W|$)", r'"\1', text)
+    text = re.sub(r'(?u)[«»“”]', '"', text)
     
     if correct:
         # tries to fix mistyped tokens (common in Wikipedia-pt) as ,, '' ..
         text = re.sub(r'(?<!\.)\.\.(?!\.)', '.', text) # take care with ellipses 
         text = re.sub(r'([,";:])\1,', r'\1', text)
         
-        # inserts space after leading hyphen. It happens sometimes in cases like:
+        # inserts space after leading hyphen. It happens sometimes in cases like
         # blablabla -that is, bloblobloblo
         text = re.sub(' -(?=[^\W\d_])', ' - ', text)
     
@@ -120,13 +123,12 @@ def clean_text(text, correct=True):
     text = re.sub(r'\d', '9', text)
     
     # replaces special ellipsis character 
-    text = text.replace(u'…', '...')
+    text = text.replace('…', '...')
     
     return text
 
 
-
-_contractible_base = ur'''(?iux)
+_contractible_base = r'''(?iux)
     (
     [ao]s?|                # definite articles
     um(as?)?|uns|          # indefinite articles
@@ -139,16 +141,18 @@ _contractible_base = ur'''(?iux)
     )
     $
     '''
-_contractible_de = re.compile(_contractible_base % u'|aqui|aí|ali|entre')
+_contractible_de = re.compile(_contractible_base % '|aqui|aí|ali|entre')
 _contractible_em = re.compile(_contractible_base % '')
 _contractible_art = re.compile('[oa]s?')
+
 
 def contract(w1, w2):
     """
     Makes a contraction of two words (in Portuguese).
 
     For example: contract('de', 'os') returns 'dos'
-    If a contraction between the given words doesn't exist in Portuguese, a ValueError
+    If a contraction between the given words doesn't exist in Portuguese, a
+        ValueError
     exception is thrown.
     """
     cap = attributes.get_capitalization(w1)
@@ -166,7 +170,7 @@ def contract(w1, w2):
         if w2 in ['o', 'os']:
             contraction = 'a' + w2
         elif w2.startswith('a'):
-            contraction = u'à' + w2[1:]
+            contraction = 'à' + w2[1:]
     elif w1 == 'para' and _contractible_art.match(w2):
         contraction = 'pr' + w2
     elif w1 == 'com':
@@ -176,9 +180,9 @@ def contract(w1, w2):
             contraction = 'contigo'
         elif w2 == 'si':
             contraction = 'consigo'
-        elif w2 == u'nós':
+        elif w2 == 'nós':
             contraction = 'conosco'
-        elif w2 == u'vós':
+        elif w2 == 'vós':
             contraction = 'convosco'
     elif w1 == 'lhe' and _contractible_art.match(w2):
         contraction = 'lh' + w2
@@ -188,17 +192,20 @@ def contract(w1, w2):
     if contraction is None:
         raise ValueError('Unexpected contraction: "%s" and "%s"' % (w1, w2))
     
-    return attributes.capitalize(contraction, cap) 
+    return attributes.capitalize(contraction, cap)
 
-def generate_feature_vectors(num_vectors, num_features, min_value=-0.1, max_value=0.1):
+
+def generate_feature_vectors(num_vectors, num_features, min_value=-0.1,
+                             max_value=0.1):
     """
     Generates vectors of real numbers, to be used as word features.
     Vectors are initialized randomly. Returns a 2-dim numpy array.
     """
     logger = logging.getLogger("Logger")
-    table = (max_value * 2) * np.random.random((num_vectors, num_features)) + min_value
-    logger.debug("Generated %d feature vectors with %d features each." % (num_vectors,
-                                                                          num_features))
+    table = (max_value * 2) * np.random.random((num_vectors, num_features)) \
+            + min_value
+    base_msg = "Generated %d feature vectors with %d features each."
+    logger.debug(base_msg % (num_vectors, num_features))
     
     return table
 
@@ -208,6 +215,7 @@ def count_lines(filename):
     with open(filename, 'r') as f:
         lines = [x for x in list(f) if x.strip()]
     return len(lines)
+
 
 def _create_affix_tables(affix, table_list, num_features):
     """
@@ -219,7 +227,8 @@ def _create_affix_tables(affix, table_list, num_features):
     logger.info('Generating %s features...' % affix)
     tensor = []
     codes = getattr(attributes.Affix, '%s_codes' % affix)
-    num_affixes_per_size = getattr(attributes.Affix, 'num_%ses_per_size' % affix)
+    num_affixes_per_size = getattr(attributes.Affix,
+                                   'num_%ses_per_size' % affix)
     for size in codes:
         
         # use num_*_per_size because it accounts for special suffix codes
@@ -232,6 +241,7 @@ def _create_affix_tables(affix, table_list, num_features):
     for table in tensor:
         table_list.append(table)
 
+
 def create_feature_tables(args, md, text_reader):
     """
     Create the feature tables to be used by the network. If the args object
@@ -239,7 +249,7 @@ def create_feature_tables(args, md, text_reader):
     is loaded instead of being created. The actual number of 
     feature tables will depend on the argument options.
     
-    :param arguments: Parameters supplied to the program
+    :param args: Parameters supplied to the program
     :param md: metadata about the network
     :param text_reader: The TextReader being used.
     :returns: all the feature tables to be used
@@ -269,14 +279,16 @@ def create_feature_tables(args, md, text_reader):
             # feature vectors for the new types by replicating the vector
             # associated with the RARE word
             diff = len(text_reader.word_dict) - len(types_table)
-            logger.warning("Number of types in feature table and dictionary differ.")
+            logger.warning("Number of types in feature table and "
+                           "dictionary differ.")
             logger.warning("Generating features for %d new types." % diff)
             num_features = len(types_table[0])
             new_vecs =  generate_feature_vectors(diff, num_features)
             types_table = np.append(types_table, new_vecs, axis=0)
             
         elif len(types_table) < len(text_reader.word_dict):
-            logger.warning("Number of features provided is greater than the number of tokens\
+            logger.warning("Number of features provided is greater than the "
+                           "number of tokens\
             in the dictionary. The extra features will be ignored.")
     
     feature_tables.append(types_table)
@@ -311,6 +323,7 @@ def create_feature_tables(args, md, text_reader):
     
     return feature_tables
 
+
 def set_distance_features(max_dist=None, 
                           num_target_features=None, num_pred_features=None):
     """
@@ -331,9 +344,12 @@ def set_distance_features(max_dist=None,
     
     return [target_dist, pred_dist]
 
+
 def make_contractions_srl(sentences, predicates):
     """
-    Makes preposition contractions in the input data for SRL with Portuguese text. 
+    Makes preposition contractions in the input data for SRL with Portuguese
+    text.
+
     It will contract words likely to be contracted, but there's no way to be 
     sure the contraction actually happened in the corpus. 
     
@@ -342,11 +358,11 @@ def make_contractions_srl(sentences, predicates):
     :returns: a tuple (sentences, predicates) after contractions have been made.
     """
     def_articles = ['a', 'as', 'o', 'os']
-    adverbs = [u'aí', 'aqui', 'ali']
+    adverbs = ['aí', 'aqui', 'ali']
     pronouns = ['ele', 'eles', 'ela', 'elas', 'esse', 'esses', 
                 'essa', 'essas', 'isso', 'este', 'estes', 'esta',
                 'estas', 'isto', ]
-    pronouns_a = ['aquele', 'aqueles', 'aquela', 'aquelas', 'aquilo',]
+    pronouns_a = ['aquele', 'aqueles', 'aquela', 'aquelas', 'aquilo']
     
     for (sent, props), preds in zip(sentences, predicates):
         for i, token in enumerate(sent):
@@ -357,7 +373,8 @@ def make_contractions_srl(sentences, predicates):
                 # we are already at the last word.
                 break
             
-            # look at the arg types for this and the next token in all propostions
+            # look at the arg types for this and the next token in all
+            # propostions
             arg_types = [prop[i] for prop in props]
             next_arg_types = [prop[i + 1] for prop in props]
             
@@ -375,14 +392,18 @@ def make_contractions_srl(sentences, predicates):
                 preds[preds > i] -= 1
                 for prop in props: del prop[i]
             
-            # check if the tags for this token and the next are the same in all propositions
+            # check if the tags for this token and the next are the same in all
+            # propositions
             # if the first is O, however, we will merge them anyway.
-            if all(a1 == a2 or a1 == 'O' for a1, a2 in zip(arg_types, next_arg_types)):
-                
-                if word == 'de' and next_word in (def_articles + pronouns + pronouns_a + adverbs):
+            if all(a1 == a2 or a1 == 'O' for a1, a2 in zip(arg_types,
+                                                           next_arg_types)):
+
+                if word == 'de' and next_word in (def_articles + pronouns +
+                                                  pronouns_a + adverbs):
                     contract('d' + next_word, 'd' + next_token.lemma)
                 
-                elif word == 'em' and next_word in (def_articles + pronouns + pronouns_a):
+                elif word == 'em' and next_word in (def_articles + pronouns +
+                                                    pronouns_a):
                     contract('n' + next_word, 'n' + next_token.lemma)
                 
                 elif word == 'por' and next_word in def_articles:
@@ -390,18 +411,20 @@ def make_contractions_srl(sentences, predicates):
                 
                 elif word == 'a':
                     if next_word in pronouns_a:
-                        contract(u'à' + next_word[1:], u'à' + next_token.lemma[1:])
+                        contract('à' + next_word[1:],
+                                 'à' + next_token.lemma[1:])
                     
                     elif next_word in ['o', 'os']:
                         contract('a' + next_word, 'ao')
                     
                     elif next_word == 'a':
-                        contract(u'à', 'ao')
+                        contract('à', 'ao')
                     
                     elif next_word == 'as':
-                        contract(u'às', 'ao')
+                        contract('às', 'ao')
     
-    return (sentences, predicates)
+    return sentences, predicates
+
 
 def set_logger(level):
     """Sets the logger to be used throughout the system."""
@@ -410,14 +433,17 @@ def set_logger(level):
     logger = logging.getLogger("Logger")
     logger.setLevel(level)
 
+
 def load_features_from_file(features_file):
     """Reads a file with features written as binary data."""
-    return np.load(features_file)
+    return np.load(features_file, encoding='bytes')
+
 
 def save_features_to_file(table, features_file):
     """Saves a feature table to a given file, writing binary data."""
     np.save(features_file, table)
-    
+
+
 def convert_iobes_to_bracket(tag):
     """
     Convert tags from the IOBES scheme to the CoNLL bracketing.
@@ -439,6 +465,7 @@ def convert_iobes_to_bracket(tag):
         return '(%s*)' % tag[2:]
     else:
         raise ValueError("Unknown tag: %s" % tag)
+
 
 def boundaries_to_arg_limits(boundaries):
     """

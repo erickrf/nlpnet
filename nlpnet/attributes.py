@@ -3,11 +3,12 @@
 import logging
 import numpy as np
 
-from .word_dictionary import WordDictionary as WD
+from nlpnet.word_dictionary import WordDictionary as WD
 from collections import defaultdict
 
 # dummy value to be used when POS is an additional attribute
 PADDING_POS = 'PADDING'
+
 
 class Caps(object):
     """Dummy class for storing numeric values for capitalization."""
@@ -20,7 +21,8 @@ class Caps(object):
 
 
 class Token(object):
-    def __init__(self, word, lemma='NA', pos='NA', pos2='NA', morph='NA', chunk='NA'):
+    def __init__(self, word, lemma='NA', pos='NA', pos2='NA', morph='NA',
+                 chunk='NA'):
         """
         A token representation that stores discrete attributes to be given as 
         input to the neural network. 
@@ -41,8 +43,8 @@ class Token(object):
 
 class Affix(object):
     """Dummy class for manipulating suffixes and their related codes."""
-    # codes maps integers (affix sizes) to dicts. each dict maps a suffix of the given 
-    # size to its code
+    # codes maps integers (affix sizes) to dicts.
+    # each dict maps a suffix of the given size to its code
     suffix_codes = {}
     prefix_codes = {}
     other = 0
@@ -71,8 +73,7 @@ class Affix(object):
         # +2 because of the unkown prefix code and padding
         cls.num_prefixes_per_size = {size: len(cls.prefix_codes[size]) + 2
                                      for size in cls.prefix_codes}
-        
-    
+
     @classmethod
     def load_affixes(cls, codes, filename):
         """
@@ -86,7 +87,7 @@ class Affix(object):
         try:
             with open(filename, 'rb') as f:
                 for line in f:
-                    affix = unicode(line.strip(), 'utf-8')
+                    affix = line.strip().decode('utf-8')
                     size = len(affix)
                     affixes_by_size[size].append(affix)
         except IOError:
@@ -98,7 +99,8 @@ class Affix(object):
             # 0 is reserved for unknown affixes
             # 1 is reserved for padding pseudo-affixes
             codes[size] = {affix: code 
-                           for code, affix in enumerate(affixes_by_size[size], 2)}
+                           for code, affix in enumerate(affixes_by_size[size],
+                                                        2)}
     
     @classmethod
     def get_suffix(cls, word, size):
@@ -144,9 +146,10 @@ class TokenConverter(object):
     
     def add_extractor(self, extractor):
         """
-        Adds an extractor function to the TokenConverter. In order to get a token's 
-        feature indices, the Converter will call each of its extraction functions passing
-        the token as a parameter. The result will be a list containing each result. 
+        Adds an extractor function to the TokenConverter.
+        In order to get a token's feature indices, the Converter will call each
+        of its extraction functions passing the token as a parameter.
+        The result will be a list containing each result.
         """
         self.extractors.append(extractor)
     
@@ -209,6 +212,7 @@ def get_capitalization(word):
         return Caps.title    
     
     return Caps.other
+
 
 def capitalize(word, capitalization):
     """

@@ -9,6 +9,7 @@ import os
 data_dir = None
 FILES = {}
 
+
 def get_config_paths(directory):
     """Sets the data directory containing the data for the models."""
     assert os.path.isdir(directory), 'Invalid data directory'
@@ -17,7 +18,8 @@ def get_config_paths(directory):
         # cross-task data
         ('.', '.'), #for data_dir access
         
-        # vocabulary file used as a fallback if a reader doesn't have a specific one
+        # vocabulary file used as a fallback if a reader doesn't have a
+        # specific one
         ('vocabulary'                  , 'vocabulary.txt'),
         ('type_features'               , 'types-features.npy'),
         ('termvectors'                 , 'termvectors.txt'),

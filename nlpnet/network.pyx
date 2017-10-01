@@ -14,7 +14,7 @@ from cpython cimport bool
 import h5py as h5
 import os
 
-from itertools import izip
+from six.moves import zip
 import logging
 
 ctypedef np.float_t FLOAT_t
@@ -400,7 +400,7 @@ Output size: %d
         # s = Sum_i(A_tags[i-1],tags[i] + ftheta_i,i), i < len(sentence)   (12)
         correct_path_score = 0
         last_tag = self.output_size
-        for tag, net_scores in izip(tags, scores):
+        for tag, net_scores in zip(tags, scores):
             trans = 0 if self.transitions is None else self.transitions[last_tag, tag]
             correct_path_score += trans + net_scores[tag]
             last_tag = tag 
@@ -516,7 +516,7 @@ Output size: %d
         # correct path and its gradient
         correct_path_score = 0
         token = 0
-        for tag, net_scores in izip(tags, scores):
+        for tag, net_scores in zip(tags, scores):
             self.net_gradients[token][tag] += 1 # negative gradient
             token += 1
             correct_path_score += net_scores[tag]
@@ -685,7 +685,7 @@ Output size: %d
         np.random.set_state(random_state)
         np.random.shuffle(tags)
         
-        for sent, sent_tags in izip(sentences, tags):
+        for sent, sent_tags in zip(sentences, tags):
             try:
                 self._tag_sentence(sent, sent_tags)
             except FloatingPointError:
@@ -796,7 +796,7 @@ Output size: %d
         """
         Loads weights, feature tables and transition tables previously saved.
         """
-        data = np.load(self.network_filename)
+        data = np.load(self.network_filename, encoding='bytes')
         self.hidden_weights = data['hidden_weights']
         self.hidden_bias = data['hidden_bias']
         self.output_weights = data['output_weights']
@@ -855,7 +855,7 @@ Output size: %d
             tables = [tables_group[key].value for key in keys]
         else:
             is_hdf5 = False
-            data = np.load(filename)
+            data = np.load(filename, encoding='bytes')
             data_fn = lambda x: x
             tables = list(data['feature_tables'])
         

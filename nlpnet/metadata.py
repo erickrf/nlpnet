@@ -6,9 +6,10 @@ It can also be invoked in order to create a Metada object
 and save it to a file in the data directory.
 """
 
-import cPickle
+from six.moves import cPickle
 
-from . import config
+from nlpnet import config
+
 
 class Metadata(object):
     """
@@ -16,8 +17,9 @@ class Metadata(object):
     parameter files.
     """
     
-    def __init__(self, task, paths=None, use_caps=True, use_suffix=False, use_prefix=False,
-                 use_pos=False, use_chunk=False, use_lemma=False):
+    def __init__(self, task, paths=None, use_caps=True, use_suffix=False,
+                 use_prefix=False, use_pos=False, use_chunk=False,
+                 use_lemma=False):
         self.task = task
         self.paths = paths if paths else config.FILES
         self.use_caps = use_caps
@@ -85,8 +87,8 @@ class Metadata(object):
     
     def save_to_file(self): 
         """
-        Save the contents of the metadata to a file. The filename is determined according
-        to the task.
+        Save the contents of the metadata to a file. The filename is determined
+        according to the task.
         """
         save_data = self.__dict__.copy()
         filename = self.paths['metadata_%s' % self.task]
@@ -105,8 +107,8 @@ class Metadata(object):
             paths = config.FILES
         md = Metadata(None, paths)
         
-        # the actual content of the file is the __dict__ member variable, which contain all
-        # the instance's data
+        # the actual content of the file is the __dict__ member variable,
+        # which contain all the instance's data
         with open(paths['metadata_%s' % task], 'rb') as f:
             data = cPickle.load(f)
         md.__dict__.update(data)

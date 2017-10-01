@@ -5,17 +5,18 @@ Class for dealing with SRL data.
 """
 
 from collections import defaultdict
-import cPickle
+from six.moves import cPickle
 import logging
 import re
 import os
 import numpy as np
-from itertools import izip
+from six.moves import zip
 
-from .. import attributes
-from .. import utils
-from ..word_dictionary import WordDictionary
-from .. import reader
+from nlpnet import attributes
+from nlpnet import utils
+from nlpnet.word_dictionary import WordDictionary
+from nlpnet import reader
+
 
 class ConllPos(object):
     """
@@ -30,6 +31,7 @@ class ConllPos(object):
     parse = 7
     pred = 8
     semantic_role = 9
+
 
 class SRLReader(reader.TaggerReader):
     
@@ -64,16 +66,14 @@ class SRLReader(reader.TaggerReader):
             self._clean_text()
         
         super(SRLReader, self).__init__(md)
-        
-    
+
     @property
     def task(self):
         """
         Abstract Base Class (ABC) attribute.
         """
         return self.taskname
-    
-    
+
     def _read_conll(self, filename):
         '''
         Read a file in CoNLL format and extracts semantic role tags
@@ -82,7 +82,7 @@ class SRLReader(reader.TaggerReader):
         lines = []
         with open(filename, 'rb') as f:
             for line in f:
-                line = unicode(line, 'utf-8').strip()
+                line = line.decode('utf-8').strip()
                 lines.append(line)
         
         self.sentences = []
@@ -115,8 +115,8 @@ class SRLReader(reader.TaggerReader):
             is_predicate = fields[ConllPos.pred] != '-'
             tags = fields[ConllPos.semantic_role:]
             
-            # if this is the first token in the sentence, find out how many predicates
-            # are there. initialize a list for each of them.
+            # if this is the first token in the sentence, find out how many
+            # predicates are there. initialize a list for each of them.
             if sent_tags == []:
                 expected_roles = []
                 for tag in tags:
@@ -126,7 +126,8 @@ class SRLReader(reader.TaggerReader):
             else:
                 for i, tag in enumerate(tags):
                     expected_role = expected_roles[i]
-                    tag, expected_role = self._read_role(tag, expected_role, True)
+                    tag, expected_role = self._read_role(tag, expected_role,
+                                                         True)
                     sent_tags[i].append(tag)
                     expected_roles[i] = expected_role
             
@@ -181,7 +182,7 @@ class SRLReader(reader.TaggerReader):
             # removes C-
             role = role[2:]
             
-        return (role, expected_role)
+        return role, expected_role
 
     def extend(self, data):
         """
@@ -252,8 +253,8 @@ class SRLReader(reader.TaggerReader):
     
     def load_tag_dict(self, filename=None, iob=False):
         """
-        Loads the tag dictionary from the default file. The dictionary file should
-        have one tag per line. 
+        Loads the tag dictionary from the default file. The dictionary file
+        should have one tag per line.
         
         :param iob: If True, this function will generate an entry for B-[tag] 
             and one for I-[tag], except for the tag 'O'.
@@ -269,7 +270,7 @@ class SRLReader(reader.TaggerReader):
         code = 0
         with open(filename, 'rb') as f:
             for tag in f:
-                tag = unicode(tag, 'utf-8').strip()
+                tag = tag.decode('utf-8').strip()
                 if tag == '':
                     continue
                 
@@ -287,7 +288,8 @@ class SRLReader(reader.TaggerReader):
     
     def _generate_iobes_dictionary(self):
         """
-        Generate the reader's tag dictionary mapping the IOBES tags to numeric codes.
+        Generate the reader's tag dictionary mapping the IOBES tags to numeric
+        codes.
         """
         self.tag_dict = {tag: code for code, tag in enumerate('IOBES')}
     
@@ -310,8 +312,10 @@ class SRLReader(reader.TaggerReader):
         all_tokens = [token.word
                       for tokens, _ in self.sentences
                       for token in tokens]
-        self.word_dict = WordDictionary(all_tokens, dict_size, minimum_occurrences)
-        logger.info("Created dictionary with %d tokens" % self.word_dict.num_tokens)
+        self.word_dict = WordDictionary(all_tokens, dict_size,
+                                        minimum_occurrences)
+        logger.info("Created dictionary with %d tokens" %
+                    self.word_dict.num_tokens)
     
     def _clean_text(self):
         """
@@ -374,13 +378,13 @@ class SRLReader(reader.TaggerReader):
                           for prop in props
                           for tag in prop)
         
-        self.tag_dict = dict( zip( self.tagset,
-                                   xrange(len(self.tagset))
-                                   )
-                             )
+        self.tag_dict = dict(zip(self.tagset, range(len(self.tagset))))
     
     def _remove_tag_names(self):
-        """Removes the actual tag names, leaving only IOB or IOBES block delimiters."""
+        """
+        Removes the actual tag names, leaving only IOB or IOBES block
+        delimiters.
+        """
         for _, propositions in self.sentences:
             for tags in propositions:
                 for i, tag in enumerate(tags):
@@ -391,7 +395,7 @@ class SRLReader(reader.TaggerReader):
         new_sentences = []
         self.tags = []
         
-        for (sent, props), preds in izip(self.sentences, self.predicates):
+        for (sent, props), preds in zip(self.sentences, self.predicates):
             new_sent = []
             sentence_tags = []
             
@@ -405,11 +409,13 @@ class SRLReader(reader.TaggerReader):
                     sentence_tags[preds] = 1
             else:
                 for prop in props:
-                    # for classifying arguments, leave the names. they will be changed later
+                    # for classifying arguments, leave the names. they will be
+                    # changed later
                     if self.task == 'srl_classify':
                         prop_tags = prop
                     else:
-                        prop_tags = np.array([self.tag_dict[tag] for tag in prop])
+                        prop_tags = np.array([self.tag_dict[tag]
+                                              for tag in prop])
                     sentence_tags.append(prop_tags)
             
             new_sentences.append(np.array(new_sent))
@@ -420,10 +426,10 @@ class SRLReader(reader.TaggerReader):
     
     def codify_sentences(self):
         """
-        Converts each token in each sequence into indices to their feature vectors
-        in feature matrices. The previous sentences as text are not accessible anymore.
-        Tags are also encoded. This function takes care of the case of classifying 
-        pre-delimited arguments.
+        Converts each token in each sequence into indices to their feature
+        vectors in feature matrices. The previous sentences as text are not
+        accessible anymore. Tags are also encoded. This function takes care of
+        the case of classifying pre-delimited arguments.
         """
         if self.converter is None:
             self.create_converter()
@@ -434,7 +440,6 @@ class SRLReader(reader.TaggerReader):
         if self.task == 'srl_classify':
             # generate the tags for each argument
             start = 0
-            end = 0
             
             for i, propositions in enumerate(self.tags):
                 new_sent_tags = []
@@ -470,15 +475,14 @@ class SRLReader(reader.TaggerReader):
                 
                 self.arg_limits.append(sent_args)
                 self.tags[i] = new_sent_tags
-                     
-    
+
     def convert_tags(self, scheme, update_tag_dict=True, only_boundaries=False):
         """
-        Replaces each word label with an IOB or IOBES version, appending a prefix
-        to them. 
+        Replaces each word label with an IOB or IOBES version, appending a
+        prefix to them.
         
         :param scheme: IOB or IOBES (In, Other, Begin, End, Single).
-        :param update_dict: whether to update or not the tag dictionary after
+        :param update_tag_dict: whether to update or not the tag dictionary after
             converting the tags.
         :param only_boundaries: if True, only leaves the IOBES tags and removes
             the actual tags. Also, avoid updating the tag dict.
@@ -524,8 +528,8 @@ class SRLReader(reader.TaggerReader):
             self.generate_tag_dict()
         else:
             # treat any tag not appearing in the tag dictionary as O
-            actual_tagset = {tag for _, props in self.sentences for prop in props for tag in prop}
+            actual_tagset = {tag for _, props in self.sentences
+                             for prop in props for tag in prop}
             for tag in actual_tagset:
                 if tag not in self.tag_dict:
                     self.tag_dict[tag] = self.tag_dict[self.rare_tag]
-    

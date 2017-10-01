@@ -1,1 +1,1 @@
-from .parse_reader import DependencyReader
+from nlpnet.parse.parse_reader import DependencyReader

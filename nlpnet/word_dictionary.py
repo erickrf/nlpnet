@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 
-import itertools
+from __future__ import unicode_literals
+from six.moves import zip
 from collections import Counter, OrderedDict as OD
+
 
 class WordDictionary(dict):
     """
@@ -10,13 +12,14 @@ class WordDictionary(dict):
     maps rare words to a special index.
     """
     
-    padding_left = u'*LEFT*'
-    padding_right = u'*RIGHT*'
-    rare = u'*RARE*'
+    padding_left = '*LEFT*'
+    padding_right = '*RIGHT*'
+    rare = '*RARE*'
     
-    number_transformation = {ord(c): u'9' for c in u'012345678'}
+    number_transformation = {ord(c): '9' for c in '012345678'}
     
-    def __init__(self, tokens, size=None, minimum_occurrences=None, wordlist=None):
+    def __init__(self, tokens, size=None, minimum_occurrences=None,
+                 wordlist=None):
         """
         Fills a dictionary (to be used for indexing) with the most
         common words in the given text.
@@ -47,7 +50,8 @@ class WordDictionary(dict):
         else:
             # using ordered dict as an ordered set
             # (we need to keep the order and eliminate duplicates)
-            words = [word.lower().translate(WordDictionary.number_transformation)
+            words = [word.lower().
+                     translate(WordDictionary.number_transformation)
                      for word in wordlist]
             values = [None] * len(words)
             words = OD(zip(words, values)).keys()
@@ -57,10 +61,11 @@ class WordDictionary(dict):
             size = len(words)
         
         # set all words in the dictionary
-        for word, num in itertools.izip(words, xrange(size)):
+        for word, num in zip(words, range(size)):
             self[word] = num
         
-        # if the given words include one of the the rare or padding symbols, don't replace it
+        # if the given words include one of the the rare or padding symbols,
+        # don't replace it
         special_symbols = [WordDictionary.rare.lower(), 
                            WordDictionary.padding_left.lower(), 
                            WordDictionary.padding_right.lower()]
@@ -75,8 +80,9 @@ class WordDictionary(dict):
     @classmethod
     def init_from_wordlist(cls, wordlist):
         """
-        Initializes the WordDictionary instance with a list of words, independently from their 
-        frequencies. Every word in the list gets an entry.
+        Initializes the WordDictionary instance with a list of words,
+        independently from their frequencies. Every word in the list gets an
+        entry.
         """
         return cls(None, wordlist=wordlist)
     
@@ -106,7 +112,7 @@ class WordDictionary(dict):
         words = []
         with open(filename, 'rb') as f:
             for word in f:
-                word = unicode(word, 'utf-8').strip()
+                word = word.decode('utf-8').strip()
                 if word:
                     words.append(word)
         
@@ -120,15 +126,18 @@ class WordDictionary(dict):
             of lists of tokens.
         """
         if type(token_list[0]) == list:
-            c = Counter(t.lower().translate(WordDictionary.number_transformation) 
+            c = Counter(t.lower()
+                        .translate(WordDictionary.number_transformation)
                         for sent in token_list for t in sent)
         else:
-            c = Counter(t.lower().translate(WordDictionary.number_transformation)
+            c = Counter(t.lower()
+                        .translate(WordDictionary.number_transformation)
                         for t in token_list)
         return c
     
     
-    def update_tokens(self, tokens, size=None, minimum_occurrences=1, freqs=None):
+    def update_tokens(self, tokens, size=None, minimum_occurrences=1,
+                      freqs=None):
         """
         Updates the dictionary, adding more types until size is reached.
         
@@ -150,10 +159,12 @@ class WordDictionary(dict):
         # and above minimum frequency 
         candidate_tokens = dict((token, freqs[token])
                                 for token in freqs 
-                                if token not in self and freqs[token] >= minimum_occurrences)
+                                if token not in self
+                                and freqs[token] >= minimum_occurrences)
         
         # order the types from the most frequent to the least
-        new_tokens = sorted(candidate_tokens, key=lambda x: candidate_tokens[x], reverse=True)
+        new_tokens = sorted(candidate_tokens, key=lambda x: candidate_tokens[x],
+                            reverse=True)
         
         next_value = len(self)
         for token in new_tokens:
@@ -169,7 +180,8 @@ class WordDictionary(dict):
         """
         Overrides the "in" operator. Case insensitive.
         """
-        transformed = key.lower().translate(WordDictionary.number_transformation)
+        transformed = key.lower()\
+            .translate(WordDictionary.number_transformation)
         return super(WordDictionary, self).__contains__(transformed)
     
     def __setitem__(self, key, value):
@@ -177,7 +189,8 @@ class WordDictionary(dict):
         Overrides the [] write operator. It converts every key to lower case
         before assignment.
         """
-        transformed = key.lower().translate(WordDictionary.number_transformation)
+        transformed = key.lower()\
+            .translate(WordDictionary.number_transformation)
         super(WordDictionary, self).__setitem__(transformed, value)
     
     def __getitem__(self, key):
@@ -185,28 +198,31 @@ class WordDictionary(dict):
         Overrides the [] read operator. 
         
         Three differences from the original:
-        1) when given a word without an entry, it returns the value for the *RARE* key.
+        1) when given a word without an entry, it returns the value for the
+            *RARE* key.
         2) all entries are converted to lower case before verification.
         3) digits are mapped to 9
         """
         # faster than regexp
-        transformed = key.lower().translate(WordDictionary.number_transformation)
+        transformed = key.lower()\
+            .translate(WordDictionary.number_transformation)
         return super(WordDictionary, self).get(transformed, self.index_rare)
     
     def get(self, key):
         """
-        Overrides the dictionary get method, so when given a word without an entry, it returns 
-        the value for the *RARE* key. Note that it is not possible to supply a default value as 
-        in the dict class.
+        Overrides the dictionary get method, so when given a word without an
+        entry, it returns the value for the *RARE* key. Note that it is not
+        possible to supply a default value as in the dict class.
         """
         # faster than regexp
-        transformed = key.lower().translate(WordDictionary.number_transformation)
+        transformed = key.lower()\
+            .translate(WordDictionary.number_transformation)
         return super(WordDictionary, self).get(transformed, self.index_rare)
         
     def check(self):
         """
-        Checks the internal structure of the dictionary and makes necessary adjustments, 
-        such as updating num_tokens.
+        Checks the internal structure of the dictionary and makes necessary
+        adjustments, such as updating num_tokens.
         """
         # since WordDictionary overrides __get__, we use the super call 
         # (the WordDictionary __get__ fails when self.index_rare is not set)
@@ -230,4 +246,3 @@ class WordDictionary(dict):
         """
         indices = [self[w] for w in words]
         return indices
-    

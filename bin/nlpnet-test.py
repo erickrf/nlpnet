@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*- 
 
-from __future__ import print_function
+from __future__ import print_function, unicode_literals
 
 """
 Script to test the networks on NLP tasks. 
@@ -17,24 +17,25 @@ evaluated externally.
 
 import logging
 import argparse
-import re
 import timeit
 import unicodedata as ud
-from itertools import izip
 import numpy as np
 from collections import Counter, defaultdict
+from six.moves import zip
 
 import nlpnet.config as config
 import nlpnet.utils as utils
 import nlpnet.taggers as taggers
 from nlpnet.metadata import Metadata
 
+
 def evaluate_pos(gold_file=None, oov=None):
     """
     Tests the network for tagging a given sequence.
     
     :param gold_file: file with gold data to evaluate against
-    :param oov: either None or a list of tokens, that should contain the oov words.
+    :param oov: either None or a list of tokens, that should contain the oov
+        words.
     """
     md = Metadata.load_from_file('pos')
     nn = taggers.load_network(md)
@@ -50,7 +51,7 @@ def evaluate_pos(gold_file=None, oov=None):
     
     for sent in pos_reader.sentences:
         
-        tokens, tags = zip(*sent)
+        tokens, tags = list(zip(*sent))
         sent_codified = pos_reader.codify_sentence(tokens)
         answer = nn.tag_sentence(sent_codified)
         if oov is not None:
@@ -60,7 +61,7 @@ def evaluate_pos(gold_file=None, oov=None):
             
             if oov is not None:
                 # only check oov words
-                word = iter_sent.next()
+                word = next(iter_sent)
                 if word.lower() not in oov:
                     continue
             
@@ -87,6 +88,7 @@ def is_punctuation(token):
     
     return True
 
+
 def evaluate_unlabeled_dependency(gold_file, punctuation):
     """
     Evaluate unlabeled accuracy per token.
@@ -94,8 +96,7 @@ def evaluate_unlabeled_dependency(gold_file, punctuation):
     md = Metadata.load_from_file('unlabeled_dependency')
     nn = taggers.load_network(md)
     reader = taggers.create_reader(md, gold_file)
-    #reader.codify_sentences()
-    
+
     logger = logging.getLogger("Logger")
     logger.debug('Loaded network')
     logger.debug(nn.description())
@@ -132,10 +133,12 @@ def evaluate_unlabeled_dependency(gold_file, punctuation):
     accuracy = float(hits) / num_tokens
     sent_accuracy = 100 * float(sentence_hits) / num_sentences
     print('%d hits out of %d' % (hits, num_tokens))
-    print('%d sentences completely correct (%f%%)' % (sentence_hits, sent_accuracy))
+    print('%d sentences completely correct (%f%%)' % (sentence_hits,
+                                                      sent_accuracy))
     print('Accuracy: %f%%' % (100 * accuracy))
 
-def evaluate_labeled_dependency(gold_file, punctuation):
+
+def evaluate_labeled_dependency(gold_file):
     """
     Evaluate the accuracy for dependency labels per token.
     """
@@ -153,7 +156,8 @@ def evaluate_labeled_dependency(gold_file, punctuation):
     sentence_hits = 0
     num_sentences = 0
     
-    for sent, heads, labels in zip(reader.sentences, reader.heads, reader.labels):
+    for sent, heads, labels in zip(reader.sentences, reader.heads,
+                                   reader.labels):
         
         answer = nn.tag_sentence(sent, heads)
         correct_sentence = True
@@ -174,10 +178,13 @@ def evaluate_labeled_dependency(gold_file, punctuation):
     accuracy = float(hits) / num_tokens
     sent_accuracy = 100 * float(sentence_hits) / num_sentences
     print('%d hits out of %d' % (hits, num_tokens))
-    print('%d sentences completely correct (%f%%)' % (sentence_hits, sent_accuracy))
+    print('%d sentences completely correct (%f%%)' % (sentence_hits,
+                                                      sent_accuracy))
     print('Accuracy: %f' % accuracy)
 
-def sentence_precision(network_tags, gold_tags, gold_tag_dict, network_tag_dict):
+
+def sentence_precision(network_tags, gold_tags, gold_tag_dict,
+                       network_tag_dict):
     """
     Evaluates the network precision on a single sentence.
     
@@ -197,7 +204,7 @@ def sentence_precision(network_tags, gold_tags, gold_tag_dict, network_tag_dict)
     correct_args = []
     predicted_args = []
     
-    for net_tag, gold_tag in izip(network_tags, gold_tags):
+    for net_tag, gold_tag in zip(network_tags, gold_tags):
         net_tag = network_tag_dict[net_tag]
         gold_tag = gold_tag_dict[gold_tag]
         
@@ -236,15 +243,16 @@ def sentence_precision(network_tags, gold_tags, gold_tag_dict, network_tag_dict)
         if not mistake:
             correct_args.append(cur_tag)
         
-    return (correct_args, predicted_args)
-        
+    return correct_args, predicted_args
+
+
 def join_2_steps(boundaries, arguments):
     """
     Joins the tags for argument boundaries and classification accordingly.
     """
     answer = []
     
-    for pred_boundaries, pred_arguments in izip(boundaries, arguments):
+    for pred_boundaries, pred_arguments in zip(boundaries, arguments):
         cur_arg = ''
         pred_answer = []
         
@@ -284,7 +292,7 @@ def sentence_recall(network_tags, gold_tags, gold_tag_dict, network_tag_dict):
     correct_args = []
     existing_args = []
     
-    for net_tag, gold_tag in izip(network_tags, gold_tags):
+    for net_tag, gold_tag in zip(network_tags, gold_tags):
         net_tag = network_tag_dict[net_tag]
         gold_tag = gold_tag_dict[gold_tag]
         
@@ -324,7 +332,8 @@ def sentence_recall(network_tags, gold_tags, gold_tag_dict, network_tag_dict):
         if not mistake:
             correct_args.append(cur_tag)
     
-    return (correct_args, existing_args)
+    return correct_args, existing_args
+
 
 def evaluate_srl_classify(no_repeat=False, gold_file=None):
     """Evaluates the performance of the network on the SRL classifying task."""
@@ -338,20 +347,23 @@ def evaluate_srl_classify(no_repeat=False, gold_file=None):
     hits = 0
     total_args = 0
     
-    for sentence, tags, predicates, args in izip(r.sentences, r.tags, r.predicates, r.arg_limits):
+    for sentence, tags, predicates, args in zip(r.sentences, r.tags,
+                                                r.predicates, r.arg_limits):
         
         # the answer includes all predicates
-        answer = nn.tag_sentence(sentence, predicates, args, allow_repeats=not no_repeat)
+        answer = nn.tag_sentence(sentence, predicates, args,
+                                 allow_repeats=not no_repeat)
         
-        for pred_answer, pred_gold in izip(answer, tags):
+        for pred_answer, pred_gold in zip(answer, tags):
         
-            for net_tag, gold_tag in izip(pred_answer, pred_gold):
+            for net_tag, gold_tag in zip(pred_answer, pred_gold):
                 if net_tag == gold_tag:
                     hits += 1
             
             total_args += len(pred_gold)
     
     print('Accuracy: %f' % (float(hits) / total_args))
+
 
 def convert_iob_to_iobes(iob_tags):
     """Converts a sequence of IOB tags into IOBES tags."""
@@ -398,9 +410,13 @@ def prop_conll(verbs, props, sent_length):
     # add a line break at the end
     result = '%s\n' % '\n'.join(lines) 
     return result.encode('utf-8')
-        
-def evaluate_srl_2_steps(no_repeat=False, find_preds_automatically=False, gold_file=None):
-    """Prints the output of a 2-step SRL system in CoNLL style for evaluating."""
+
+
+def evaluate_srl_2_steps(no_repeat=False, find_preds_automatically=False,
+                         gold_file=None):
+    """
+    Prints the output of a 2-step SRL system in CoNLL style for evaluating.
+    """
     # load boundary identification network and reader 
     md_boundary = Metadata.load_from_file('srl_boundary')
     nn_boundary = taggers.load_network(md_boundary)
@@ -418,21 +434,25 @@ def evaluate_srl_2_steps(no_repeat=False, find_preds_automatically=False, gold_f
     else:
         iter_predicates = iter(reader_boundary.predicates)
     
-    actual_sentences = [actual_sentence for actual_sentence, _ in reader_boundary.sentences]
+    actual_sentences = [actual_sentence
+                        for actual_sentence, _ in reader_boundary.sentences]
     
     for sent in actual_sentences:
         
         if find_preds_automatically:
             pred_pos = tagger.find_predicates(sent)
         else:
-            pred_pos = iter_predicates.next()
+            pred_pos = next(iter_predicates)
         
         verbs = [(position, sent[position].word) for position in pred_pos]
-        sent_bound_codified = np.array([reader_boundary.converter.convert(t) for t in sent])
-        sent_class_codified = np.array([reader_classify.converter.convert(t) for t in sent])
+        sent_bound_codified = np.array([reader_boundary.converter.convert(t)
+                                        for t in sent])
+        sent_class_codified = np.array([reader_classify.converter.convert(t)
+                                        for t in sent])
         
         answers = nn_boundary.tag_sentence(sent_bound_codified, pred_pos)
-        boundaries = [[itd_boundary[x] for x in pred_answer] for pred_answer in answers]
+        boundaries = [[itd_boundary[x] for x in pred_answer]
+                      for pred_answer in answers]
         
         arg_limits = [utils.boundaries_to_arg_limits(pred_boundaries) 
                       for pred_boundaries in boundaries]
@@ -441,10 +461,12 @@ def evaluate_srl_2_steps(no_repeat=False, find_preds_automatically=False, gold_f
                                            pred_pos, arg_limits,
                                            allow_repeats=not no_repeat)
         
-        arguments = [[itd_classify[x] for x in pred_answer] for pred_answer in answers]        
+        arguments = [[itd_classify[x] for x in pred_answer]
+                     for pred_answer in answers]
         tags = join_2_steps(boundaries, arguments)        
         
         print(prop_conll(verbs, tags, len(sent)))
+
 
 def evaluate_srl_1step(find_preds_automatically=False, gold_file=None):
     """
@@ -472,15 +494,18 @@ def evaluate_srl_1step(find_preds_automatically=False, gold_file=None):
         else:
             pred_positions = iter_predicates.next()
             
-        verbs = [(position, actual_sent[position].word) for position in pred_positions]
-        sent_codified = np.array([r.converter.convert(token) for token in actual_sent])
+        verbs = [(position, actual_sent[position].word)
+                 for position in pred_positions]
+        sent_codified = np.array([r.converter.convert(token)
+                                  for token in actual_sent])
         
         answers = nn.tag_sentence(sent_codified, pred_positions)
         tags = [convert_iob_to_iobes([itd[x] for x in pred_answer])
                 for pred_answer in answers]
             
         print(prop_conll(verbs, tags, len(actual_sent)))
-        
+
+
 def evaluate_srl_predicates(gold_file):
     """
     Evaluates the performance of the network on the SRL task for the
@@ -496,10 +521,10 @@ def evaluate_srl_predicates(gold_file):
     tp, fp, tn, fn = 0, 0, 0, 0
     
     # for each sentence, tags are 0 at non-predicates and 1 at predicates
-    for sent, tags in izip(reader.sentences, reader.tags):
+    for sent, tags in zip(reader.sentences, reader.tags):
         answer = nn.tag_sentence(sent)
         
-        for net_tag, gold_tag in izip(answer, tags):
+        for net_tag, gold_tag in zip(answer, tags):
             if gold_tag == 1:
                 if net_tag == gold_tag: tp += 1
                 else: fn += 1
@@ -544,17 +569,20 @@ def evaluate_srl_identify(gold_file):
 
     srl_reader.codify_sentences()
     
-    for sent, preds, sent_tags in izip(srl_reader.sentences, srl_reader.predicates, srl_reader.tags):
+    for sent, preds, sent_tags in zip(srl_reader.sentences,
+                                      srl_reader.predicates, srl_reader.tags):
         
         # one answer for each predicate
         answers = nn.tag_sentence(sent, preds)
         
         for answer, tags in zip(answers, sent_tags):
-            correct_args, existing_args = sentence_recall(answer, tags, gold_itd, net_itd)
+            correct_args, existing_args = sentence_recall(answer, tags,
+                                                          gold_itd, net_itd)
             counter_correct_args.update(correct_args)
             counter_existing_args.update(existing_args)
             
-            _, predicted_args = sentence_precision(answer, tags, gold_itd, net_itd)
+            _, predicted_args = sentence_precision(answer, tags, gold_itd,
+                                                   net_itd)
             counter_predicted_args.update(predicted_args)
             
     correct_args = sum(counter_correct_args.values())
@@ -575,16 +603,19 @@ def evaluate_srl_identify(gold_file):
         rec = counter_correct_args[arg] / float(counter_existing_args[arg])
         
         # a couple of notes about precision per argument:
-        # - we can't compute it if we are only interested in boundaries. hence, we can't compute f-1
-        # - if the network never tagged a given argument, its precision is 100% (it never made a mistake)
+        # - we can't compute it if we are only interested in boundaries.
+        #   hence, we can't compute f-1
+        # - if the network never tagged a given argument, its precision is 100%
+        #   (it never made a mistake)
                 
         print('%s\t\t%f' % (arg, rec))
+
 
 def read_oov_words(oov_file):
     words = set()
     with open(oov_file, 'rb') as f:
         for line in f:
-            uline = unicode(line, 'utf-8').strip().lower()
+            uline = line.decode('utf-8').strip().lower()
             words.add(uline)
     
     return words
@@ -592,40 +623,54 @@ def read_oov_words(oov_file):
 if __name__ == '__main__':
     
     parser = argparse.ArgumentParser(description='Test nlpnet model perfomance')
-    subparsers = parser.add_subparsers(title='Tasks',
-                                       dest='task',
-                                       description='Task to test performance. '\
-                                       'Type %(prog)s [TASK] -h to get task-specific help.')
+    desc = 'Task to test performance. Type %(prog)s [TASK] -h to get ' \
+           'task-specific help.'
+    subparsers = parser.add_subparsers(title='Tasks', dest='task',
+                                       description=desc)
     
     # base parser with arguments not related to any model
     base_parser = argparse.ArgumentParser(add_help=False)    
-    base_parser.add_argument('-v', help='Verbose mode', action='store_true', dest='verbose')
-    base_parser.add_argument('--gold', help='File with gold standard data', type=str, required=True)
-    base_parser.add_argument('--data', help='Directory with trained models (default: current directory)', 
-                             type=str, default='.')
+    base_parser.add_argument('-v', help='Verbose mode', action='store_true',
+                             dest='verbose')
+    base_parser.add_argument('--gold', help='File with gold standard data',
+                             type=str, required=True)
+    base_parser.add_argument('--data', type=str, default='.',
+                             help='Directory with trained models (default: '
+                                  'current directory)')
     
-    parser_pos = subparsers.add_parser('pos', help='POS tagging', parents=[base_parser])
-    parser_srl = subparsers.add_parser('srl', help='Semantic Role Labeling', parents=[base_parser])
-    parser_dep = subparsers.add_parser('dependency', help='Dependency parsing', parents=[base_parser])
+    parser_pos = subparsers.add_parser('pos', help='POS tagging',
+                                       parents=[base_parser])
+    parser_srl = subparsers.add_parser('srl', help='Semantic Role Labeling',
+                                       parents=[base_parser])
+    parser_dep = subparsers.add_parser('dependency', help='Dependency parsing',
+                                       parents=[base_parser])
     
-    parser_srl.add_argument('--id', help='Evaluate only argument identification',
-                            action='store_true', dest='identify')
-    parser_srl.add_argument('--class', help='Evaluate only argument classification',
-                            action='store_true', dest='classify')
-    parser_srl.add_argument('--preds', help='Evaluate only predicate identification',
-                            action='store_true', dest='predicates')
-    parser_srl.add_argument('--2steps', help='Execute SRL with two separate steps', action='store_true', dest='two_steps')
-    parser_srl.add_argument('--no-repeat', dest='no_repeat', action='store_true',
-                            help='Forces the classification step to avoid repeated argument labels (2 step SRL only).')
-    parser_srl.add_argument('--auto-pred', dest='auto_pred', action='store_true',
-                            help='Determines SRL predicates automatically (instead of gold annotation)')
+    parser_srl.add_argument('--id', action='store_true', dest='identify',
+                            help='Evaluate only argument identification')
+    parser_srl.add_argument('--class', action='store_true', dest='classify',
+                            help='Evaluate only argument classification')
+    parser_srl.add_argument('--preds', action='store_true', dest='predicates',
+                            help='Evaluate only predicate identification')
+    parser_srl.add_argument('--2steps',  action='store_true', dest='two_steps',
+                            help='Execute SRL with two separate steps')
+    parser_srl.add_argument('--no-repeat', dest='no_repeat',
+                            action='store_true',
+                            help='Forces the classification step to avoid '
+                                 'repeated argument labels (2 step SRL only).')
+    parser_srl.add_argument('--auto-pred', dest='auto_pred',
+                            action='store_true',
+                            help='Determines SRL predicates automatically '
+                                 '(instead of gold annotation)')
     
-    parser_dep.add_argument('type', help='Whether to test labeled or unlabeled performance',
+    parser_dep.add_argument('type', help='Whether to test labeled or unlabeled '
+                                         'performance',
                             choices=['labeled', 'unlabeled'])
-    parser_dep.add_argument('-p', help='Score on punctuation (ignored by default)',
-                            action='store_true', dest='punctuation')
+    parser_dep.add_argument('-p', action='store_true', dest='punctuation',
+                            help='Score on punctuation (ignored by default)')
 
-    parser_pos.add_argument('--oov', help='Analyze performance on OOV data. Not fully functional with numbers.', type=str)
+    parser_pos.add_argument('--oov', help='Analyze performance on OOV data. '
+                                          'Not fully functional with numbers.',
+                            type=str)
     args = parser.parse_args()
     
     logging_level = logging.DEBUG if args.verbose else logging.INFO
@@ -648,7 +693,7 @@ if __name__ == '__main__':
     elif args.task == 'dependency':
         
         if args.type == 'labeled':
-            evaluate_labeled_dependency(args.gold, args.punctuation)
+            evaluate_labeled_dependency(args.gold)
     
         elif args.type == 'unlabeled':
             evaluate_unlabeled_dependency(args.gold, args.punctuation)
@@ -668,4 +713,5 @@ if __name__ == '__main__':
     
     end_time = timeit.default_timer()
     time_diff = end_time - start_time
-    logger.info('Total time (including reading data): {:.2f}s'.format(time_diff))
+    msg = 'Total time (including reading data): {:.2f}s'.format(time_diff)
+    logger.info(msg)

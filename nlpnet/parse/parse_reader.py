@@ -8,9 +8,10 @@ import os
 import logging
 import numpy as np
 
-from .. import attributes
-from .. import reader
+from nlpnet import attributes
+from nlpnet import reader
 from nlpnet.word_dictionary import WordDictionary
+
 
 class ConllPos(object):
     '''
@@ -88,7 +89,7 @@ class DependencyReader(reader.TaggerReader):
         
         with open(filename, 'rb') as f:
             for line in f:
-                line = unicode(line, 'utf-8').strip()
+                line = line.decode('utf-8').strip()
                 lines.append(line)
         
         for line in lines:

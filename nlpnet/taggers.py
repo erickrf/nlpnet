@@ -1,21 +1,25 @@
 # -*- coding: utf-8 -*-
 
+from __future__ import unicode_literals
+
 """
 Taggers wrapping the neural networks.
 """
 
 import logging
 import numpy as np
-from itertools import izip
+from six.moves import zip
 
-from . import utils
-from . import config
-from . import attributes
-from .metadata import Metadata
-from .pos import POSReader
-from .srl import SRLReader
-from .parse import DependencyReader
-from .network import Network, ConvolutionalNetwork, ConvolutionalDependencyNetwork
+from nlpnet import utils
+from nlpnet import config
+from nlpnet import attributes
+from nlpnet.metadata import Metadata
+from nlpnet.pos import POSReader
+from nlpnet.srl import SRLReader
+from nlpnet.parse import DependencyReader
+from nlpnet.network import Network, ConvolutionalNetwork, \
+    ConvolutionalDependencyNetwork
+
 
 def load_network(md):
     """
@@ -55,7 +59,8 @@ def create_reader(md, gold_file=None):
         tr = DependencyReader(md, filename=gold_file, labeled=labeled)
     
     elif md.task.startswith('srl'):
-        tr = SRLReader(md, filename=gold_file, only_boundaries= (md.task == 'srl_boundary'),
+        tr = SRLReader(md, filename=gold_file,
+                       only_boundaries= (md.task == 'srl_boundary'),
                        only_classify= (md.task == 'srl_classify'),
                        only_predicates= (md.task == 'srl_predicates'))
     
@@ -65,18 +70,19 @@ def create_reader(md, gold_file=None):
     logger.info('Done')
     return tr
 
+
 def _group_arguments(tokens, predicate_positions, boundaries, labels):
     """
-    Groups words pertaining to each argument and returns a dictionary for each predicate.
+    Groups words pertaining to each argument and returns a dictionary for
+    each predicate.
     """
     arg_structs = []
     
-    for predicate_position, pred_boundaries, pred_labels in izip(predicate_positions,
-                                                                 boundaries,
-                                                                 labels):
+    for item in zip(predicate_positions, boundaries, labels):
+        predicate_position, pred_boundaries, pred_labels = item
         structure = {}
 
-        for token, boundary_tag in izip(tokens, pred_boundaries):
+        for token, boundary_tag in zip(tokens, pred_boundaries):
             if boundary_tag == 'O':
                 continue
 
@@ -106,11 +112,11 @@ class SRLAnnotatedSentence(object):
     """
     Class storing a sentence with annotated semantic roles.
 
-    It stores a list with the sentence tokens, called `tokens`, and a list of tuples
-    in the format `(predicate, arg_strucutres)`. Each `arg_structure` is a dict mapping
-    semantic roles to the words that constitute it. This is used instead of a two-level
-    dictionary because one sentence may have more than one occurrence of the same
-    predicate.
+    It stores a list with the sentence tokens, called `tokens`, and a list of
+    tuples in the format `(predicate, arg_strucutres)`. Each `arg_structure` is
+    a dict mapping semantic roles to the words that constitute it. This is used
+    instead of a two-level dictionary because one sentence may have more than
+    one occurrence of the same predicate.
 
     This class is used only for storing data.
     """
@@ -120,20 +126,22 @@ class SRLAnnotatedSentence(object):
         Creates an instance of a sentence with SRL data.
 
         :param tokens: a list of strings
-        :param arg_structures: a list of tuples in the format (predicate, mapping).
-            Each predicate is a string and each mapping is a dictionary mapping role labels
-            to the words that constitute it.
+        :param arg_structures: a list of tuples in the format (predicate,
+            mapping).
+            Each predicate is a string and each mapping is a dictionary mapping
+            role labels to the words that constitute it.
         """
         self.tokens = tokens
         self.arg_structures = arg_structures
+
 
 class ParsedSentence(object):
     """
     Class for storing a sentence with dependency parsing annotation.
     
-    It stores a list of tokens, the dependency heads, dependency labels and POS tags 
-    if the parser used them. Dependency heads are the index of the head of each
-    token, and -1 means a dependency to the root.
+    It stores a list of tokens, the dependency heads, dependency labels and POS
+    tags if the parser used them. Dependency heads are the index of the head of
+    each token, and -1 means a dependency to the root.
     """
     def __init__(self, tokens, heads, labels, pos=None):
         """
@@ -170,10 +178,12 @@ class ParsedSentence(object):
             label = self.labels[i]
             pos = self.pos[i] if self.pos else '_'
             
-            line = u'{id}\t{token}\t_\t{pos}\t{pos}\t_\t{head}\t{label}'
-            result.append(line.format(id=i+1, pos=pos, head=head, label=label, token=token))
+            line = '{id}\t{token}\t_\t{pos}\t{pos}\t_\t{head}\t{label}'
+            result.append(line.format(id=i+1, pos=pos, head=head, label=label,
+                                      token=token))
         
         return '\n'.join(result)
+
 
 class Tagger(object):
     """
@@ -181,8 +191,9 @@ class Tagger(object):
     """
     def __init__(self, data_dir=None, language='en'):
         """Creates a tagger and loads data preemptively"""
-        asrt_msg = "nlpnet data directory is not set. \
-If you don't have the trained models, download them from http://nilc.icmc.usp.br/nlpnet/models.html"
+        asrt_msg = "nlpnet data directory is not set. If you don't have the " \
+                   "trained models, download them from " \
+                   "http://nilc.icmc.usp.br/nlpnet/models.html"
         if data_dir is None:
             assert config.data_dir is not None, asrt_msg
             self.paths = config.FILES
@@ -245,7 +256,6 @@ class SRLTagger(Tagger):
         Runs the SRL process on the given text.
 
         :param text: unicode or str encoded in utf-8.
-        :param no_repeats: whether to prevent repeated argument labels
         :returns: a list of SRLAnnotatedSentence objects
         """
         tokens = utils.tokenize(text, self.language)
@@ -262,12 +272,14 @@ class SRLTagger(Tagger):
 
         :param tokens: a list of tokens (as strings)
         :param no_repeats: whether to prevent repeated argument labels
-        :returns: a list of lists (one list for each sentence). Sentences have tuples
-            (all_tokens, predicate, arg_structure), where arg_structure is a dictionary
-            mapping argument labels to the words it includes.
+        :returns: a list of lists (one list for each sentence).
+            Sentences have tuples (all_tokens, predicate, arg_structure), where
+            arg_structure is a dictionary mapping argument labels to the words
+            it includes.
         """
         if self.language == 'pt':
-            tokens_obj = [attributes.Token(utils.clean_text(t, False)) for t in tokens]
+            tokens_obj = [attributes.Token(utils.clean_text(t, False))
+                          for t in tokens]
         else:
             tokens_obj = [attributes.Token(t) for t in tokens]
         
@@ -293,8 +305,10 @@ class SRLTagger(Tagger):
         arguments = [[self.classify_itd[x] for x in pred_answer]
                      for pred_answer in answers]
         
-        structures = _group_arguments(tokens, pred_positions, boundaries, arguments)
+        structures = _group_arguments(tokens, pred_positions, boundaries,
+                                      arguments)
         return SRLAnnotatedSentence(tokens, structures)
+
 
 class DependencyParser(Tagger):
     """A Dependency Parser based on a neural network tagger."""
@@ -308,11 +322,13 @@ class DependencyParser(Tagger):
     
     def _load_data(self):
         """Loads data for Dependency Parsing"""
-        md_udep = Metadata.load_from_file('unlabeled_dependency', paths=self.paths)
+        md_udep = Metadata.load_from_file('unlabeled_dependency',
+                                          paths=self.paths)
         self.unlabeled_nn = load_network(md_udep)
         self.unlabeled_reader = create_reader(md_udep)
         
-        md_ldep = Metadata.load_from_file('labeled_dependency', paths=self.paths)
+        md_ldep = Metadata.load_from_file('labeled_dependency',
+                                          paths=self.paths)
         self.labeled_nn = load_network(md_ldep)
         self.labeled_reader = create_reader(md_ldep)
         self.itd = self.labeled_reader.get_inverse_tag_dictionary()
@@ -397,6 +413,7 @@ class DependencyParser(Tagger):
         """
         return self.parse(text)
 
+
 class POSTagger(Tagger):
     """A POSTagger loads the models and performs POS tagging on text."""
 
@@ -445,7 +462,7 @@ class POSTagger(Tagger):
         tags = [self.itd[tag] for tag in answer]
 
         if return_tokens:
-            return zip(tokens, tags)
+            return list(zip(tokens, tags))
 
         return tags
 

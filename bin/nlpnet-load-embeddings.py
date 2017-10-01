@@ -8,11 +8,10 @@ vocabulary).
 """
 
 import argparse
-import os
 import re
 import logging
 import numpy as np
-import cPickle
+from six.moves import cPickle
 from collections import defaultdict
 
 import nlpnet
@@ -42,7 +41,7 @@ def read_plain_vocabulary(filename):
     words = []
     with open(filename, 'rb') as f:
         for line in f:
-            word = unicode(line, 'utf-8').strip()
+            word = line.decode('utf-8').strip()
             if not word:
                 continue
             words.append(word)
@@ -125,6 +124,7 @@ def read_polyglot_embeddings(filename):
     matrix = np.array(clusters.values())
     
     return matrix, vocabulary
+
     
 def clusterize_words(model, filter_=None):
     """
@@ -139,7 +139,7 @@ def clusterize_words(model, filter_=None):
     
     # group vectors by their corresponding words' normalized form
     clusters = defaultdict(list)
-    for word, vector in model.iteritems():
+    for word, vector in model.items():
         if filter_(word) or word.strip() == '':
             continue
         
@@ -147,10 +147,11 @@ def clusterize_words(model, filter_=None):
         clusters[normalized_word].append(vector)
     
     # now, average out each cluster
-    for word, vectors in clusters.iteritems():
+    for word, vectors in clusters.items():
         clusters[word] = np.mean(vectors, 0)
     
     return clusters
+
 
 def read_skipdep_embeddings(filename):
     """
@@ -165,7 +166,7 @@ def read_skipdep_embeddings(filename):
                 # some files have [num_words, vector_size] in the first line
                 continue
 
-            word = unicode(fields[0], 'utf-8')
+            word = fields[0].decode('utf-8')
             vector = np.fromiter((float(x) for x in fields[1:]), 
                                  dtype=np.float)
             model[word] = vector
@@ -185,6 +186,7 @@ def read_skipdep_embeddings(filename):
         vocabulary[index_rare] = nlpnet.word_dictionary.WordDictionary.rare
     
     return matrix, vocabulary
+
 
 def read_gensim_embeddings(filename):
     """
@@ -235,12 +237,16 @@ This script can deal with the following formats:
         This format also handles some special tokens used in skipdep by 
         Mohit Bansal et al. (2014).
         '''
-    
+
+    class_ = argparse.RawDescriptionHelpFormatter
     parser = argparse.ArgumentParser(description=__doc__, epilog=epilog,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('type', help='Format of the embeddings. See the description below.', 
-                        choices=['plain', 'senna', 'gensim', 'word2embeddings', 'single', 'polyglot'])
-    parser.add_argument('embeddings', help='File containing the actual embeddings')
+                                     formatter_class=class_)
+    parser.add_argument('type', help='Format of the embeddings. '
+                                     'See the description below.',
+                        choices=['plain', 'senna', 'gensim', 'word2embeddings',
+                                 'single', 'polyglot'])
+    parser.add_argument('embeddings',
+                        help='File containing the actual embeddings')
     parser.add_argument('-v', help='Vocabulary file, if applicable. '\
                         'In SENNA, it is hash/words.lst', dest='vocabulary')
     parser.add_argument('-o', help='Directory to save the output', default='.',

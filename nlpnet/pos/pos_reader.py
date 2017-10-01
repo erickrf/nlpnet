@@ -4,7 +4,8 @@
 Class for dealing with POS data.
 """
 
-from ..reader import TaggerReader
+from nlpnet.reader import TaggerReader
+
 
 class ConllPos(object):
     """
@@ -16,6 +17,7 @@ class ConllPos(object):
     pos = 3
     pos2 = 4
     morph = 5
+
 
 class POSReader(TaggerReader):
     """
@@ -52,7 +54,7 @@ class POSReader(TaggerReader):
         self.sentences = []
         with open(filename, 'rb') as f:
             for line in f:
-                line = unicode(line, 'utf-8')
+                line = line.decode('utf-8')
                 items = line.split()
                 if len(items) == 0:
                     continue
@@ -73,7 +75,7 @@ class POSReader(TaggerReader):
         sentence = []
         with open(filename, 'rb') as f:
             for line in f:
-                line = unicode(line, 'utf-8').strip()
+                line = line.decode('utf-8').strip()
                 if line == '':
                     if len(sentence) > 0:
                         self.sentences.append(sentence)
