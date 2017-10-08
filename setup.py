@@ -1,6 +1,6 @@
 import numpy as np
-from distutils.core import setup
-from distutils.extension import Extension
+from setuptools import setup
+from setuptools import Extension
 
 
 def readme():
@@ -14,7 +14,7 @@ setup(
     packages=['nlpnet', 'nlpnet.pos', 'nlpnet.srl', 'nlpnet.parse'],
     ext_modules=[
         Extension(
-            "nlpnet.network", 
+            "nlpnet.network",
             ["nlpnet/network.c"],
             include_dirs=['.', np.get_include()]
         )
