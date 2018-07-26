@@ -25,6 +25,12 @@ setup(
         'bin/nlpnet-test.py',
         'bin/nlpnet-load-embeddings.py'
     ],
+    install_requires=[
+        'numpy>=1.9.0',
+        'nltk>=3.2.2',
+        'six>=1.10',
+        'h5py>=2.8.0rc1'
+    ],
     license='MIT',
     version='1.2.3',
     author='Erick Fonseca',
