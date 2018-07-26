@@ -1,6 +1,8 @@
 #!/usr/env python
 # -*- coding: utf-8 -*-
 
+from __future__ import unicode_literals
+
 """
 Base class for reading NLP tagging data.
 """

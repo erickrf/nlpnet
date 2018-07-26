@@ -30,7 +30,7 @@ setup(
         'nltk>=3.2.2'
     ],
     license='MIT',
-    version='1.2.2',
+    version='1.2.3',
     author='Erick Fonseca',
     author_email='erickrfonseca@gmail.com',
     url='http://nilc.icmc.usp.br/nlpnet',

@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from __future__ import unicode_literals
+
 """
 This script contains the definition of the Metadata class.
 It can also be invoked in order to create a Metada object
