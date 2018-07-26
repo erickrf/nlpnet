@@ -1,4 +1,4 @@
-numpy>=1.13
+numpy>=1.9
 six>=1.10
-nltk>=3.0
+nltk>=3.2.2
 h5py>=2.8.0rc1
