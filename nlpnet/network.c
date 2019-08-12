@@ -2020,6 +2020,9 @@ static CYTHON_INLINE PyObject *__Pyx_PyObject_GetItem(PyObject *obj, PyObject* k
 #define __Pyx_PyObject_GetItem(obj, key)  PyObject_GetItem(obj, key)
 #endif
 
+/* None.proto */
+static CYTHON_INLINE long __Pyx_div_long(long, long);
+
 /* SliceObject.proto */
 static CYTHON_INLINE PyObject* __Pyx_PyObject_GetSlice(
         PyObject* obj, Py_ssize_t cstart, Py_ssize_t cstop,
@@ -2205,9 +2208,6 @@ static CYTHON_INLINE int __Pyx_PySequence_ContainsTF(PyObject* item, PyObject* s
     return unlikely(result < 0) ? result : (result == (eq == Py_EQ));
 }
 
-/* None.proto */
-static CYTHON_INLINE long __Pyx_div_long(long, long);
-
 /* PyFloatBinop.proto */
 #if !CYTHON_COMPILING_IN_PYPY
 static PyObject* __Pyx_PyFloat_AddCObj(PyObject *op1, PyObject *op2, double floatval, int inplace, int zerodivision_check);
@@ -2240,6 +2240,14 @@ static PyObject* __Pyx_PyInt_TrueDivideObjC(PyObject *op1, PyObject *op2, long i
 #else
 #define __Pyx_PyInt_TrueDivideObjC(op1, op2, intval, inplace, zerodivision_check)\
     (inplace ? PyNumber_InPlaceTrueDivide(op1, op2) : PyNumber_TrueDivide(op1, op2))
+#endif
+
+/* PyIntBinop.proto */
+#if !CYTHON_COMPILING_IN_PYPY
+static PyObject* __Pyx_PyInt_FloorDivideObjC(PyObject *op1, PyObject *op2, long intval, int inplace, int zerodivision_check);
+#else
+#define __Pyx_PyInt_FloorDivideObjC(op1, op2, intval, inplace, zerodivision_check)\
+    (inplace ? PyNumber_InPlaceFloorDivide(op1, op2) : PyNumber_FloorDivide(op1, op2))
 #endif
 
 /* None.proto */
@@ -6205,7 +6213,7 @@ static PyObject *__pyx_pf_6nlpnet_7network_7Network_12padding_left___get__(struc
  * 
  *         def __set__(self, np.ndarray padding_left):             # <<<<<<<<<<<<<<
  *             self.padding_left = padding_left
- *             self.pre_padding = np.array((self.word_window_size / 2) * [padding_left])
+ *             self.pre_padding = np.array((self.word_window_size // 2) * [padding_left])
  */
 
 /* Python wrapper */
@@ -6242,7 +6250,7 @@ static int __pyx_pf_6nlpnet_7network_7Network_12padding_left_2__set__(struct __p
  * 
  *         def __set__(self, np.ndarray padding_left):
  *             self.padding_left = padding_left             # <<<<<<<<<<<<<<
- *             self.pre_padding = np.array((self.word_window_size / 2) * [padding_left])
+ *             self.pre_padding = np.array((self.word_window_size // 2) * [padding_left])
  * 
  */
   __Pyx_INCREF(((PyObject *)__pyx_v_padding_left));
@@ -6254,7 +6262,7 @@ static int __pyx_pf_6nlpnet_7network_7Network_12padding_left_2__set__(struct __p
   /* "nlpnet/network.pyx":258
  *         def __set__(self, np.ndarray padding_left):
  *             self.padding_left = padding_left
- *             self.pre_padding = np.array((self.word_window_size / 2) * [padding_left])             # <<<<<<<<<<<<<<
+ *             self.pre_padding = np.array((self.word_window_size // 2) * [padding_left])             # <<<<<<<<<<<<<<
  * 
  *     property padding_right:
  */
@@ -6263,7 +6271,7 @@ static int __pyx_pf_6nlpnet_7network_7Network_12padding_left_2__set__(struct __p
   __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_array); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 258, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_2 = PyFloat_FromDouble((((double)__pyx_v_self->word_window_size) / 2.0)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 258, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyInt_From_long(__Pyx_div_long(__pyx_v_self->word_window_size, 2)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 258, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __pyx_t_4 = PyList_New(1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 258, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
@@ -6302,7 +6310,7 @@ static int __pyx_pf_6nlpnet_7network_7Network_12padding_left_2__set__(struct __p
  * 
  *         def __set__(self, np.ndarray padding_left):             # <<<<<<<<<<<<<<
  *             self.padding_left = padding_left
- *             self.pre_padding = np.array((self.word_window_size / 2) * [padding_left])
+ *             self.pre_padding = np.array((self.word_window_size // 2) * [padding_left])
  */
 
   /* function exit code */
@@ -6386,7 +6394,7 @@ static PyObject *__pyx_pf_6nlpnet_7network_7Network_13padding_right___get__(stru
  * 
  *         def __set__(self, np.ndarray padding_right):             # <<<<<<<<<<<<<<
  *             self.padding_right = padding_right
- *             self.pos_padding = np.array((self.word_window_size / 2) * [padding_right])
+ *             self.pos_padding = np.array((self.word_window_size // 2) * [padding_right])
  */
 
 /* Python wrapper */
@@ -6423,7 +6431,7 @@ static int __pyx_pf_6nlpnet_7network_7Network_13padding_right_2__set__(struct __
  * 
  *         def __set__(self, np.ndarray padding_right):
  *             self.padding_right = padding_right             # <<<<<<<<<<<<<<
- *             self.pos_padding = np.array((self.word_window_size / 2) * [padding_right])
+ *             self.pos_padding = np.array((self.word_window_size // 2) * [padding_right])
  * 
  */
   __Pyx_INCREF(((PyObject *)__pyx_v_padding_right));
@@ -6435,7 +6443,7 @@ static int __pyx_pf_6nlpnet_7network_7Network_13padding_right_2__set__(struct __
   /* "nlpnet/network.pyx":270
  *         def __set__(self, np.ndarray padding_right):
  *             self.padding_right = padding_right
- *             self.pos_padding = np.array((self.word_window_size / 2) * [padding_right])             # <<<<<<<<<<<<<<
+ *             self.pos_padding = np.array((self.word_window_size // 2) * [padding_right])             # <<<<<<<<<<<<<<
  * 
  *     def tag_sentence(self, np.ndarray sentence):
  */
@@ -6444,7 +6452,7 @@ static int __pyx_pf_6nlpnet_7network_7Network_13padding_right_2__set__(struct __
   __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_array); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 270, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_2 = PyFloat_FromDouble((((double)__pyx_v_self->word_window_size) / 2.0)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 270, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyInt_From_long(__Pyx_div_long(__pyx_v_self->word_window_size, 2)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 270, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __pyx_t_4 = PyList_New(1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 270, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
@@ -6483,7 +6491,7 @@ static int __pyx_pf_6nlpnet_7network_7Network_13padding_right_2__set__(struct __
  * 
  *         def __set__(self, np.ndarray padding_right):             # <<<<<<<<<<<<<<
  *             self.padding_right = padding_right
- *             self.pos_padding = np.array((self.word_window_size / 2) * [padding_right])
+ *             self.pos_padding = np.array((self.word_window_size // 2) * [padding_right])
  */
 
   /* function exit code */
@@ -6504,7 +6512,7 @@ static int __pyx_pf_6nlpnet_7network_7Network_13padding_right_2__set__(struct __
 }
 
 /* "nlpnet/network.pyx":272
- *             self.pos_padding = np.array((self.word_window_size / 2) * [padding_right])
+ *             self.pos_padding = np.array((self.word_window_size // 2) * [padding_right])
  * 
  *     def tag_sentence(self, np.ndarray sentence):             # <<<<<<<<<<<<<<
  *         """
@@ -6598,7 +6606,7 @@ static PyObject *__pyx_pf_6nlpnet_7network_7Network_8tag_sentence(struct __pyx_o
   goto __pyx_L0;
 
   /* "nlpnet/network.pyx":272
- *             self.pos_padding = np.array((self.word_window_size / 2) * [padding_right])
+ *             self.pos_padding = np.array((self.word_window_size // 2) * [padding_right])
  * 
  *     def tag_sentence(self, np.ndarray sentence):             # <<<<<<<<<<<<<<
  *         """
@@ -22096,7 +22104,7 @@ static PyObject *__pyx_pf_6nlpnet_7network_20ConvolutionalNetwork_10_load_from_f
  *         nn.transitions = transitions if transitions.shape != () else None
  *         nn.padding_left = data['padding_left']             # <<<<<<<<<<<<<<
  *         nn.padding_right = data['padding_right']
- *         nn.pre_padding = np.array(int(nn.word_window_size / 2) * [nn.padding_left])
+ *         nn.pre_padding = np.array(int(nn.word_window_size // 2) * [nn.padding_left])
  */
   __pyx_t_1 = __Pyx_PyObject_Dict_GetItem(__pyx_v_data, __pyx_n_u_padding_left); if (unlikely(!__pyx_t_1)) __PYX_ERR(1, 223, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
@@ -22107,8 +22115,8 @@ static PyObject *__pyx_pf_6nlpnet_7network_20ConvolutionalNetwork_10_load_from_f
  *         nn.transitions = transitions if transitions.shape != () else None
  *         nn.padding_left = data['padding_left']
  *         nn.padding_right = data['padding_right']             # <<<<<<<<<<<<<<
- *         nn.pre_padding = np.array(int(nn.word_window_size / 2) * [nn.padding_left])
- *         nn.pos_padding = np.array(int(nn.word_window_size / 2) * [nn.padding_right])
+ *         nn.pre_padding = np.array(int(nn.word_window_size // 2) * [nn.padding_left])
+ *         nn.pos_padding = np.array(int(nn.word_window_size // 2) * [nn.padding_right])
  */
   __pyx_t_1 = __Pyx_PyObject_Dict_GetItem(__pyx_v_data, __pyx_n_u_padding_right); if (unlikely(!__pyx_t_1)) __PYX_ERR(1, 224, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
@@ -22118,8 +22126,8 @@ static PyObject *__pyx_pf_6nlpnet_7network_20ConvolutionalNetwork_10_load_from_f
   /* "networkconv.pyx":225
  *         nn.padding_left = data['padding_left']
  *         nn.padding_right = data['padding_right']
- *         nn.pre_padding = np.array(int(nn.word_window_size / 2) * [nn.padding_left])             # <<<<<<<<<<<<<<
- *         nn.pos_padding = np.array(int(nn.word_window_size / 2) * [nn.padding_right])
+ *         nn.pre_padding = np.array(int(nn.word_window_size // 2) * [nn.padding_left])             # <<<<<<<<<<<<<<
+ *         nn.pos_padding = np.array(int(nn.word_window_size // 2) * [nn.padding_right])
  *         nn.feature_tables = list(data['feature_tables'])
  */
   __Pyx_GetModuleGlobalName(__pyx_t_2, __pyx_n_s_np); if (unlikely(!__pyx_t_2)) __PYX_ERR(1, 225, __pyx_L1_error)
@@ -22129,7 +22137,7 @@ static PyObject *__pyx_pf_6nlpnet_7network_20ConvolutionalNetwork_10_load_from_f
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_nn, __pyx_n_s_word_window_size); if (unlikely(!__pyx_t_2)) __PYX_ERR(1, 225, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_5 = __Pyx_PyInt_TrueDivideObjC(__pyx_t_2, __pyx_int_2, 2, 0, 0); if (unlikely(!__pyx_t_5)) __PYX_ERR(1, 225, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_FloorDivideObjC(__pyx_t_2, __pyx_int_2, 2, 0, 0); if (unlikely(!__pyx_t_5)) __PYX_ERR(1, 225, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __pyx_t_2 = __Pyx_PyNumber_Int(__pyx_t_5); if (unlikely(!__pyx_t_2)) __PYX_ERR(1, 225, __pyx_L1_error)
@@ -22167,8 +22175,8 @@ static PyObject *__pyx_pf_6nlpnet_7network_20ConvolutionalNetwork_10_load_from_f
 
   /* "networkconv.pyx":226
  *         nn.padding_right = data['padding_right']
- *         nn.pre_padding = np.array(int(nn.word_window_size / 2) * [nn.padding_left])
- *         nn.pos_padding = np.array(int(nn.word_window_size / 2) * [nn.padding_right])             # <<<<<<<<<<<<<<
+ *         nn.pre_padding = np.array(int(nn.word_window_size // 2) * [nn.padding_left])
+ *         nn.pos_padding = np.array(int(nn.word_window_size // 2) * [nn.padding_right])             # <<<<<<<<<<<<<<
  *         nn.feature_tables = list(data['feature_tables'])
  *         nn.network_filename = filename
  */
@@ -22179,7 +22187,7 @@ static PyObject *__pyx_pf_6nlpnet_7network_20ConvolutionalNetwork_10_load_from_f
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_nn, __pyx_n_s_word_window_size); if (unlikely(!__pyx_t_4)) __PYX_ERR(1, 226, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_6 = __Pyx_PyInt_TrueDivideObjC(__pyx_t_4, __pyx_int_2, 2, 0, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(1, 226, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyInt_FloorDivideObjC(__pyx_t_4, __pyx_int_2, 2, 0, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(1, 226, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   __pyx_t_4 = __Pyx_PyNumber_Int(__pyx_t_6); if (unlikely(!__pyx_t_4)) __PYX_ERR(1, 226, __pyx_L1_error)
@@ -22216,8 +22224,8 @@ static PyObject *__pyx_pf_6nlpnet_7network_20ConvolutionalNetwork_10_load_from_f
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
   /* "networkconv.pyx":227
- *         nn.pre_padding = np.array(int(nn.word_window_size / 2) * [nn.padding_left])
- *         nn.pos_padding = np.array(int(nn.word_window_size / 2) * [nn.padding_right])
+ *         nn.pre_padding = np.array(int(nn.word_window_size // 2) * [nn.padding_left])
+ *         nn.pos_padding = np.array(int(nn.word_window_size // 2) * [nn.padding_right])
  *         nn.feature_tables = list(data['feature_tables'])             # <<<<<<<<<<<<<<
  *         nn.network_filename = filename
  * 
@@ -22231,7 +22239,7 @@ static PyObject *__pyx_pf_6nlpnet_7network_20ConvolutionalNetwork_10_load_from_f
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
 
   /* "networkconv.pyx":228
- *         nn.pos_padding = np.array(int(nn.word_window_size / 2) * [nn.padding_right])
+ *         nn.pos_padding = np.array(int(nn.word_window_size // 2) * [nn.padding_right])
  *         nn.feature_tables = list(data['feature_tables'])
  *         nn.network_filename = filename             # <<<<<<<<<<<<<<
  * 
@@ -22371,7 +22379,7 @@ static PyObject *__pyx_pf_6nlpnet_7network_20ConvolutionalNetwork_12load_from_fi
   /* "networkconv.pyx":244
  *         distance tables, and other feature tables.
  *         """
- *         data = np.load(filename, encoding='bytes')             # <<<<<<<<<<<<<<
+ *         data = np.load(filename, encoding='bytes', allow_pickle=True)             # <<<<<<<<<<<<<<
  *         return cls._load_from_file(data, filename)
  * 
  */
@@ -22385,9 +22393,10 @@ static PyObject *__pyx_pf_6nlpnet_7network_20ConvolutionalNetwork_12load_from_fi
   __Pyx_INCREF(__pyx_v_filename);
   __Pyx_GIVEREF(__pyx_v_filename);
   PyTuple_SET_ITEM(__pyx_t_1, 0, __pyx_v_filename);
-  __pyx_t_3 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(1, 244, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyDict_NewPresized(2); if (unlikely(!__pyx_t_3)) __PYX_ERR(1, 244, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   if (PyDict_SetItem(__pyx_t_3, __pyx_n_s_encoding, __pyx_n_u_bytes) < 0) __PYX_ERR(1, 244, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_3, __pyx_n_s_allow_pickle, Py_True) < 0) __PYX_ERR(1, 244, __pyx_L1_error)
   __pyx_t_4 = __Pyx_PyObject_Call(__pyx_t_2, __pyx_t_1, __pyx_t_3); if (unlikely(!__pyx_t_4)) __PYX_ERR(1, 244, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
@@ -22398,7 +22407,7 @@ static PyObject *__pyx_pf_6nlpnet_7network_20ConvolutionalNetwork_12load_from_fi
 
   /* "networkconv.pyx":245
  *         """
- *         data = np.load(filename, encoding='bytes')
+ *         data = np.load(filename, encoding='bytes', allow_pickle=True)
  *         return cls._load_from_file(data, filename)             # <<<<<<<<<<<<<<
  * 
  *     def _load_parameters(self):
@@ -60310,6 +60319,14 @@ static PyObject *__Pyx_PyObject_GetItem(PyObject *obj, PyObject* key) {
 }
 #endif
 
+/* None */
+    static CYTHON_INLINE long __Pyx_div_long(long a, long b) {
+    long q = a / b;
+    long r = a - q*b;
+    q -= ((r != 0) & ((r ^ b) < 0));
+    return q;
+}
+
 /* SliceObject */
     static CYTHON_INLINE PyObject* __Pyx_PyObject_GetSlice(PyObject* obj,
         Py_ssize_t cstart, Py_ssize_t cstop,
@@ -61569,14 +61586,6 @@ static CYTHON_INLINE void __Pyx_CyFunction_SetAnnotationsDict(PyObject *func, Py
     Py_INCREF(dict);
 }
 
-/* None */
-    static CYTHON_INLINE long __Pyx_div_long(long a, long b) {
-    long q = a / b;
-    long r = a - q*b;
-    q -= ((r != 0) & ((r ^ b) < 0));
-    return q;
-}
-
 /* PyFloatBinop */
     #if !CYTHON_COMPILING_IN_PYPY
 static PyObject* __Pyx_PyFloat_AddCObj(PyObject *op1, PyObject *op2, double floatval, int inplace, int zerodivision_check) {
@@ -61882,6 +61891,148 @@ static PyObject* __Pyx_PyInt_TrueDivideObjC(PyObject *op1, PyObject *op2, CYTHON
             return PyFloat_FromDouble(result);
     }
     return (inplace ? PyNumber_InPlaceTrueDivide : PyNumber_TrueDivide)(op1, op2);
+}
+#endif
+
+/* PyIntBinop */
+      #if !CYTHON_COMPILING_IN_PYPY
+#if PY_MAJOR_VERSION < 3 || CYTHON_USE_PYLONG_INTERNALS
+#define __Pyx_PyInt_FloorDivideObjC_ZeroDivisionError(operand)\
+    if (unlikely(zerodivision_check && ((operand) == 0))) {\
+        PyErr_SetString(PyExc_ZeroDivisionError, "integer division by zero");\
+        return NULL;\
+    }
+#endif
+static PyObject* __Pyx_PyInt_FloorDivideObjC(PyObject *op1, PyObject *op2, CYTHON_UNUSED long intval, int inplace, int zerodivision_check) {
+    (void)inplace;
+    (void)zerodivision_check;
+    #if PY_MAJOR_VERSION < 3
+    if (likely(PyInt_CheckExact(op1))) {
+        const long b = intval;
+        long x;
+        long a = PyInt_AS_LONG(op1);
+            __Pyx_PyInt_FloorDivideObjC_ZeroDivisionError(b)
+            if (unlikely(b == -1 && ((unsigned long)a) == 0-(unsigned long)a))
+                return PyInt_Type.tp_as_number->nb_floor_divide(op1, op2);
+            else {
+                long q, r;
+                q = a / b;
+                r = a - q*b;
+                q -= ((r != 0) & ((r ^ b) < 0));
+                x = q;
+            }
+            return PyInt_FromLong(x);
+    }
+    #endif
+    #if CYTHON_USE_PYLONG_INTERNALS
+    if (likely(PyLong_CheckExact(op1))) {
+        const long b = intval;
+        long a, x;
+#ifdef HAVE_LONG_LONG
+        const PY_LONG_LONG llb = intval;
+        PY_LONG_LONG lla, llx;
+#endif
+        const digit* digits = ((PyLongObject*)op1)->ob_digit;
+        const Py_ssize_t size = Py_SIZE(op1);
+        if (likely(__Pyx_sst_abs(size) <= 1)) {
+            a = likely(size) ? digits[0] : 0;
+            if (size == -1) a = -a;
+        } else {
+            switch (size) {
+                case -2:
+                    if (8 * sizeof(long) - 1 > 2 * PyLong_SHIFT) {
+                        a = -(long) (((((unsigned long)digits[1]) << PyLong_SHIFT) | (unsigned long)digits[0]));
+                        break;
+#ifdef HAVE_LONG_LONG
+                    } else if (8 * sizeof(PY_LONG_LONG) - 1 > 2 * PyLong_SHIFT) {
+                        lla = -(PY_LONG_LONG) (((((unsigned PY_LONG_LONG)digits[1]) << PyLong_SHIFT) | (unsigned PY_LONG_LONG)digits[0]));
+                        goto long_long;
+#endif
+                    }
+                    CYTHON_FALLTHROUGH;
+                case 2:
+                    if (8 * sizeof(long) - 1 > 2 * PyLong_SHIFT) {
+                        a = (long) (((((unsigned long)digits[1]) << PyLong_SHIFT) | (unsigned long)digits[0]));
+                        break;
+#ifdef HAVE_LONG_LONG
+                    } else if (8 * sizeof(PY_LONG_LONG) - 1 > 2 * PyLong_SHIFT) {
+                        lla = (PY_LONG_LONG) (((((unsigned PY_LONG_LONG)digits[1]) << PyLong_SHIFT) | (unsigned PY_LONG_LONG)digits[0]));
+                        goto long_long;
+#endif
+                    }
+                    CYTHON_FALLTHROUGH;
+                case -3:
+                    if (8 * sizeof(long) - 1 > 3 * PyLong_SHIFT) {
+                        a = -(long) (((((((unsigned long)digits[2]) << PyLong_SHIFT) | (unsigned long)digits[1]) << PyLong_SHIFT) | (unsigned long)digits[0]));
+                        break;
+#ifdef HAVE_LONG_LONG
+                    } else if (8 * sizeof(PY_LONG_LONG) - 1 > 3 * PyLong_SHIFT) {
+                        lla = -(PY_LONG_LONG) (((((((unsigned PY_LONG_LONG)digits[2]) << PyLong_SHIFT) | (unsigned PY_LONG_LONG)digits[1]) << PyLong_SHIFT) | (unsigned PY_LONG_LONG)digits[0]));
+                        goto long_long;
+#endif
+                    }
+                    CYTHON_FALLTHROUGH;
+                case 3:
+                    if (8 * sizeof(long) - 1 > 3 * PyLong_SHIFT) {
+                        a = (long) (((((((unsigned long)digits[2]) << PyLong_SHIFT) | (unsigned long)digits[1]) << PyLong_SHIFT) | (unsigned long)digits[0]));
+                        break;
+#ifdef HAVE_LONG_LONG
+                    } else if (8 * sizeof(PY_LONG_LONG) - 1 > 3 * PyLong_SHIFT) {
+                        lla = (PY_LONG_LONG) (((((((unsigned PY_LONG_LONG)digits[2]) << PyLong_SHIFT) | (unsigned PY_LONG_LONG)digits[1]) << PyLong_SHIFT) | (unsigned PY_LONG_LONG)digits[0]));
+                        goto long_long;
+#endif
+                    }
+                    CYTHON_FALLTHROUGH;
+                case -4:
+                    if (8 * sizeof(long) - 1 > 4 * PyLong_SHIFT) {
+                        a = -(long) (((((((((unsigned long)digits[3]) << PyLong_SHIFT) | (unsigned long)digits[2]) << PyLong_SHIFT) | (unsigned long)digits[1]) << PyLong_SHIFT) | (unsigned long)digits[0]));
+                        break;
+#ifdef HAVE_LONG_LONG
+                    } else if (8 * sizeof(PY_LONG_LONG) - 1 > 4 * PyLong_SHIFT) {
+                        lla = -(PY_LONG_LONG) (((((((((unsigned PY_LONG_LONG)digits[3]) << PyLong_SHIFT) | (unsigned PY_LONG_LONG)digits[2]) << PyLong_SHIFT) | (unsigned PY_LONG_LONG)digits[1]) << PyLong_SHIFT) | (unsigned PY_LONG_LONG)digits[0]));
+                        goto long_long;
+#endif
+                    }
+                    CYTHON_FALLTHROUGH;
+                case 4:
+                    if (8 * sizeof(long) - 1 > 4 * PyLong_SHIFT) {
+                        a = (long) (((((((((unsigned long)digits[3]) << PyLong_SHIFT) | (unsigned long)digits[2]) << PyLong_SHIFT) | (unsigned long)digits[1]) << PyLong_SHIFT) | (unsigned long)digits[0]));
+                        break;
+#ifdef HAVE_LONG_LONG
+                    } else if (8 * sizeof(PY_LONG_LONG) - 1 > 4 * PyLong_SHIFT) {
+                        lla = (PY_LONG_LONG) (((((((((unsigned PY_LONG_LONG)digits[3]) << PyLong_SHIFT) | (unsigned PY_LONG_LONG)digits[2]) << PyLong_SHIFT) | (unsigned PY_LONG_LONG)digits[1]) << PyLong_SHIFT) | (unsigned PY_LONG_LONG)digits[0]));
+                        goto long_long;
+#endif
+                    }
+                    CYTHON_FALLTHROUGH;
+                default: return PyLong_Type.tp_as_number->nb_floor_divide(op1, op2);
+            }
+        }
+                __Pyx_PyInt_FloorDivideObjC_ZeroDivisionError(b)
+                {
+                    long q, r;
+                    q = a / b;
+                    r = a - q*b;
+                    q -= ((r != 0) & ((r ^ b) < 0));
+                    x = q;
+                }
+            return PyLong_FromLong(x);
+#ifdef HAVE_LONG_LONG
+        long_long:
+                {
+                    PY_LONG_LONG q, r;
+                    q = lla / llb;
+                    r = lla - q*llb;
+                    q -= ((r != 0) & ((r ^ llb) < 0));
+                    llx = q;
+                }
+            return PyLong_FromLongLong(llx);
+#endif
+        
+        
+    }
+    #endif
+    return (inplace ? PyNumber_InPlaceFloorDivide : PyNumber_FloorDivide)(op1, op2);
 }
 #endif
 

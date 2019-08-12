@@ -222,8 +222,8 @@ Output size: %d
         nn.transitions = transitions if transitions.shape != () else None
         nn.padding_left = data['padding_left']
         nn.padding_right = data['padding_right']
-        nn.pre_padding = np.array(int(nn.word_window_size / 2) * [nn.padding_left])
-        nn.pos_padding = np.array(int(nn.word_window_size / 2) * [nn.padding_right])
+        nn.pre_padding = np.array(int(nn.word_window_size // 2) * [nn.padding_left])
+        nn.pos_padding = np.array(int(nn.word_window_size // 2) * [nn.padding_right])
         nn.feature_tables = list(data['feature_tables'])
         nn.network_filename = filename
         
@@ -241,7 +241,7 @@ Output size: %d
         It will load weights, biases, sizes, padding and 
         distance tables, and other feature tables.
         """
-        data = np.load(filename, encoding='bytes')
+        data = np.load(filename, encoding='bytes', allow_pickle=True)
         return cls._load_from_file(data, filename)
     
     def _load_parameters(self):
