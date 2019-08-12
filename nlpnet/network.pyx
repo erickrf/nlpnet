@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 #cython: embedsignature=True
 #cython: profile=True
+#cython: language_level=3
 
 """
 A neural network for NLP tagging tasks.
@@ -855,7 +856,7 @@ Output size: %d
             tables = [tables_group[key].value for key in keys]
         else:
             is_hdf5 = False
-            data = np.load(filename, encoding='bytes')
+            data = np.load(filename, encoding='bytes', allow_pickle=True)
             data_fn = lambda x: x
             tables = list(data['feature_tables'])
         
@@ -881,8 +882,8 @@ Output size: %d
         
         nn.padding_left = data_fn(data['padding_left'])
         nn.padding_right = data_fn(data['padding_right'])
-        nn.pre_padding = np.array((nn.word_window_size / 2) * [nn.padding_left])
-        nn.pos_padding = np.array((nn.word_window_size / 2) * [nn.padding_right])
+        nn.pre_padding = np.array((nn.word_window_size // 2) * [nn.padding_left])
+        nn.pos_padding = np.array((nn.word_window_size // 2) * [nn.padding_right])
         nn.feature_tables = tables
         nn.network_filename = filename
         if 'dropout' in data:
