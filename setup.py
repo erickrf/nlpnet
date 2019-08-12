@@ -32,7 +32,7 @@ setup(
         'h5py>=2.8.0rc1'
     ],
     license='MIT',
-    version='1.2.3',
+    version='1.2.4',
     author='Erick Fonseca',
     author_email='erickrfonseca@gmail.com',
     url='http://nilc.icmc.usp.br/nlpnet',
