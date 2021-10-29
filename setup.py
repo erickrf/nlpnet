@@ -1,6 +1,13 @@
-import numpy as np
-from setuptools import setup
-from setuptools import Extension
+from setuptools import Extension, setup
+
+
+class get_numpy_include(object):
+    """Returns Numpy's include path with lazy import."""
+
+    def __str__(self):
+        import numpy
+
+        return numpy.get_include()
 
 
 def readme():
@@ -16,7 +23,7 @@ setup(
         Extension(
             "nlpnet.network",
             ["nlpnet/network.c"],
-            include_dirs=['.', np.get_include()]
+            include_dirs=[".", get_numpy_include()],
         )
     ],
     scripts=[
